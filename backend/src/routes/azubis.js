@@ -96,13 +96,12 @@ router.get('/by-department', (req, res) => {
     `).all(today, today)
 
     const activeSchoolBlocksWithAzubis = activeSchoolBlocks.map(block => {
+      const excluded = busyAzubiIds.size > 0 ? `AND a.id NOT IN (${[...busyAzubiIds].join(',')})` : ''
       const azubis = db.prepare(`
-        SELECT a.id, a.name, a.lehrjahr
-        FROM school_block_azubis sba
+        SELECT a.id, a.name, a.lehrjahr FROM school_block_azubis sba
         JOIN azubis a ON sba.azubi_id = a.id
-        WHERE sba.block_id = ? AND a.active = 1
-          AND a.id NOT IN (${busyAzubiIds.size > 0 ? [...busyAzubiIds].join(',') : 0})
-        ORDER BY a.name ASC
+        WHERE sba.block_id = ? AND a.active = 1 ${excluded}
+        ORDER BY a.lehrjahr, a.name ASC
       `).all(block.id)
       azubis.forEach(a => schoolBusyIds.add(a.id))
       return { ...block, azubis }

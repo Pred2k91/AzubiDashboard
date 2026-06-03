@@ -83,6 +83,7 @@ function initDb() {
       school_id INTEGER NOT NULL REFERENCES vocational_schools(id) ON DELETE CASCADE,
       start_date TEXT NOT NULL,
       end_date TEXT NOT NULL,
+      lehrjahre TEXT DEFAULT '[]',
       notes TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now'))
     );
@@ -124,6 +125,9 @@ function initDb() {
       ('refresh_interval', '300000'),
       ('widgets_enabled', '{"clock":true,"calendar":true,"todos":true,"departments":true,"notes":true}');
   `)
+
+  // Migration: lehrjahre-Spalte hinzufügen falls nicht vorhanden
+  try { db.exec("ALTER TABLE school_blocks ADD COLUMN lehrjahre TEXT DEFAULT '[]'") } catch (_) {}
 
   console.log('Database initialized at:', DB_PATH)
 }

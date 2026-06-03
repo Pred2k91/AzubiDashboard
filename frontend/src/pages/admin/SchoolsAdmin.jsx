@@ -9,13 +9,14 @@ import { schoolsApi, azubisApi } from '../../api/client'
 const COLORS = ['#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#64748b']
 const SCHOOL_EMPTY = { name: '', color: '#06b6d4', location: '' }
 const BLOCK_EMPTY = { start_date: '', end_date: '', notes: '', azubi_ids: [] }
+const ALL_LEHRJAHRE = [1, 2, 3, 4]
 
 export default function SchoolsAdmin() {
   const [schools, setSchools] = useState([])
-  const [blocks, setBlocks] = useState({})
-  const [expanded, setExpanded] = useState({})
   const [allAzubis, setAllAzubis] = useState([])
   const [azubiSearch, setAzubiSearch] = useState('')
+  const [blocks, setBlocks] = useState({})
+  const [expanded, setExpanded] = useState({})
 
   const [schoolModal, setSchoolModal] = useState(false)
   const [blockModal, setBlockModal] = useState(false)
@@ -27,6 +28,31 @@ export default function SchoolsAdmin() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const toggleAzubi = (id) => setBlockForm(f => ({
+    ...f,
+    azubi_ids: f.azubi_ids.includes(id) ? f.azubi_ids.filter(i => i !== id) : [...f.azubi_ids, id]
+  }))
+
+  const selectLehrjahr = (j) => {
+    const ids = allAzubis.filter(a => a.lehrjahr === j).map(a => a.id)
+    const allSelected = ids.every(id => blockForm.azubi_ids.includes(id))
+    setBlockForm(f => ({
+      ...f,
+      azubi_ids: allSelected
+        ? f.azubi_ids.filter(id => !ids.includes(id))
+        : [...new Set([...f.azubi_ids, ...ids])]
+    }))
+  }
+
+  const lehrjahrStatus = (j) => {
+    const ids = allAzubis.filter(a => a.lehrjahr === j).map(a => a.id)
+    if (!ids.length) return 'empty'
+    const selected = ids.filter(id => blockForm.azubi_ids.includes(id))
+    if (selected.length === ids.length) return 'all'
+    if (selected.length > 0) return 'partial'
+    return 'none'
+  }
 
   useEffect(() => {
     loadSchools()
@@ -79,6 +105,7 @@ export default function SchoolsAdmin() {
 
   const saveBlock = async () => {
     if (!blockForm.start_date || !blockForm.end_date) { setError('Start- und Enddatum erforderlich'); return }
+    if (!blockForm.azubi_ids.length) { setError('Mindestens einen Azubi auswählen'); return }
     setLoading(true); setError('')
     try {
       if (editingBlock) await schoolsApi.updateBlock(editingBlock.id, blockForm)
@@ -88,11 +115,6 @@ export default function SchoolsAdmin() {
     } catch (err) { setError(err.response?.data?.error || 'Fehler') }
     finally { setLoading(false) }
   }
-
-  const toggleAzubi = (id) => setBlockForm(f => ({
-    ...f,
-    azubi_ids: f.azubi_ids.includes(id) ? f.azubi_ids.filter(i => i !== id) : [...f.azubi_ids, id]
-  }))
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -188,15 +210,16 @@ export default function SchoolsAdmin() {
                           </td>
                           <td>
                             <div className="flex items-center gap-1 flex-wrap">
-                              {block.azubis.slice(0, 4).map(a => (
-                                <span key={a.id} className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${school.color}20`, color: school.color }}>
+                              {block.azubis?.slice(0, 3).map(a => (
+                                <span key={a.id} className="text-[10px] px-1.5 py-0.5 rounded-full"
+                                  style={{ backgroundColor: `${school.color}20`, color: school.color }}>
                                   {a.name.split(' ')[0]}
                                 </span>
                               ))}
-                              {block.azubis.length > 4 && (
-                                <span className="text-xs text-slate-500">+{block.azubis.length - 4}</span>
+                              {(block.azubis?.length || 0) > 3 && (
+                                <span className="text-xs text-slate-500">+{block.azubis.length - 3} weitere</span>
                               )}
-                              {block.azubis.length === 0 && <span className="text-slate-600 text-xs">—</span>}
+                              {!block.azubis?.length && <span className="text-slate-600 text-xs">—</span>}
                             </div>
                           </td>
                           <td className="text-sm text-slate-500">{block.notes || '—'}</td>
@@ -267,21 +290,43 @@ export default function SchoolsAdmin() {
               <Users size={12} /> Azubis
               {blockForm.azubi_ids.length > 0 && <span className="text-indigo-400 ml-1">({blockForm.azubi_ids.length} ausgewählt)</span>}
             </label>
-            <div className="relative mb-2">
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600" />
-              <input className="input-field pl-7 text-xs py-1.5" placeholder="Azubi suchen..." value={azubiSearch} onChange={e => setAzubiSearch(e.target.value)} />
+            {/* Schnellauswahl */}
+            <p className="text-xs text-slate-500 mb-2">Schnellauswahl per Lehrjahr — danach einzeln anpassen:</p>
+            <div className="flex gap-2 mb-3">
+              {ALL_LEHRJAHRE.filter(j => allAzubis.some(a => a.lehrjahr === j)).map(j => {
+                const status = lehrjahrStatus(j)
+                const count = allAzubis.filter(a => a.lehrjahr === j).length
+                return (
+                  <button key={j} type="button" onClick={() => selectLehrjahr(j)}
+                    className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition-all ${
+                      status === 'all' ? 'border-indigo-500 bg-indigo-600/20 text-indigo-300'
+                      : status === 'partial' ? 'border-indigo-500/50 bg-indigo-600/10 text-indigo-400'
+                      : 'border-[#2a2d4a] text-slate-500 hover:border-[#3a3d5a] hover:text-slate-300'
+                    }`}>
+                    {j}. Lj.<br/><span className="text-[10px] opacity-70">{count} Azubis</span>
+                  </button>
+                )
+              })}
             </div>
-            <div className="max-h-48 overflow-y-auto border border-[#2a2d4a] rounded-lg divide-y divide-[#2a2d4a]/50">
-              {filteredAzubis.map(a => (
+            {/* Individuelle Liste */}
+            <div className="relative mb-1.5">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600" />
+              <input className="input-field pl-7 text-xs py-1.5" placeholder="Azubi suchen..."
+                value={azubiSearch} onChange={e => setAzubiSearch(e.target.value)} />
+            </div>
+            <div className="max-h-44 overflow-y-auto border border-[#2a2d4a] rounded-lg divide-y divide-[#2a2d4a]/50">
+              {allAzubis.filter(a => a.name.toLowerCase().includes(azubiSearch.toLowerCase())).map(a => (
                 <label key={a.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-[#1e2035] cursor-pointer">
-                  <input type="checkbox" className="accent-indigo-600" checked={blockForm.azubi_ids.includes(a.id)} onChange={() => toggleAzubi(a.id)} />
+                  <input type="checkbox" className="accent-indigo-600"
+                    checked={blockForm.azubi_ids.includes(a.id)} onChange={() => toggleAzubi(a.id)} />
                   <span className="text-sm text-slate-300 flex-1">{a.name}</span>
-                  <span className="text-xs text-slate-600">{a.lehrjahr}. Lj.</span>
+                  <span className="text-xs text-slate-500">{a.lehrjahr}. Lj.</span>
                 </label>
               ))}
             </div>
             {blockForm.azubi_ids.length > 0 && (
-              <button className="mt-1.5 text-xs text-slate-600 hover:text-slate-400" onClick={() => setBlockForm(f => ({ ...f, azubi_ids: [] }))}>
+              <button className="mt-1.5 text-xs text-slate-600 hover:text-slate-400"
+                onClick={() => setBlockForm(f => ({ ...f, azubi_ids: [] }))}>
                 Alle abwählen
               </button>
             )}
