@@ -54,32 +54,60 @@ router.get('/by-department', (req, res) => {
   try {
     const db = getDb()
     syncLehrjahre(db)
+
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+    // Active events that have azubis assigned
+    const activeEvents = db.prepare(`
+      SELECT ce.id, ce.title, ce.color, ce.start_datetime, ce.end_datetime
+      FROM calendar_events ce
+      WHERE ce.start_datetime <= ? AND ce.end_datetime >= ?
+        AND EXISTS (SELECT 1 FROM event_azubis ea WHERE ea.event_id = ce.id)
+      ORDER BY ce.start_datetime ASC
+    `).all(now, now)
+
+    // Collect azubi IDs in active events
+    const busyAzubiIds = new Set()
+    const activeEventsWithAzubis = activeEvents.map(event => {
+      const azubis = db.prepare(`
+        SELECT a.id, a.name, a.lehrjahr
+        FROM event_azubis ea
+        JOIN azubis a ON ea.azubi_id = a.id
+        WHERE ea.event_id = ? AND a.active = 1
+        ORDER BY a.name ASC
+      `).all(event.id)
+      azubis.forEach(a => busyAzubiIds.add(a.id))
+      return { ...event, azubis }
+    })
+
+    const busyList = busyAzubiIds.size > 0
+      ? `AND a.id NOT IN (${[...busyAzubiIds].join(',')})`
+      : ''
+
     const departments = db.prepare(`
       SELECT d.id, d.name, d.color, d.location,
-        json_group_array(json_object(
-          'id', a.id,
-          'name', a.name,
-          'lehrjahr', a.lehrjahr
-        )) as azubis
+        json_group_array(json_object('id', a.id, 'name', a.name, 'lehrjahr', a.lehrjahr)) as azubis
       FROM departments d
-      LEFT JOIN azubis a ON a.current_department_id = d.id AND a.active = 1
+      LEFT JOIN azubis a ON a.current_department_id = d.id AND a.active = 1 ${busyList}
       GROUP BY d.id
       ORDER BY d.name ASC
     `).all()
 
-    // Also get azubis without department
     const unassigned = db.prepare(`
       SELECT id, name, lehrjahr FROM azubis
       WHERE current_department_id IS NULL AND active = 1
+      ${busyList}
       ORDER BY name ASC
     `).all()
 
-    const result = departments.map(d => ({
-      ...d,
-      azubis: JSON.parse(d.azubis).filter(a => a.id !== null)
-    }))
-
-    res.json({ departments: result, unassigned })
+    res.json({
+      departments: departments.map(d => ({
+        ...d,
+        azubis: JSON.parse(d.azubis).filter(a => a.id !== null)
+      })),
+      unassigned,
+      active_events: activeEventsWithAzubis,
+    })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

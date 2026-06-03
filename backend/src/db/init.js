@@ -70,6 +70,13 @@ function initDb() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS event_azubis (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL REFERENCES calendar_events(id) ON DELETE CASCADE,
+      azubi_id INTEGER NOT NULL REFERENCES azubis(id) ON DELETE CASCADE,
+      UNIQUE(event_id, azubi_id)
+    );
+
     CREATE TABLE IF NOT EXISTS rotations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       azubi_id INTEGER NOT NULL REFERENCES azubis(id) ON DELETE CASCADE,

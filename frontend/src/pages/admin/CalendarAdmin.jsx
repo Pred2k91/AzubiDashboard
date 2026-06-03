@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, CalendarDays } from 'lucide-react'
+import { Plus, Pencil, Trash2, CalendarDays, Users, Search, X } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
-import { calendarApi } from '../../api/client'
+import { calendarApi, azubisApi } from '../../api/client'
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6']
 
-const EMPTY = { title: '', description: '', start_datetime: '', end_datetime: '', all_day: false, color: '#6366f1' }
+const EMPTY = { title: '', description: '', start_datetime: '', end_datetime: '', all_day: false, color: '#6366f1', azubi_ids: [] }
 
 export default function CalendarAdmin() {
   const [events, setEvents] = useState([])
+  const [allAzubis, setAllAzubis] = useState([])
+  const [azubiSearch, setAzubiSearch] = useState('')
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(EMPTY)
@@ -20,9 +22,12 @@ export default function CalendarAdmin() {
 
   const load = () => calendarApi.getAll().then(setEvents).catch(() => {})
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    azubisApi.getAll().then(setAllAzubis).catch(() => {})
+  }, [])
 
-  const openNew = () => { setEditing(null); setForm(EMPTY); setModal(true) }
+  const openNew = () => { setEditing(null); setForm(EMPTY); setAzubiSearch(''); setModal(true) }
   const openEdit = (e) => {
     setEditing(e)
     setForm({
@@ -32,8 +37,19 @@ export default function CalendarAdmin() {
       end_datetime: e.end_datetime.slice(0, 16),
       all_day: !!e.all_day,
       color: e.color || '#6366f1',
+      azubi_ids: e.azubi_ids || [],
     })
+    setAzubiSearch('')
     setModal(true)
+  }
+
+  const toggleAzubi = (id) => {
+    setForm(f => ({
+      ...f,
+      azubi_ids: f.azubi_ids.includes(id)
+        ? f.azubi_ids.filter(i => i !== id)
+        : [...f.azubi_ids, id]
+    }))
   }
 
   const handleSave = async () => {
@@ -102,7 +118,13 @@ export default function CalendarAdmin() {
                     <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: e.color }} />
                     <span className="font-medium text-white">{e.title}</span>
                   </div>
-                  {e.description && <div className="text-xs text-slate-600 mt-0.5 truncate max-w-xs">{e.description}</div>}
+                  {e.description && <div className="text-xs text-slate-500 mt-0.5 truncate max-w-xs">{e.description}</div>}
+                  {e.azubis?.length > 0 && (
+                    <div className="flex items-center gap-1 mt-1 text-xs text-slate-500">
+                      <Users size={10} />
+                      {e.azubis.map(a => a.name).join(', ')}
+                    </div>
+                  )}
                 </td>
                 <td className="text-sm">{format(parseISO(e.start_datetime), 'dd.MM.yyyy HH:mm')}</td>
                 <td className="text-sm">{format(parseISO(e.end_datetime), 'dd.MM.yyyy HH:mm')}</td>
@@ -190,6 +212,50 @@ export default function CalendarAdmin() {
               Ganztag
             </label>
           </div>
+          {/* Azubi-Auswahl */}
+          <div>
+            <label className="label flex items-center gap-1">
+              <Users size={12} />
+              Azubis bei diesem Termin
+              {form.azubi_ids.length > 0 && (
+                <span className="ml-1 text-indigo-400">({form.azubi_ids.length} ausgewählt)</span>
+              )}
+            </label>
+            <div className="relative mb-2">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600" />
+              <input
+                className="input-field pl-7 text-xs py-1.5"
+                placeholder="Azubi suchen..."
+                value={azubiSearch}
+                onChange={e => setAzubiSearch(e.target.value)}
+              />
+            </div>
+            <div className="max-h-40 overflow-y-auto border border-[#2a2d4a] rounded-lg divide-y divide-[#2a2d4a]/50">
+              {allAzubis
+                .filter(a => a.name.toLowerCase().includes(azubiSearch.toLowerCase()))
+                .map(a => (
+                  <label key={a.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-[#1e2035] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="accent-indigo-600"
+                      checked={form.azubi_ids.includes(a.id)}
+                      onChange={() => toggleAzubi(a.id)}
+                    />
+                    <span className="text-sm text-slate-300 flex-1">{a.name}</span>
+                    <span className="text-xs text-slate-600">{a.lehrjahr}. Lj.</span>
+                  </label>
+                ))}
+            </div>
+            {form.azubi_ids.length > 0 && (
+              <button
+                className="mt-1.5 text-xs text-slate-600 hover:text-slate-400"
+                onClick={() => setForm(f => ({ ...f, azubi_ids: [] }))}
+              >
+                Alle abwählen
+              </button>
+            )}
+          </div>
+
           <div className="flex justify-end gap-3 pt-2">
             <button className="btn-secondary" onClick={() => setModal(false)}>Abbrechen</button>
             <button className="btn-primary" onClick={handleSave} disabled={loading}>

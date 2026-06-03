@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Building2, Users, MapPin } from 'lucide-react'
+import { Building2, Users, MapPin, CalendarDays } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
+import { de } from 'date-fns/locale'
 import { azubisApi } from '../../api/client'
 
 export default function DepartmentWidget() {
-  const [data, setData] = useState({ departments: [], unassigned: [] })
+  const [data, setData] = useState({ departments: [], unassigned: [], active_events: [] })
 
   const load = () => azubisApi.getByDepartment().then(setData).catch(() => {})
 
@@ -13,7 +15,9 @@ export default function DepartmentWidget() {
     return () => clearInterval(interval)
   }, [])
 
-  const active = data.departments.filter(d => d.azubis.length > 0)
+  const activeDepts = data.departments.filter(d => d.azubis.length > 0)
+  const totalVisible = data.departments.reduce((s, d) => s + d.azubis.length, 0) + data.unassigned.length
+  const totalInEvents = (data.active_events || []).reduce((s, e) => s + e.azubis.length, 0)
 
   return (
     <div className="widget-card">
@@ -22,20 +26,59 @@ export default function DepartmentWidget() {
           <Building2 size={14} className="text-indigo-400" />
           <span className="widget-title">Abteilungsübersicht</span>
         </div>
-        <span className="text-xs text-slate-600 bg-[#1e2035] px-2 py-0.5 rounded-full flex items-center gap-1">
+        <span className="text-xs text-slate-500 bg-[#1e2035]/60 px-2 py-0.5 rounded-full flex items-center gap-1">
           <Users size={10} />
-          {data.departments.reduce((s, d) => s + d.azubis.length, 0) + data.unassigned.length}
+          {totalVisible + totalInEvents}
         </span>
       </div>
       <div className="widget-body">
-        {active.length === 0 && data.unassigned.length === 0 ? (
+        {activeDepts.length === 0 && data.unassigned.length === 0 && (data.active_events || []).length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-slate-600">
             <Building2 size={24} className="mb-2 opacity-30" />
             <span className="text-sm">Keine Azubis eingepflegt</span>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
-            {active.map(dept => (
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+
+            {/* Aktive Termin-Karten */}
+            {(data.active_events || []).map(event => (
+              <div
+                key={`event-${event.id}`}
+                className="p-3 rounded-xl border bg-[#1e2035]/50 transition-all hover:bg-[#1e2035]"
+                style={{ borderColor: `${event.color}60`, borderStyle: 'dashed' }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <CalendarDays size={12} style={{ color: event.color }} className="shrink-0" />
+                  <span className="text-xs font-bold text-white truncate">{event.title}</span>
+                  <span
+                    className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
+                    style={{ backgroundColor: `${event.color}20`, color: event.color }}
+                  >
+                    {event.azubis.length}
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-500 mb-2 flex items-center gap-1">
+                  <span>bis {format(parseISO(event.end_datetime), 'dd.MM. HH:mm', { locale: de })}</span>
+                </div>
+                <div className="space-y-1">
+                  {event.azubis.map(a => (
+                    <div key={a.id} className="flex items-center gap-2">
+                      <div
+                        className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
+                        style={{ backgroundColor: `${event.color}25`, color: event.color }}
+                      >
+                        {a.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-xs text-slate-300 truncate">{a.name}</span>
+                      <span className="ml-auto text-[9px] text-slate-500 shrink-0">{a.lehrjahr}. Lj.</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {/* Normale Abteilungen */}
+            {activeDepts.map(dept => (
               <div
                 key={dept.id}
                 className="p-3 rounded-xl border bg-[#1e2035]/50 transition-all hover:bg-[#1e2035]"
@@ -73,6 +116,8 @@ export default function DepartmentWidget() {
                 </div>
               </div>
             ))}
+
+            {/* Nicht zugewiesen */}
             {data.unassigned.length > 0 && (
               <div className="p-3 rounded-xl border border-[#2a2d4a] bg-[#1e2035]/30">
                 <div className="flex items-center gap-2 mb-2">
