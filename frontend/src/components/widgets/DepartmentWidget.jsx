@@ -52,18 +52,8 @@ export default function DepartmentWidget() {
         </span>
       </div>
 
-      <div className="relative flex-1 overflow-hidden">
-        {hasMore && (
-          <div className="absolute bottom-0 left-0 right-0 h-12 pointer-events-none z-10"
-            style={{ background: 'linear-gradient(to bottom, transparent, rgba(14,16,26,0.9))' }}>
-            <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-0.5">
-              <div className="w-1 h-1 rounded-full bg-slate-600 animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-1 h-1 rounded-full bg-slate-600 animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-1 h-1 rounded-full bg-slate-600 animate-bounce" style={{ animationDelay: '300ms' }} />
-            </div>
-          </div>
-        )}
-      <div ref={bodyRef} className="widget-body space-y-3">
+      <div className="flex-1 relative overflow-hidden flex flex-col min-h-0">
+        <div ref={bodyRef} className="flex-1 overflow-y-auto p-4 space-y-3" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
         {!hasContent ? (
           <div className="flex flex-col items-center justify-center py-8 text-slate-600">
             <Building2 size={24} className="mb-2 opacity-30" />
@@ -232,7 +222,17 @@ export default function DepartmentWidget() {
             )}
           </>
         )}
-      </div>
+        </div>
+        {hasMore && (
+          <div className="absolute bottom-0 left-0 right-0 h-10 pointer-events-none"
+            style={{ background: 'linear-gradient(to bottom, transparent, rgba(14,16,26,0.85))' }}>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+              <div className="w-1 h-1 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-1 h-1 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="w-1 h-1 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

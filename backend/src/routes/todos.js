@@ -8,9 +8,9 @@ router.get('/', (req, res) => {
     const { status } = req.query
     let todos
     if (status) {
-      todos = db.prepare('SELECT * FROM todos WHERE status = ? ORDER BY priority DESC, due_date ASC, created_at DESC').all(status)
+      todos = db.prepare('SELECT * FROM todos WHERE status = ? ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC, due_date ASC, created_at DESC').all(status)
     } else {
-      todos = db.prepare('SELECT * FROM todos ORDER BY priority DESC, due_date ASC, created_at DESC').all()
+      todos = db.prepare('SELECT * FROM todos ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC, due_date ASC, created_at DESC').all()
     }
     res.json(todos)
   } catch (err) {
