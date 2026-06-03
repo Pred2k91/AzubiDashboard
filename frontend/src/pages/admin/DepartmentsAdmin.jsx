@@ -4,7 +4,13 @@ import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { departmentsApi, azubisApi } from '../../api/client'
 
-const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#84cc16', '#f97316']
+const COLORS = [
+  '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899',
+  '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
+  '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9',
+  '#3b82f6', '#6366f1', '#64748b', '#f43f5e', '#2dd4bf',
+  '#fb923c', '#4ade80', '#38bdf8', '#c084fc',
+]
 const EMPTY = { name: '', color: '#6366f1', description: '', location: '' }
 
 export default function DepartmentsAdmin() {
@@ -132,7 +138,7 @@ export default function DepartmentsAdmin() {
             <label className="label">Farbe</label>
             <div className="flex gap-2 flex-wrap">
               {COLORS.map(c => (
-                <button key={c} onClick={() => setForm(f => ({ ...f, color: c }))} className={`w-7 h-7 rounded-lg border-2 transition-all ${form.color === c ? 'border-white scale-110' : 'border-transparent'}`} style={{ backgroundColor: c }} />
+                <button key={c} onClick={() => setForm(f => ({ ...f, color: c }))} className={`w-6 h-6 rounded-md border-2 transition-all ${form.color === c ? 'border-white scale-125' : 'border-transparent hover:scale-110'}`} style={{ backgroundColor: c }} />
               ))}
             </div>
           </div>
