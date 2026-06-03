@@ -45,50 +45,6 @@ export default function DepartmentWidget() {
           </div>
         ) : (
           <>
-            {/* Berufsschul-Karten */}
-            {activeSchools.length > 0 && (
-              <>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-px bg-[#2a2d4a]" />
-                  <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    <GraduationCap size={10} />
-                    Berufsschule
-                  </span>
-                  <div className="flex-1 h-px bg-[#2a2d4a]" />
-                </div>
-                <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
-                  {activeSchools.map(block => (
-                    <div key={`school-${block.id}`} className="p-3 rounded-xl border bg-[#1e2035]/50 transition-all hover:bg-[#1e2035]"
-                      style={{ borderColor: `${block.color}50`, borderStyle: 'dashed' }}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <GraduationCap size={12} style={{ color: block.color }} className="shrink-0" />
-                        <span className="text-xs font-bold text-white truncate">{block.school_name}</span>
-                        <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
-                          style={{ backgroundColor: `${block.color}20`, color: block.color }}>
-                          {block.azubis.length}
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-slate-500 mb-2">
-                        bis {format(parseISO(block.end_date), 'dd.MM.yyyy', { locale: de })}
-                      </div>
-                      <div className="space-y-1">
-                        {block.azubis.map(a => (
-                          <div key={a.id} className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
-                              style={{ backgroundColor: `${block.color}25`, color: block.color }}>
-                              {a.name.charAt(0).toUpperCase()}
-                            </div>
-                            <span className="text-xs text-slate-300 truncate">{a.name}</span>
-                            <span className="ml-auto text-[9px] text-slate-400 shrink-0">{a.lehrjahr}. Lj.</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
             {/* Normale Abteilungen */}
             <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
               {activeDepts.map(dept => (
@@ -152,6 +108,50 @@ export default function DepartmentWidget() {
                 </div>
               )}
             </div>
+
+            {/* Berufsschul-Karten */}
+            {activeSchools.length > 0 && (
+              <>
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="flex-1 h-px bg-[#2a2d4a]" />
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                    <GraduationCap size={10} />
+                    Berufsschule
+                  </span>
+                  <div className="flex-1 h-px bg-[#2a2d4a]" />
+                </div>
+                <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+                  {activeSchools.map(block => (
+                    <div key={`school-${block.id}`} className="p-3 rounded-xl border bg-[#1e2035]/50 transition-all hover:bg-[#1e2035]"
+                      style={{ borderColor: `${block.color}50`, borderStyle: 'dashed' }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <GraduationCap size={12} style={{ color: block.color }} className="shrink-0" />
+                        <span className="text-xs font-bold text-white truncate">{block.school_name}</span>
+                        <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
+                          style={{ backgroundColor: `${block.color}20`, color: block.color }}>
+                          {block.azubis.length}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mb-2">
+                        bis {format(parseISO(block.end_date), 'dd.MM.yyyy', { locale: de })}
+                      </div>
+                      <div className="space-y-1">
+                        {block.azubis.map(a => (
+                          <div key={a.id} className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
+                              style={{ backgroundColor: `${block.color}25`, color: block.color }}>
+                              {a.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-xs text-slate-300 truncate">{a.name}</span>
+                            <span className="ml-auto text-[9px] text-slate-400 shrink-0">{a.lehrjahr}. Lj.</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* Trennlinie + Termin-Karten */}
             {activeEvents.length > 0 && (
