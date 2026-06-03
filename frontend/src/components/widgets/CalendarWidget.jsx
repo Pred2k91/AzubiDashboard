@@ -61,7 +61,7 @@ export default function CalendarWidget() {
       <div className="widget-body p-2">
         <div className="grid grid-cols-7 mb-1">
           {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(d => (
-            <div key={d} className="text-center text-[10px] font-semibold text-slate-600 py-1">{d}</div>
+            <div key={d} className="text-center text-[10px] font-semibold text-slate-500 py-1">{d}</div>
           ))}
         </div>
         <div className="grid grid-cols-7 gap-px">
@@ -107,13 +107,13 @@ export default function CalendarWidget() {
               .map(e => (
                 <div key={e.id} className="flex items-start gap-2 text-xs text-slate-400">
                   <div className="w-1.5 h-1.5 rounded-full shrink-0 mt-1" style={{ backgroundColor: e.color || '#6366f1' }} />
-                  <span className="text-slate-500 shrink-0 mt-0.5">
+                  <span className="text-slate-400 shrink-0 mt-0.5">
                     {format(parseISO(e.start_datetime), 'dd.MM')}
                   </span>
                   <span className="truncate">
                     <span className="text-slate-300">{e.title}</span>
                     {e.description && (
-                      <span className="text-slate-500"> · {e.description}</span>
+                      <span className="text-slate-400"> · {e.description}</span>
                     )}
                   </span>
                 </div>

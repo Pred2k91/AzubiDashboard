@@ -64,7 +64,7 @@ export default function TodoWidget() {
                 <div className="mt-0.5 shrink-0">
                   {todo.status === 'in_progress'
                     ? <Clock size={15} className="text-indigo-400" />
-                    : <Circle size={15} className="text-slate-600 group-hover:text-indigo-400 transition-colors" />
+                    : <Circle size={15} className="text-slate-500 group-hover:text-indigo-400 transition-colors" />
                   }
                 </div>
                 <div className="flex-1 min-w-0">
@@ -75,7 +75,7 @@ export default function TodoWidget() {
                     </span>
                   </div>
                   {todo.due_date && (
-                    <div className={`flex items-center gap-1 mt-1 text-xs ${overdue ? 'text-red-400' : 'text-slate-600'}`}>
+                    <div className={`flex items-center gap-1 mt-1 text-xs ${overdue ? 'text-red-400' : 'text-slate-400'}`}>
                       {overdue && <AlertCircle size={10} />}
                       {format(parseISO(todo.due_date), 'dd.MM.yyyy')}
                     </div>

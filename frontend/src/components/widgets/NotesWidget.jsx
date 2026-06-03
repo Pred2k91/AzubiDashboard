@@ -40,7 +40,7 @@ export default function NotesWidget() {
                 {note.pinned ? <Pin size={12} className="text-amber-400 shrink-0 mt-0.5" /> : null}
               </div>
               {note.content && (
-                <p className="text-xs text-slate-400 mt-1.5 line-clamp-3 whitespace-pre-wrap">
+                <p className="text-xs text-slate-300 mt-1.5 line-clamp-3 whitespace-pre-wrap">
                   {note.content}
                 </p>
               )}

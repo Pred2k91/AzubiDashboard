@@ -52,7 +52,7 @@ export default function DepartmentWidget() {
                   </span>
                 </div>
                 {dept.location && (
-                  <div className="flex items-center gap-1 text-[10px] text-slate-600 mb-2">
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-2">
                     <MapPin size={9} />
                     {dept.location}
                   </div>
@@ -67,7 +67,7 @@ export default function DepartmentWidget() {
                         {a.name.charAt(0).toUpperCase()}
                       </div>
                       <span className="text-xs text-slate-300 truncate">{a.name}</span>
-                      <span className="ml-auto text-[9px] text-slate-600 shrink-0">{a.lehrjahr}. Lj.</span>
+                      <span className="ml-auto text-[9px] text-slate-400 shrink-0">{a.lehrjahr}. Lj.</span>
                     </div>
                   ))}
                 </div>
