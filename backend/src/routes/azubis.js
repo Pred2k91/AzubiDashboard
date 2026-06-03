@@ -67,7 +67,9 @@ router.get('/by-department', (req, res) => {
       ORDER BY ce.start_datetime ASC
     `).all(now, now)
 
-    // Collect azubi IDs in active events
+    const today = new Date().toISOString().slice(0, 10)
+
+    // ── Aktive Termine (höchste Priorität) ────────────────────────────────────
     const busyAzubiIds = new Set()
     const activeEventsWithAzubis = activeEvents.map(event => {
       const azubis = db.prepare(`
@@ -81,12 +83,39 @@ router.get('/by-department', (req, res) => {
       return { ...event, azubis }
     })
 
-    // Zwei separate Filter: einer mit Alias 'a', einer ohne
-    const busyJoin = busyAzubiIds.size > 0
-      ? `AND a.id NOT IN (${[...busyAzubiIds].join(',')})`
+    // ── Aktive Schulblöcke (mittlere Priorität) ───────────────────────────────
+    const schoolBusyIds = new Set()
+    const activeSchoolBlocks = db.prepare(`
+      SELECT sb.id, sb.start_date, sb.end_date, sb.notes,
+             vs.id as school_id, vs.name as school_name, vs.color, vs.location
+      FROM school_blocks sb
+      JOIN vocational_schools vs ON sb.school_id = vs.id
+      WHERE sb.start_date <= ? AND sb.end_date >= ?
+        AND EXISTS (SELECT 1 FROM school_block_azubis sba WHERE sba.block_id = sb.id)
+      ORDER BY vs.name ASC
+    `).all(today, today)
+
+    const activeSchoolBlocksWithAzubis = activeSchoolBlocks.map(block => {
+      const azubis = db.prepare(`
+        SELECT a.id, a.name, a.lehrjahr
+        FROM school_block_azubis sba
+        JOIN azubis a ON sba.azubi_id = a.id
+        WHERE sba.block_id = ? AND a.active = 1
+          AND a.id NOT IN (${busyAzubiIds.size > 0 ? [...busyAzubiIds].join(',') : 0})
+        ORDER BY a.name ASC
+      `).all(block.id)
+      azubis.forEach(a => schoolBusyIds.add(a.id))
+      return { ...block, azubis }
+    }).filter(b => b.azubis.length > 0)
+
+    // Alle beschäftigten Azubis (Termin + Schule)
+    const allBusyIds = new Set([...busyAzubiIds, ...schoolBusyIds])
+
+    const busyJoin = allBusyIds.size > 0
+      ? `AND a.id NOT IN (${[...allBusyIds].join(',')})`
       : ''
-    const busyWhere = busyAzubiIds.size > 0
-      ? `AND id NOT IN (${[...busyAzubiIds].join(',')})`
+    const busyWhere = allBusyIds.size > 0
+      ? `AND id NOT IN (${[...allBusyIds].join(',')})`
       : ''
 
     const departments = db.prepare(`
@@ -111,6 +140,7 @@ router.get('/by-department', (req, res) => {
       })),
       unassigned,
       active_events: activeEventsWithAzubis,
+      active_schools: activeSchoolBlocksWithAzubis,
     })
   } catch (err) {
     res.status(500).json({ error: err.message })

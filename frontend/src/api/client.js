@@ -39,6 +39,17 @@ export const azubisApi = {
   bulkRotation: (assignments, rotation_date) => api.post('/azubis/rotation', { assignments, rotation_date }).then(r => r.data),
 }
 
+export const schoolsApi = {
+  getAll: () => api.get('/schools').then(r => r.data),
+  create: (data) => api.post('/schools', data).then(r => r.data),
+  update: (id, data) => api.put(`/schools/${id}`, data).then(r => r.data),
+  delete: (id) => api.delete(`/schools/${id}`).then(r => r.data),
+  getBlocks: (schoolId) => api.get(`/schools/${schoolId}/blocks`).then(r => r.data),
+  createBlock: (schoolId, data) => api.post(`/schools/${schoolId}/blocks`, data).then(r => r.data),
+  updateBlock: (blockId, data) => api.put(`/schools/blocks/${blockId}`, data).then(r => r.data),
+  deleteBlock: (blockId) => api.delete(`/schools/blocks/${blockId}`).then(r => r.data),
+}
+
 export const settingsApi = {
   getAll: () => api.get('/settings').then(r => r.data),
   update: (key, value) => api.put(`/settings/${key}`, { value }).then(r => r.data),

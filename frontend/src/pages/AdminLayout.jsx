@@ -2,7 +2,7 @@ import { NavLink, Outlet, Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, CalendarDays, CheckSquare, StickyNote,
-  Users, Building2, Settings, ExternalLink,
+  Users, Building2, Settings, ExternalLink, GraduationCap,
 } from 'lucide-react'
 import { settingsApi } from '../api/client'
 
@@ -13,6 +13,7 @@ const NAV = [
   { to: '/admin/notes', label: 'Notizen', icon: StickyNote },
   { to: '/admin/azubis', label: 'Azubis', icon: Users },
   { to: '/admin/departments', label: 'Abteilungen', icon: Building2 },
+  { to: '/admin/schools', label: 'Berufsschulen', icon: GraduationCap },
   { to: '/admin/settings', label: 'Einstellungen', icon: Settings },
 ]
 

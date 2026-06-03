@@ -70,6 +70,30 @@ function initDb() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS vocational_schools (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      color TEXT DEFAULT '#06b6d4',
+      location TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS school_blocks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      school_id INTEGER NOT NULL REFERENCES vocational_schools(id) ON DELETE CASCADE,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      notes TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS school_block_azubis (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      block_id INTEGER NOT NULL REFERENCES school_blocks(id) ON DELETE CASCADE,
+      azubi_id INTEGER NOT NULL REFERENCES azubis(id) ON DELETE CASCADE,
+      UNIQUE(block_id, azubi_id)
+    );
+
     CREATE TABLE IF NOT EXISTS event_azubis (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_id INTEGER NOT NULL REFERENCES calendar_events(id) ON DELETE CASCADE,
