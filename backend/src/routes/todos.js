@@ -7,10 +7,11 @@ router.get('/', (req, res) => {
     const db = getDb()
     const { status } = req.query
     let todos
+    const ORDER = `ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC, due_date ASC, created_at DESC`
     if (status) {
-      todos = db.prepare('SELECT * FROM todos WHERE status = ? ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC, due_date ASC, created_at DESC').all(status)
+      todos = db.prepare(`SELECT * FROM todos WHERE status = ? ${ORDER}`).all(status)
     } else {
-      todos = db.prepare('SELECT * FROM todos ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC, due_date ASC, created_at DESC').all()
+      todos = db.prepare(`SELECT * FROM todos ${ORDER}`).all()
     }
     res.json(todos)
   } catch (err) {
