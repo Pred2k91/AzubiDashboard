@@ -99,25 +99,42 @@ export default function CalendarWidget() {
         </div>
 
         {events.length > 0 && (
-          <div className="mt-3 space-y-1 border-t border-[#2a2d4a] pt-3">
+          <div className="mt-3 space-y-2 border-t border-[#2a2d4a] pt-3">
             {events
               .filter(e => parseISO(e.start_datetime) >= startOfMonth(current))
               .sort((a, b) => a.start_datetime.localeCompare(b.start_datetime))
               .slice(0, 5)
-              .map(e => (
-                <div key={e.id} className="flex items-start gap-2 text-xs text-slate-400">
-                  <div className="w-1.5 h-1.5 rounded-full shrink-0 mt-1" style={{ backgroundColor: e.color || '#6366f1' }} />
-                  <span className="text-slate-400 shrink-0 mt-0.5">
-                    {format(parseISO(e.start_datetime), 'dd.MM')}
-                  </span>
-                  <span className="truncate">
-                    <span className="text-slate-300">{e.title}</span>
-                    {e.description && (
-                      <span className="text-slate-400"> · {e.description}</span>
-                    )}
-                  </span>
-                </div>
-              ))
+              .map(e => {
+                const sameDay = format(parseISO(e.start_datetime), 'dd.MM') === format(parseISO(e.end_datetime), 'dd.MM')
+                return (
+                  <div key={e.id} className="flex items-start gap-2">
+                    <div className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ backgroundColor: e.color || '#6366f1' }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-0.5">
+                        <span className="shrink-0 font-medium">
+                          {format(parseISO(e.start_datetime), 'dd.MM HH:mm')}
+                        </span>
+                        {!sameDay && (
+                          <>
+                            <span className="text-slate-600">→</span>
+                            <span className="shrink-0">{format(parseISO(e.end_datetime), 'dd.MM HH:mm')}</span>
+                          </>
+                        )}
+                        {sameDay && (
+                          <>
+                            <span className="text-slate-600">–</span>
+                            <span className="shrink-0">{format(parseISO(e.end_datetime), 'HH:mm')}</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-sm font-medium text-white truncate">{e.title}</div>
+                      {e.description && (
+                        <div className="text-xs text-slate-400 truncate">{e.description}</div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
             }
           </div>
         )}
