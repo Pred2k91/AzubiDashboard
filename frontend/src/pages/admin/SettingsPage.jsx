@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Settings, Save, RotateCcw } from 'lucide-react'
 import { settingsApi } from '../../api/client'
+import { applyAccentColor } from '../../utils/theme'
 
 const ACCENT_COLORS = [
   { label: 'Indigo', value: '#6366f1' },
@@ -36,6 +37,7 @@ export default function SettingsPage() {
         settingsApi.update('theme_accent', accent),
         settingsApi.update('refresh_interval', refreshInterval),
       ])
+      applyAccentColor(accent)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } finally { setLoading(false) }

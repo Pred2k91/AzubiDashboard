@@ -105,12 +105,17 @@ export default function CalendarWidget() {
               .sort((a, b) => a.start_datetime.localeCompare(b.start_datetime))
               .slice(0, 5)
               .map(e => (
-                <div key={e.id} className="flex items-center gap-2 text-xs text-slate-400">
-                  <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: e.color || '#6366f1' }} />
-                  <span className="text-slate-500 shrink-0">
+                <div key={e.id} className="flex items-start gap-2 text-xs text-slate-400">
+                  <div className="w-1.5 h-1.5 rounded-full shrink-0 mt-1" style={{ backgroundColor: e.color || '#6366f1' }} />
+                  <span className="text-slate-500 shrink-0 mt-0.5">
                     {format(parseISO(e.start_datetime), 'dd.MM')}
                   </span>
-                  <span className="truncate">{e.title}</span>
+                  <span className="truncate">
+                    <span className="text-slate-300">{e.title}</span>
+                    {e.description && (
+                      <span className="text-slate-500"> · {e.description}</span>
+                    )}
+                  </span>
                 </div>
               ))
             }

@@ -1,4 +1,7 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { settingsApi } from './api/client'
+import { applyAccentColor } from './utils/theme'
 import KioskPage from './pages/KioskPage'
 import AdminLayout from './pages/AdminLayout'
 import AdminOverview from './pages/admin/AdminOverview'
@@ -10,6 +13,12 @@ import DepartmentsAdmin from './pages/admin/DepartmentsAdmin'
 import SettingsPage from './pages/admin/SettingsPage'
 
 export default function App() {
+  useEffect(() => {
+    settingsApi.getAll().then(s => {
+      if (s.theme_accent) applyAccentColor(s.theme_accent)
+    }).catch(() => {})
+  }, [])
+
   return (
     <BrowserRouter>
       <Routes>
