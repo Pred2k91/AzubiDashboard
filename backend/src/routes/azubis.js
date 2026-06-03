@@ -55,7 +55,8 @@ router.get('/by-department', (req, res) => {
     const db = getDb()
     syncLehrjahre(db)
 
-    const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
+    // ISO-Format mit T für Vergleich mit gespeicherten Terminen
+    const now = new Date().toISOString().slice(0, 16)
 
     // Active events that have azubis assigned
     const activeEvents = db.prepare(`
@@ -80,23 +81,26 @@ router.get('/by-department', (req, res) => {
       return { ...event, azubis }
     })
 
-    const busyList = busyAzubiIds.size > 0
+    // Zwei separate Filter: einer mit Alias 'a', einer ohne
+    const busyJoin = busyAzubiIds.size > 0
       ? `AND a.id NOT IN (${[...busyAzubiIds].join(',')})`
+      : ''
+    const busyWhere = busyAzubiIds.size > 0
+      ? `AND id NOT IN (${[...busyAzubiIds].join(',')})`
       : ''
 
     const departments = db.prepare(`
       SELECT d.id, d.name, d.color, d.location,
         json_group_array(json_object('id', a.id, 'name', a.name, 'lehrjahr', a.lehrjahr)) as azubis
       FROM departments d
-      LEFT JOIN azubis a ON a.current_department_id = d.id AND a.active = 1 ${busyList}
+      LEFT JOIN azubis a ON a.current_department_id = d.id AND a.active = 1 ${busyJoin}
       GROUP BY d.id
       ORDER BY d.name ASC
     `).all()
 
     const unassigned = db.prepare(`
       SELECT id, name, lehrjahr FROM azubis
-      WHERE current_department_id IS NULL AND active = 1
-      ${busyList}
+      WHERE current_department_id IS NULL AND active = 1 ${busyWhere}
       ORDER BY name ASC
     `).all()
 
