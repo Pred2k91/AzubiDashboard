@@ -2,10 +2,40 @@ const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
 
+function calculateLehrjahr(startDateStr) {
+  if (!startDateStr) return null
+  const start = new Date(startDateStr)
+  const now = new Date()
+  let years = now.getFullYear() - start.getFullYear()
+  const monthDiff = now.getMonth() - start.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < start.getDate())) {
+    years--
+  }
+  return Math.max(1, years + 1)
+}
+
+function syncLehrjahre(db) {
+  const azubis = db.prepare(
+    'SELECT id, start_date, lehrjahr FROM azubis WHERE active = 1 AND start_date IS NOT NULL'
+  ).all()
+  const update = db.prepare('UPDATE azubis SET lehrjahr = ? WHERE id = ?')
+  const run = db.transaction(() => {
+    for (const a of azubis) {
+      const expected = calculateLehrjahr(a.start_date)
+      if (expected !== null && expected !== a.lehrjahr) {
+        update.run(expected, a.id)
+        console.log(`Lehrjahr aktualisiert: Azubi ${a.id} → ${a.lehrjahr} → ${expected}`)
+      }
+    }
+  })
+  run()
+}
+
 // Get all azubis with department info
 router.get('/', (req, res) => {
   try {
     const db = getDb()
+    syncLehrjahre(db)
     const azubis = db.prepare(`
       SELECT a.*, d.name as department_name, d.color as department_color, d.location as department_location
       FROM azubis a
@@ -23,6 +53,7 @@ router.get('/', (req, res) => {
 router.get('/by-department', (req, res) => {
   try {
     const db = getDb()
+    syncLehrjahre(db)
     const departments = db.prepare(`
       SELECT d.id, d.name, d.color, d.location,
         json_group_array(json_object(
