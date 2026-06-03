@@ -36,6 +36,15 @@ export default function KioskPage() {
   const [backgroundUrl, setBackgroundUrl] = useState(null)
   const [bgOpacity, setBgOpacity] = useState(0.5)
   const [containerWidth, setContainerWidth] = useState(window.innerWidth)
+  const [containerHeight, setContainerHeight] = useState(window.innerHeight)
+
+  const HEADER_HEIGHT = 44
+  const GRID_MARGIN = 12
+  const GRID_ROWS = 16
+  const rowHeight = Math.max(
+    40,
+    Math.floor((containerHeight - HEADER_HEIGHT - (GRID_ROWS + 1) * GRID_MARGIN) / GRID_ROWS)
+  )
 
   useEffect(() => {
     settingsApi.getAll().then(s => {
@@ -49,7 +58,10 @@ export default function KioskPage() {
       if (s.background_opacity !== undefined) setBgOpacity(s.background_opacity)
     }).catch(() => {})
 
-    const handleResize = () => setContainerWidth(window.innerWidth)
+    const handleResize = () => {
+      setContainerWidth(window.innerWidth)
+      setContainerHeight(window.innerHeight)
+    }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
@@ -95,7 +107,7 @@ export default function KioskPage() {
 
   return (
     <div
-      className="min-h-screen flex flex-col relative"
+      className="h-screen flex flex-col relative overflow-hidden"
       style={{ backgroundColor: '#0d0f1a' }}
     >
       {/* Hintergrundbild */}
@@ -179,12 +191,12 @@ export default function KioskPage() {
       )}
 
       {/* Grid */}
-      <div className={`relative flex-1 overflow-auto ${editMode ? 'layout-edit-mode' : ''}`}>
+      <div className={`relative flex-1 overflow-hidden ${editMode ? 'layout-edit-mode overflow-auto' : ''}`}>
         <GridLayout
           className="layout"
           layout={activeWidgets}
           cols={16}
-          rowHeight={48}
+          rowHeight={rowHeight}
           width={containerWidth}
           isDraggable={editMode}
           isResizable={editMode}
