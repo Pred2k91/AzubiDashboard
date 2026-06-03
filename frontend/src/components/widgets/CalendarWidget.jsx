@@ -8,10 +8,16 @@ export default function CalendarWidget() {
   const [current, setCurrent] = useState(new Date())
   const [events, setEvents] = useState([])
 
-  useEffect(() => {
+  const loadEvents = () => {
     const start = format(startOfMonth(current), 'yyyy-MM-dd')
     const end = format(endOfMonth(current), 'yyyy-MM-dd')
     calendarApi.getAll(start, end).then(setEvents).catch(() => {})
+  }
+
+  useEffect(() => {
+    loadEvents()
+    const interval = setInterval(loadEvents, 5 * 60 * 1000)
+    return () => clearInterval(interval)
   }, [current])
 
   const monthStart = startOfMonth(current)
