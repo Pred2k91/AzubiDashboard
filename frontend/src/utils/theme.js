@@ -1,3 +1,7 @@
+export function applyWidgetOpacity(opacity) {
+  document.documentElement.style.setProperty('--widget-opacity', opacity)
+}
+
 export function applyAccentColor(hex) {
   if (!hex || !/^#[0-9A-Fa-f]{6}$/.test(hex)) return
 

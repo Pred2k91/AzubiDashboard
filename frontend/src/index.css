@@ -9,6 +9,8 @@
   --accent: #6366f1;
   --accent-hover: #818cf8;
   --accent-muted: rgba(99, 102, 241, 0.15);
+  --widget-opacity: 0.85;
+  --widget-blur: 12px;
 }
 
 * {
@@ -56,18 +58,25 @@ body {
   z-index: 100;
 }
 
-/* Widget card base */
+/* Widget card base — Glassmorphism */
 .widget-card {
-  @apply bg-[#141625] rounded-xl border border-[#2a2d4a] h-full overflow-hidden flex flex-col;
-  transition: border-color 0.2s;
+  background: rgba(14, 16, 26, var(--widget-opacity));
+  backdrop-filter: blur(var(--widget-blur));
+  -webkit-backdrop-filter: blur(var(--widget-blur));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  @apply rounded-xl h-full overflow-hidden flex flex-col;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .widget-card:hover {
-  border-color: rgba(99, 102, 241, 0.3);
+  border-color: rgba(99, 102, 241, 0.25);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
 }
 
 .widget-header {
-  @apply flex items-center justify-between px-4 py-3 border-b border-[#2a2d4a] shrink-0;
+  @apply flex items-center justify-between px-4 py-3 shrink-0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .widget-title {

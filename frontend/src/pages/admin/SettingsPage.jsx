@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Settings, Save, RotateCcw, Upload, X, Image, Building2 } from 'lucide-react'
 import { settingsApi } from '../../api/client'
-import { applyAccentColor } from '../../utils/theme'
+import { applyAccentColor, applyWidgetOpacity } from '../../utils/theme'
 import axios from 'axios'
 
 const ACCENT_COLORS = [
@@ -88,6 +88,7 @@ export default function SettingsPage() {
   const [logoUrl, setLogoUrl] = useState(null)
   const [backgroundUrl, setBackgroundUrl] = useState(null)
   const [bgOpacity, setBgOpacity] = useState(0.5)
+  const [widgetOpacity, setWidgetOpacity] = useState(0.85)
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -99,6 +100,7 @@ export default function SettingsPage() {
       if (s.logo_url) setLogoUrl(s.logo_url)
       if (s.background_url) setBackgroundUrl(s.background_url)
       if (s.background_opacity !== undefined) setBgOpacity(s.background_opacity)
+      if (s.widget_opacity !== undefined) setWidgetOpacity(s.widget_opacity)
     }).catch(() => {})
   }, [])
 
@@ -110,8 +112,10 @@ export default function SettingsPage() {
         settingsApi.update('theme_accent', accent),
         settingsApi.update('refresh_interval', refreshInterval),
         settingsApi.update('background_opacity', bgOpacity),
+        settingsApi.update('widget_opacity', widgetOpacity),
       ])
       applyAccentColor(accent)
+      applyWidgetOpacity(widgetOpacity)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } finally { setLoading(false) }
@@ -198,16 +202,38 @@ export default function SettingsPage() {
             <label className="label">Hintergrund-Deckkraft: {Math.round(bgOpacity * 100)}%</label>
             <p className="text-xs text-slate-600 mb-2">Steuert wie stark das Hintergrundbild sichtbar ist (weniger = dunkler / lesbarer)</p>
             <input
-              type="range"
-              min="0.1"
-              max="1"
-              step="0.05"
-              value={bgOpacity}
+              type="range" min="0.1" max="1" step="0.05" value={bgOpacity}
               onChange={e => setBgOpacity(parseFloat(e.target.value))}
               className="w-full max-w-xs accent-indigo-600"
             />
           </div>
         )}
+
+        <div>
+          <label className="label">Widget-Transparenz: {Math.round(widgetOpacity * 100)}%</label>
+          <p className="text-xs text-slate-600 mb-2">
+            Glassmorphism-Deckkraft der Widgets — weniger = transparenter / mehr Hintergrundbild sichtbar
+          </p>
+          <input
+            type="range" min="0.1" max="1" step="0.05" value={widgetOpacity}
+            onChange={e => {
+              const v = parseFloat(e.target.value)
+              setWidgetOpacity(v)
+              applyWidgetOpacity(v)
+            }}
+            className="w-full max-w-xs accent-indigo-600"
+          />
+          <div className="mt-2 flex items-center gap-3 text-xs text-slate-500">
+            <span>Transparenter</span>
+            <div className="flex-1 h-6 rounded-lg border border-[#2a2d4a] overflow-hidden">
+              <div
+                className="h-full rounded-lg"
+                style={{ background: `rgba(14, 16, 26, ${widgetOpacity})`, backdropFilter: 'blur(12px)' }}
+              />
+            </div>
+            <span>Undurchsichtiger</span>
+          </div>
+        </div>
       </div>
 
       {/* Layout */}
