@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import GridLayout from 'react-grid-layout'
-import { Settings, Lock, Unlock, RotateCcw, ExternalLink } from 'lucide-react'
+import { Settings, Lock, Unlock, RotateCcw, AlignVerticalJustifyStart } from 'lucide-react'
 import ClockWidget from '../components/widgets/ClockWidget'
 import CalendarWidget from '../components/widgets/CalendarWidget'
 import TodoWidget from '../components/widgets/TodoWidget'
@@ -84,6 +84,27 @@ export default function KioskPage() {
     await saveLayout(DEFAULT_LAYOUT)
   }
 
+  const handleCompact = async () => {
+    // Sortiere nach Y-Position, dann packe alle Widgets lückenlos zusammen
+    const sorted = [...activeWidgets].sort((a, b) => a.y - b.y || a.x - b.x)
+    let compacted = []
+    for (const item of sorted) {
+      let y = 0
+      // Finde die niedrigste freie Y-Position für dieses Widget
+      for (const placed of compacted) {
+        if (placed.x < item.x + item.w && placed.x + placed.w > item.x) {
+          y = Math.max(y, placed.y + placed.h)
+        }
+      }
+      compacted.push({ ...item, y })
+    }
+    setLayout(prev => prev.map(l => {
+      const c = compacted.find(c => c.i === l.i)
+      return c ? { ...l, y: c.y } : l
+    }))
+    await saveLayout(compacted)
+  }
+
   const toggleWidget = async (key) => {
     const updated = { ...widgetsEnabled, [key]: !widgetsEnabled[key] }
     setWidgetsEnabled(updated)
@@ -153,6 +174,14 @@ export default function KioskPage() {
                 ))}
               </div>
               <button
+                onClick={handleCompact}
+                className="btn-secondary text-xs py-1.5"
+                title="Lücken schließen"
+              >
+                <AlignVerticalJustifyStart size={13} />
+                Lücken füllen
+              </button>
+              <button
                 onClick={handleReset}
                 className="btn-secondary text-xs py-1.5"
                 title="Layout zurücksetzen"
@@ -186,7 +215,7 @@ export default function KioskPage() {
       {/* Edit mode hint */}
       {editMode && (
         <div className="relative px-6 py-2 bg-indigo-600/10 border-b border-indigo-500/20 text-xs text-indigo-300 text-center backdrop-blur-sm">
-          Widgets verschieben und in der Größe anpassen — Änderungen werden automatisch gespeichert
+          Header ziehen = verschieben · Ecke (unten rechts) ziehen = Größe ändern · "Lücken füllen" = Platz von ausgeblendeten Widgets schließen
         </div>
       )}
 
