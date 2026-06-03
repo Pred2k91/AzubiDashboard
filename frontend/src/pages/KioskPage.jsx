@@ -32,6 +32,9 @@ export default function KioskPage() {
     clock: true, calendar: true, todos: true, departments: true, notes: true,
   })
   const [title, setTitle] = useState('Ausbildungsdashboard')
+  const [logoUrl, setLogoUrl] = useState(null)
+  const [backgroundUrl, setBackgroundUrl] = useState(null)
+  const [bgOpacity, setBgOpacity] = useState(0.5)
   const [containerWidth, setContainerWidth] = useState(window.innerWidth)
 
   useEffect(() => {
@@ -41,6 +44,9 @@ export default function KioskPage() {
       }
       if (s.widgets_enabled) setWidgetsEnabled(s.widgets_enabled)
       if (s.dashboard_title) setTitle(s.dashboard_title)
+      if (s.logo_url) setLogoUrl(s.logo_url)
+      if (s.background_url) setBackgroundUrl(s.background_url)
+      if (s.background_opacity !== undefined) setBgOpacity(s.background_opacity)
     }).catch(() => {})
 
     const handleResize = () => setContainerWidth(window.innerWidth)
@@ -88,11 +94,32 @@ export default function KioskPage() {
   const activeWidgets = layout.filter(l => widgetsEnabled[l.i])
 
   return (
-    <div className="min-h-screen bg-[#0d0f1a] flex flex-col">
+    <div
+      className="min-h-screen flex flex-col relative"
+      style={{ backgroundColor: '#0d0f1a' }}
+    >
+      {/* Hintergrundbild */}
+      {backgroundUrl && (
+        <>
+          <div
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+            style={{ backgroundImage: `url(${backgroundUrl})` }}
+          />
+          <div
+            className="absolute inset-0 bg-[#0d0f1a]"
+            style={{ opacity: 1 - bgOpacity }}
+          />
+        </>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-[#2a2d4a] shrink-0">
+      <div className="relative flex items-center justify-between px-6 py-3 border-b border-[#2a2d4a]/80 shrink-0 backdrop-blur-sm bg-[#0d0f1a]/60">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo" className="h-8 w-auto object-contain" />
+          ) : (
+            <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+          )}
           <h1 className="text-lg font-bold text-white tracking-tight">{title}</h1>
         </div>
         <div className="flex items-center gap-2">
@@ -146,13 +173,13 @@ export default function KioskPage() {
 
       {/* Edit mode hint */}
       {editMode && (
-        <div className="px-6 py-2 bg-indigo-600/10 border-b border-indigo-500/20 text-xs text-indigo-300 text-center">
-          Widgets verschieben und in der Grosse anpassen — Anderungen werden automatisch gespeichert
+        <div className="relative px-6 py-2 bg-indigo-600/10 border-b border-indigo-500/20 text-xs text-indigo-300 text-center backdrop-blur-sm">
+          Widgets verschieben und in der Größe anpassen — Änderungen werden automatisch gespeichert
         </div>
       )}
 
       {/* Grid */}
-      <div className={`flex-1 overflow-auto ${editMode ? 'layout-edit-mode' : ''}`}>
+      <div className={`relative flex-1 overflow-auto ${editMode ? 'layout-edit-mode' : ''}`}>
         <GridLayout
           className="layout"
           layout={activeWidgets}

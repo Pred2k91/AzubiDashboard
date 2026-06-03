@@ -1,5 +1,6 @@
 const express = require('express')
 const cors = require('cors')
+const path = require('path')
 const { initDb } = require('./db/init')
 
 const calendarRoutes = require('./routes/calendar')
@@ -8,12 +9,14 @@ const notesRoutes = require('./routes/notes')
 const azubisRoutes = require('./routes/azubis')
 const departmentsRoutes = require('./routes/departments')
 const settingsRoutes = require('./routes/settings')
+const { router: uploadRoutes, UPLOADS_DIR } = require('./routes/upload')
 
 const app = express()
 const PORT = process.env.PORT || 3001
 
 app.use(cors())
 app.use(express.json())
+app.use('/uploads', express.static(UPLOADS_DIR))
 
 initDb()
 
@@ -23,6 +26,7 @@ app.use('/api/notes', notesRoutes)
 app.use('/api/azubis', azubisRoutes)
 app.use('/api/departments', departmentsRoutes)
 app.use('/api/settings', settingsRoutes)
+app.use('/api/upload', uploadRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })

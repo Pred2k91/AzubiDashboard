@@ -1,8 +1,10 @@
 import { NavLink, Outlet, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, CalendarDays, CheckSquare, StickyNote,
-  Users, Building2, Settings, ExternalLink, ChevronRight
+  Users, Building2, Settings, ExternalLink,
 } from 'lucide-react'
+import { settingsApi } from '../api/client'
 
 const NAV = [
   { to: '/admin', label: 'Übersicht', icon: LayoutDashboard, end: true },
@@ -15,19 +17,33 @@ const NAV = [
 ]
 
 export default function AdminLayout() {
+  const [logoUrl, setLogoUrl] = useState(null)
+
+  useEffect(() => {
+    settingsApi.getAll().then(s => {
+      if (s.logo_url) setLogoUrl(s.logo_url)
+    }).catch(() => {})
+  }, [])
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#0d0f1a]">
       {/* Sidebar */}
       <aside className="w-56 shrink-0 flex flex-col border-r border-[#2a2d4a] bg-[#0d0f1a]">
         <div className="px-4 py-5 border-b border-[#2a2d4a]">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <LayoutDashboard size={14} className="text-white" />
-            </div>
-            <div>
-              <div className="text-sm font-bold text-white leading-tight">Ausbildung</div>
-              <div className="text-[10px] text-slate-600">Admin-Bereich</div>
-            </div>
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="h-8 w-auto object-contain max-w-[120px]" />
+            ) : (
+              <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
+                <LayoutDashboard size={14} className="text-white" />
+              </div>
+            )}
+            {!logoUrl && (
+              <div>
+                <div className="text-sm font-bold text-white leading-tight">Ausbildung</div>
+                <div className="text-[10px] text-slate-600">Admin-Bereich</div>
+              </div>
+            )}
           </div>
         </div>
 

@@ -5,11 +5,15 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { departmentsApi, azubisApi } from '../../api/client'
 
 const COLORS = [
-  '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899',
-  '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
-  '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9',
-  '#3b82f6', '#6366f1', '#64748b', '#f43f5e', '#2dd4bf',
-  '#fb923c', '#4ade80', '#38bdf8', '#c084fc',
+  // Bunt
+  '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e',
+  '#10b981', '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1',
+  '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e',
+  // Pastell / Hell
+  '#fca5a5', '#fdba74', '#fde68a', '#bbf7d0', '#99f6e4',
+  '#bae6fd', '#c7d2fe', '#e9d5ff', '#fbcfe8',
+  // Neutral
+  '#ffffff', '#e2e8f0', '#94a3b8', '#64748b', '#334155',
 ]
 const EMPTY = { name: '', color: '#6366f1', description: '', location: '' }
 
