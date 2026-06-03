@@ -27,25 +27,30 @@ export default function TodosAdmin() {
   const [form, setForm] = useState(EMPTY)
   const [deleteId, setDeleteId] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const load = () => todosApi.getAll().then(setTodos).catch(() => {})
   useEffect(() => { load() }, [])
 
-  const openNew = () => { setEditing(null); setForm(EMPTY); setModal(true) }
+  const openNew = () => { setEditing(null); setForm(EMPTY); setError(''); setModal(true) }
   const openEdit = (t) => {
     setEditing(t)
     setForm({ title: t.title, description: t.description || '', priority: t.priority, status: t.status, due_date: t.due_date || '' })
+    setError('')
     setModal(true)
   }
 
   const handleSave = async () => {
-    if (!form.title) return
+    if (!form.title) { setError('Bitte einen Titel eingeben'); return }
     setLoading(true)
+    setError('')
     try {
       if (editing) await todosApi.update(editing.id, { ...form, due_date: form.due_date || null })
       else await todosApi.create({ ...form, due_date: form.due_date || null })
       await load()
       setModal(false)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Fehler beim Speichern')
     } finally { setLoading(false) }
   }
 
@@ -155,6 +160,7 @@ export default function TodosAdmin() {
 
       <Modal open={modal} onClose={() => setModal(false)} title={editing ? 'Aufgabe bearbeiten' : 'Neue Aufgabe'}>
         <div className="space-y-4">
+          {error && <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">{error}</div>}
           <div>
             <label className="label">Titel *</label>
             <input className="input-field" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Was ist zu tun?" />

@@ -14,25 +14,30 @@ export default function NotesAdmin() {
   const [form, setForm] = useState(EMPTY)
   const [deleteId, setDeleteId] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const load = () => notesApi.getAll().then(setNotes).catch(() => {})
   useEffect(() => { load() }, [])
 
-  const openNew = () => { setEditing(null); setForm(EMPTY); setModal(true) }
+  const openNew = () => { setEditing(null); setForm(EMPTY); setError(''); setModal(true) }
   const openEdit = (n) => {
     setEditing(n)
     setForm({ title: n.title, content: n.content || '', color: n.color || '#6366f1', pinned: !!n.pinned })
+    setError('')
     setModal(true)
   }
 
   const handleSave = async () => {
-    if (!form.title) return
+    if (!form.title) { setError('Bitte einen Titel eingeben'); return }
     setLoading(true)
+    setError('')
     try {
       if (editing) await notesApi.update(editing.id, form)
       else await notesApi.create(form)
       await load()
       setModal(false)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Fehler beim Speichern')
     } finally { setLoading(false) }
   }
 
@@ -101,6 +106,7 @@ export default function NotesAdmin() {
 
       <Modal open={modal} onClose={() => setModal(false)} title={editing ? 'Notiz bearbeiten' : 'Neue Notiz'}>
         <div className="space-y-4">
+          {error && <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">{error}</div>}
           <div>
             <label className="label">Titel *</label>
             <input className="input-field" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Titel der Notiz" />
