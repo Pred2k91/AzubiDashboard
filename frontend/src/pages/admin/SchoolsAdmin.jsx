@@ -62,6 +62,15 @@ export default function SchoolsAdmin() {
   const loadSchools = async () => {
     const s = await schoolsApi.getAll().catch(() => [])
     setSchools(s)
+    // Alle Schulen direkt aufgeklappt anzeigen
+    const expandedState = {}
+    const blocksState = {}
+    await Promise.all(s.map(async school => {
+      expandedState[school.id] = true
+      blocksState[school.id] = await schoolsApi.getBlocks(school.id).catch(() => [])
+    }))
+    setExpanded(expandedState)
+    setBlocks(blocksState)
   }
 
   const loadBlocks = async (schoolId) => {
