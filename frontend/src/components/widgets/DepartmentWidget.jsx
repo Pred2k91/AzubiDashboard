@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Building2, Users, MapPin, CalendarDays, GraduationCap } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
@@ -6,6 +6,9 @@ import { azubisApi } from '../../api/client'
 
 export default function DepartmentWidget() {
   const [data, setData] = useState({ departments: [], unassigned: [], active_events: [], active_schools: [] })
+  const [scrolled, setScrolled] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const bodyRef = useRef(null)
 
   const load = () => azubisApi.getByDepartment().then(setData).catch(() => {})
 
@@ -14,6 +17,18 @@ export default function DepartmentWidget() {
     const interval = setInterval(load, 120000)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el) return
+    const check = () => {
+      setScrolled(el.scrollTop > 10)
+      setHasMore(el.scrollTop + el.clientHeight < el.scrollHeight - 10)
+    }
+    check()
+    el.addEventListener('scroll', check)
+    return () => el.removeEventListener('scroll', check)
+  }, [data])
 
   const activeDepts = data.departments.filter(d => d.azubis.length > 0)
   const activeEvents = data.active_events || []
@@ -37,7 +52,18 @@ export default function DepartmentWidget() {
         </span>
       </div>
 
-      <div className="widget-body space-y-3">
+      <div className="relative flex-1 overflow-hidden">
+        {hasMore && (
+          <div className="absolute bottom-0 left-0 right-0 h-12 pointer-events-none z-10"
+            style={{ background: 'linear-gradient(to bottom, transparent, rgba(14,16,26,0.9))' }}>
+            <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-0.5">
+              <div className="w-1 h-1 rounded-full bg-slate-600 animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-1 h-1 rounded-full bg-slate-600 animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="w-1 h-1 rounded-full bg-slate-600 animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+          </div>
+        )}
+      <div ref={bodyRef} className="widget-body space-y-3">
         {!hasContent ? (
           <div className="flex flex-col items-center justify-center py-8 text-slate-600">
             <Building2 size={24} className="mb-2 opacity-30" />
@@ -46,11 +72,11 @@ export default function DepartmentWidget() {
         ) : (
           <>
             {/* Normale Abteilungen */}
-            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))' }}>
               {activeDepts.map(dept => (
                 <div
                   key={dept.id}
-                  className="p-3 rounded-xl border bg-[#1e2035]/50 transition-all hover:bg-[#1e2035]"
+                  className="p-2.5 rounded-xl border bg-[#1e2035]/50 transition-all hover:bg-[#1e2035]"
                   style={{ borderColor: `${dept.color}40` }}
                 >
                   <div className="flex items-center gap-2 mb-2">
@@ -120,7 +146,7 @@ export default function DepartmentWidget() {
                   </span>
                   <div className="flex-1 h-px bg-[#2a2d4a]" />
                 </div>
-                <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+                <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))' }}>
                   {activeSchools.map(block => (
                     <div key={`school-${block.id}`} className="p-3 rounded-xl border bg-[#1e2035]/50 transition-all hover:bg-[#1e2035]"
                       style={{ borderColor: `${block.color}50`, borderStyle: 'dashed' }}>
@@ -165,7 +191,7 @@ export default function DepartmentWidget() {
                   <div className="flex-1 h-px bg-[#2a2d4a]" />
                 </div>
 
-                <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+                <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))' }}>
                   {activeEvents.map(event => (
                     <div
                       key={`event-${event.id}`}
@@ -206,6 +232,7 @@ export default function DepartmentWidget() {
             )}
           </>
         )}
+      </div>
       </div>
     </div>
   )

@@ -85,6 +85,8 @@ body {
 
 .widget-body {
   @apply flex-1 overflow-y-auto p-4;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 /* Admin sidebar */
