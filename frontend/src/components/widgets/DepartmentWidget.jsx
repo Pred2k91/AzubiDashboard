@@ -112,7 +112,7 @@ export default function DepartmentWidget() {
               <>
                 <div className="flex items-center gap-2 pt-1">
                   <div className="flex-1 h-px bg-[#2a2d4a]" />
-                  <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                     <CalendarDays size={10} />
                     Aktive Termine
                   </span>
