@@ -22,7 +22,8 @@ const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true)
+    const allowed = ['image/svg+xml', 'text/xml', 'application/xml', 'application/svg+xml']
+    if (file.mimetype.startsWith('image/') || allowed.includes(file.mimetype)) cb(null, true)
     else cb(new Error('Nur Bilddateien erlaubt'))
   },
 })

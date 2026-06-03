@@ -76,7 +76,7 @@ function ImageUpload({ label, description, settingKey, currentUrl, onUpdate }) {
           <p className="text-xs text-slate-600 mt-1">{description}</p>
         </div>
       </div>
-      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+      <input ref={inputRef} type="file" accept="image/*,.svg" className="hidden" onChange={handleUpload} />
     </div>
   )
 }
