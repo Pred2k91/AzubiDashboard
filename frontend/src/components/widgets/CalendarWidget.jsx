@@ -112,18 +112,18 @@ export default function CalendarWidget() {
                 const dayEvents = getEventsForDay(day)
                 const today = isToday(day)
                 return (
-                  <div key={i} className={`flex flex-col items-center p-1.5 rounded-xl transition-colors
-                    ${today ? 'bg-indigo-600/20 ring-1 ring-indigo-500/40' : 'hover:bg-[#1e2035]'}`}>
-                    <span className="text-[10px] font-semibold text-slate-500 uppercase">
+                  <div key={i} className={`flex flex-col items-center py-1.5 px-1 rounded-lg transition-colors
+                    ${today ? 'bg-indigo-600/20 ring-1 ring-indigo-500/40' : ''}`}>
+                    <span className="text-[10px] font-semibold text-slate-500 uppercase leading-none">
                       {format(day, 'EEEEE', { locale: de })}
                     </span>
-                    <span className={`text-sm font-bold mt-0.5 ${today ? 'text-indigo-300' : 'text-slate-300'}`}>
+                    <span className={`text-sm font-bold mt-0.5 leading-none ${today ? 'text-indigo-300' : 'text-slate-300'}`}>
                       {format(day, 'd')}
                     </span>
-                    <div className="flex gap-0.5 mt-1 flex-wrap justify-center">
+                    <div className="flex gap-0.5 mt-1 flex-wrap justify-center min-h-[6px]">
                       {dayEvents.slice(0, 3).map((e, j) => (
                         <div key={j} className="w-1.5 h-1.5 rounded-full"
-                          style={{ backgroundColor: e.color || '#6366f1' }} title={e.title} />
+                          style={{ backgroundColor: e.color || '#6366f1' }} />
                       ))}
                     </div>
                   </div>
@@ -131,43 +131,35 @@ export default function CalendarWidget() {
               })}
             </div>
 
-            {/* Termine der Woche */}
-            {byDay.length === 0 ? (
-              <div className="text-center text-slate-600 text-sm py-4">Keine Termine diese Woche</div>
-            ) : (
-              <div className="space-y-3">
-                {byDay.map(({ day, events: dayEvs }) => (
-                  <div key={day.toISOString()}>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className={`text-xs font-semibold ${isToday(day) ? 'text-indigo-400' : 'text-slate-400'}`}>
-                        {isToday(day) ? 'Heute' : format(day, 'EEEE, dd.MM.', { locale: de })}
-                      </span>
-                      <div className="flex-1 h-px bg-[#2a2d4a]" />
-                    </div>
-                    <div className="space-y-1.5">
-                      {dayEvs.map(e => {
-                        const sameDay = format(parseISO(e.start_datetime), 'dd.MM') === format(parseISO(e.end_datetime), 'dd.MM')
-                        return (
-                          <div key={e.id} className="flex items-start gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full shrink-0 mt-1.5"
-                              style={{ backgroundColor: e.color || '#6366f1' }} />
-                            <div className="min-w-0 flex-1">
-                              <span className="text-sm font-medium text-white">{e.title}</span>
-                              <div className="text-xs text-slate-400 flex items-center gap-1 flex-wrap">
-                                <span>{format(parseISO(e.start_datetime), 'HH:mm')}</span>
-                                <span className="text-slate-600">–</span>
-                                <span>{sameDay ? format(parseISO(e.end_datetime), 'HH:mm') : format(parseISO(e.end_datetime), 'dd.MM HH:mm')}</span>
-                                {e.description && <><span className="text-slate-600">·</span><span className="text-slate-500 truncate">{e.description}</span></>}
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* Termine — kompakte Flachliste */}
+            <div className="border-t border-[#2a2d4a] pt-2">
+              {weekEvents.length === 0 ? (
+                <div className="text-center text-slate-600 text-xs py-2">Keine Termine diese Woche</div>
+              ) : (
+                <div className="space-y-1">
+                  {weekEvents.map(e => {
+                    const start = parseISO(e.start_datetime)
+                    const end = parseISO(e.end_datetime)
+                    const sameDay = format(start, 'dd.MM') === format(end, 'dd.MM')
+                    const today = isToday(start)
+                    return (
+                      <div key={e.id} className="flex items-center gap-2 py-0.5">
+                        <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: e.color || '#6366f1' }} />
+                        <span className={`text-[11px] font-semibold shrink-0 w-7 ${today ? 'text-indigo-400' : 'text-slate-500'}`}>
+                          {format(start, 'EE', { locale: de })}
+                        </span>
+                        <span className="text-xs text-slate-400 shrink-0">
+                          {format(start, 'HH:mm')}
+                          {sameDay ? `–${format(end, 'HH:mm')}` : `→${format(end, 'dd.MM')}`}
+                        </span>
+                        <span className="text-sm text-white font-medium truncate flex-1">{e.title}</span>
+                        {e.description && <span className="text-xs text-slate-500 truncate max-w-[100px] hidden sm:block">{e.description}</span>}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           /* Monatsansicht */
