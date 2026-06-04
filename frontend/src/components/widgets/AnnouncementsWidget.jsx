@@ -47,9 +47,30 @@ export default function AnnouncementsWidget() {
   const announcements = items.filter(i => i.type === 'announcement')
   const hasRotation = rotation?.scheduled
 
+  const PAGE_SIZE = 3
+
+  const chunk = (arr, size) => {
+    const pages = []
+    for (let i = 0; i < arr.length; i += size) pages.push(arr.slice(i, i + size))
+    return pages
+  }
+
+  const examPages = chunk(exams, PAGE_SIZE)
+  const announcementPages = chunk(announcements, PAGE_SIZE)
+
   const sections = [
-    exams.length > 0 && { key: 'exams', label: 'Prüfungen', icon: CalendarDays, content: exams },
-    announcements.length > 0 && { key: 'announcements', label: 'Ankündigungen', icon: Megaphone, content: announcements },
+    ...examPages.map((page, i) => ({
+      key: 'exams',
+      label: examPages.length > 1 ? `Prüfungen ${i + 1}/${examPages.length}` : 'Prüfungen',
+      icon: CalendarDays,
+      content: page,
+    })),
+    ...announcementPages.map((page, i) => ({
+      key: 'announcements',
+      label: announcementPages.length > 1 ? `Ankündigungen ${i + 1}/${announcementPages.length}` : 'Ankündigungen',
+      icon: Megaphone,
+      content: page,
+    })),
     hasRotation && { key: 'rotation', label: 'Abteilungswechsel', icon: ArrowRightLeft, rotation },
   ].filter(Boolean)
 
