@@ -39,7 +39,7 @@ export default function AnnouncementsWidget() {
 
   useEffect(() => {
     loadData()
-    const interval = setInterval(loadData, 5 * 60 * 1000)
+    const interval = setInterval(loadData, 60 * 1000)
     return () => clearInterval(interval)
   }, [])
 
