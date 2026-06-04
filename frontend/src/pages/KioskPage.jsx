@@ -44,6 +44,7 @@ export default function KioskPage() {
 
   // Burn-in Schutz
   const [pixelShift, setPixelShift] = useState({ x: 0, y: 0 })
+  const [pixelShiftEnabled, setPixelShiftEnabled] = useState(true)
   const [nightDimEnabled, setNightDimEnabled] = useState(false)
   const [nightDimStart, setNightDimStart] = useState(18)
   const [nightDimEnd, setNightDimEnd] = useState(7)
@@ -74,6 +75,7 @@ export default function KioskPage() {
       if (s.background_url_2) setBackgroundUrl2(s.background_url_2)
       if (s.background_opacity !== undefined) setBgOpacity(s.background_opacity)
       if (s.night_dim_enabled !== undefined) setNightDimEnabled(s.night_dim_enabled)
+      if (s.pixel_shift_enabled !== undefined) setPixelShiftEnabled(s.pixel_shift_enabled)
       if (s.night_dim_start !== undefined) setNightDimStart(s.night_dim_start)
       if (s.night_dim_end !== undefined) setNightDimEnd(s.night_dim_end)
       if (s.night_dim_level !== undefined) setNightDimLevel(s.night_dim_level)
@@ -91,6 +93,7 @@ export default function KioskPage() {
 
   // Pixel-Shift: alle 8 Minuten um 15-20px verschieben
   useEffect(() => {
+    if (!pixelShiftEnabled) { setPixelShift({ x: 0, y: 0 }); return }
     const S = 18
     const POSITIONS = [
       { x: 0, y: 0 }, { x: S, y: 8 }, { x: -12, y: S },
@@ -103,7 +106,7 @@ export default function KioskPage() {
       setPixelShift(POSITIONS[idx])
     }, 8 * 60 * 1000)
     return () => clearInterval(interval)
-  }, [])
+  }, [pixelShiftEnabled])
 
   // Periodischer Dunkelscreen + Spiegelung
   useEffect(() => {

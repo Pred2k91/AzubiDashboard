@@ -97,6 +97,7 @@ export default function SettingsPage() {
   const [nightDimLevel, setNightDimLevel] = useState(0.7)
   const [darkScreenInterval, setDarkScreenInterval] = useState(60)
   const [darkScreenDuration, setDarkScreenDuration] = useState(30)
+  const [pixelShiftEnabled, setPixelShiftEnabled] = useState(true)
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -117,6 +118,7 @@ export default function SettingsPage() {
       if (s.night_dim_level !== undefined) setNightDimLevel(s.night_dim_level)
       if (s.dark_screen_interval !== undefined) setDarkScreenInterval(s.dark_screen_interval)
       if (s.dark_screen_duration !== undefined) setDarkScreenDuration(s.dark_screen_duration)
+      if (s.pixel_shift_enabled !== undefined) setPixelShiftEnabled(s.pixel_shift_enabled)
     }).catch(() => {})
   }, [])
 
@@ -136,6 +138,7 @@ export default function SettingsPage() {
         settingsApi.update('night_dim_level', nightDimLevel),
         settingsApi.update('dark_screen_interval', darkScreenInterval),
         settingsApi.update('dark_screen_duration', darkScreenDuration),
+        settingsApi.update('pixel_shift_enabled', pixelShiftEnabled),
       ])
       applyAccentColor(accent)
       applyWidgetOpacity(widgetOpacity)
@@ -305,9 +308,15 @@ export default function SettingsPage() {
             <p className="text-sm text-slate-300">Pixel-Shift</p>
             <p className="text-xs text-slate-600 mt-0.5">Verschiebt alle 8 Minuten den gesamten Inhalt um ~18px — bei TV-Abstand nicht wahrnehmbar</p>
           </div>
-          <div className="shrink-0 text-xs text-indigo-300 bg-indigo-600/10 border border-indigo-500/20 px-2.5 py-1 rounded-lg">
-            Immer aktiv
-          </div>
+          <label className="flex items-center gap-2 cursor-pointer shrink-0">
+            <input
+              type="checkbox"
+              className="w-4 h-4 accent-indigo-600"
+              checked={pixelShiftEnabled}
+              onChange={e => setPixelShiftEnabled(e.target.checked)}
+            />
+            <span className="text-sm text-slate-300">Aktiv</span>
+          </label>
         </div>
 
         <div>
