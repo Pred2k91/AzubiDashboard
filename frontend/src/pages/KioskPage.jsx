@@ -131,13 +131,10 @@ export default function KioskPage() {
   const mirrorLayout = (items) =>
     items.map(item => ({ ...item, x: COLS - item.x - item.w }))
 
-  // Zoom auf HTML-Element — verhält sich wie Browser-Zoom, keine toten Bereiche
-  useEffect(() => {
-    document.documentElement.style.zoom = `${kioskZoom}%`
-    setContainerWidth(window.innerWidth)
-    setContainerHeight(window.innerHeight)
-    return () => { document.documentElement.style.zoom = '' }
-  }, [kioskZoom])
+  // Vor-Skalierungsmaße für react-grid-layout
+  const scaleFactor = kioskZoom / 100
+  const preScaleWidth = Math.round(containerWidth / scaleFactor)
+  const preScaleHeight = Math.round(containerHeight / scaleFactor)
 
   // Nacht-Dimming: jede Minute prüfen
   useEffect(() => {
@@ -222,11 +219,21 @@ export default function KioskPage() {
 
   return (
     <div
-      className={`h-screen flex relative overflow-hidden ${isMirrored ? 'flex-col-reverse' : 'flex-col'}`}
       style={{
-        backgroundColor: '#0d0f1a',
+        width: '100vw', height: '100vh',
+        overflow: 'hidden', backgroundColor: '#0d0f1a',
         transform: `translate(${pixelShift.x}px, ${pixelShift.y}px)`,
         transition: 'transform 90s ease-in-out',
+      }}
+    >
+    <div
+      className={`flex relative ${isMirrored ? 'flex-col-reverse' : 'flex-col'}`}
+      style={{
+        width: `${preScaleWidth}px`,
+        height: `${preScaleHeight}px`,
+        transform: `scale(${scaleFactor})`,
+        transformOrigin: 'top left',
+        backgroundColor: '#0d0f1a',
       }}
     >
       {/* Periodischer Dunkelscreen */}
@@ -360,7 +367,7 @@ export default function KioskPage() {
           layout={activeWidgets}
           cols={16}
           rowHeight={rowHeight}
-          width={containerWidth}
+          width={preScaleWidth}
           isDraggable={editMode}
           isResizable={editMode}
           onLayoutChange={handleLayoutChange}
@@ -388,6 +395,7 @@ export default function KioskPage() {
         onClose={() => setPinOpen(false)}
         onSuccess={() => { setPinOpen(false); navigate('/admin') }}
       />
+    </div>
     </div>
   )
 }
