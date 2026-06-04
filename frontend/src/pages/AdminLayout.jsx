@@ -2,7 +2,7 @@ import { NavLink, Outlet, Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, CalendarDays, CheckSquare, StickyNote,
-  Users, Building2, Settings, ExternalLink, GraduationCap,
+  Users, Building2, Settings, ExternalLink, GraduationCap, Megaphone,
 } from 'lucide-react'
 import { settingsApi } from '../api/client'
 
@@ -14,6 +14,7 @@ const NAV = [
   { to: '/admin/azubis', label: 'Azubis', icon: Users },
   { to: '/admin/departments', label: 'Abteilungen', icon: Building2 },
   { to: '/admin/schools', label: 'Berufsschulen', icon: GraduationCap },
+  { to: '/admin/announcements', label: 'Schwarzes Brett', icon: Megaphone },
   { to: '/admin/settings', label: 'Einstellungen', icon: Settings },
 ]
 

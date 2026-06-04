@@ -11,6 +11,7 @@ import NotesAdmin from './pages/admin/NotesAdmin'
 import AzubiAdmin from './pages/admin/AzubiAdmin'
 import DepartmentsAdmin from './pages/admin/DepartmentsAdmin'
 import SchoolsAdmin from './pages/admin/SchoolsAdmin'
+import AnnouncementsAdmin from './pages/admin/AnnouncementsAdmin'
 import SettingsPage from './pages/admin/SettingsPage'
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="azubis" element={<AzubiAdmin />} />
           <Route path="departments" element={<DepartmentsAdmin />} />
           <Route path="schools" element={<SchoolsAdmin />} />
+          <Route path="announcements" element={<AnnouncementsAdmin />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

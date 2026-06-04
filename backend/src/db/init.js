@@ -112,6 +112,19 @@ function initDb() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS announcements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      content TEXT DEFAULT '',
+      type TEXT DEFAULT 'announcement',
+      priority TEXT DEFAULT 'normal',
+      date TEXT,
+      azubi_ids TEXT DEFAULT '[]',
+      color TEXT DEFAULT '#6366f1',
+      active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,

@@ -8,6 +8,7 @@ import CalendarWidget from '../components/widgets/CalendarWidget'
 import TodoWidget from '../components/widgets/TodoWidget'
 import NotesWidget from '../components/widgets/NotesWidget'
 import DepartmentWidget from '../components/widgets/DepartmentWidget'
+import AnnouncementsWidget from '../components/widgets/AnnouncementsWidget'
 import { settingsApi } from '../api/client'
 
 const WIDGET_MAP = {
@@ -16,6 +17,7 @@ const WIDGET_MAP = {
   todos: { component: TodoWidget, label: 'Aufgaben' },
   departments: { component: DepartmentWidget, label: 'Abteilungen' },
   notes: { component: NotesWidget, label: 'Notizen' },
+  announcements: { component: AnnouncementsWidget, label: 'Schwarzes Brett' },
 }
 
 const DEFAULT_LAYOUT = [
@@ -23,7 +25,8 @@ const DEFAULT_LAYOUT = [
   { i: 'calendar', x: 4, y: 0, w: 5, h: 10, minW: 3, minH: 6 },
   { i: 'todos', x: 0, y: 5, w: 4, h: 8, minW: 2, minH: 4 },
   { i: 'departments', x: 9, y: 0, w: 7, h: 10, minW: 4, minH: 6 },
-  { i: 'notes', x: 4, y: 10, w: 12, h: 6, minW: 3, minH: 4 },
+  { i: 'notes', x: 4, y: 10, w: 8, h: 6, minW: 3, minH: 4 },
+  { i: 'announcements', x: 12, y: 10, w: 4, h: 6, minW: 3, minH: 4 },
 ]
 
 export default function KioskPage() {
@@ -32,7 +35,7 @@ export default function KioskPage() {
   const [layout, setLayout] = useState(DEFAULT_LAYOUT)
   const [editMode, setEditMode] = useState(false)
   const [widgetsEnabled, setWidgetsEnabled] = useState({
-    clock: true, calendar: true, todos: true, departments: true, notes: true,
+    clock: true, calendar: true, todos: true, departments: true, notes: true, announcements: true,
   })
   const [title, setTitle] = useState('Ausbildungsdashboard')
   const [logoUrl, setLogoUrl] = useState(null)
