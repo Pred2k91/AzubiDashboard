@@ -39,12 +39,12 @@ export default function DepartmentWidget() {
 
   const AzubiRow = ({ a, color }) => (
     <div className="flex items-center gap-2">
-      <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
+      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
         style={{ backgroundColor: `${color}25`, color }}>
         {a.name.charAt(0).toUpperCase()}
       </div>
-      <span className="text-xs text-slate-300 truncate">{a.name}</span>
-      <span className="ml-auto text-[9px] text-slate-400 shrink-0">{a.lehrjahr}. Lj.</span>
+      <span className="text-sm text-slate-300 truncate">{a.name}</span>
+      <span className="ml-auto text-xs text-slate-400 shrink-0">{a.lehrjahr}. Lj.</span>
     </div>
   )
 
@@ -58,7 +58,7 @@ export default function DepartmentWidget() {
     </div>
   )
 
-  const GRID = { gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))' }
+  const GRID = { gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))' }
 
   return (
     <div className="widget-card">
@@ -89,19 +89,19 @@ export default function DepartmentWidget() {
             {(activeDepts.length > 0 || data.unassigned.length > 0) && (
               <div className="grid gap-3" style={GRID}>
                 {activeDepts.map(dept => (
-                  <div key={dept.id} className="p-2.5 rounded-xl border bg-[#1e2035]/50"
+                  <div key={dept.id} className="p-3.5 rounded-xl border bg-[#1e2035]/50"
                     style={{ borderColor: `${dept.color}40` }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dept.color }} />
-                      <span className="text-xs font-bold text-white truncate">{dept.name}</span>
-                      <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: dept.color }} />
+                      <span className="text-sm font-bold text-white truncate">{dept.name}</span>
+                      <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full shrink-0"
                         style={{ backgroundColor: `${dept.color}20`, color: dept.color }}>
                         {dept.azubis.length}
                       </span>
                     </div>
                     {dept.location && (
-                      <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-2">
-                        <MapPin size={9} />{dept.location}
+                      <div className="flex items-center gap-1 text-xs text-slate-400 mb-2">
+                        <MapPin size={10} />{dept.location}
                       </div>
                     )}
                     <div className="space-y-1">
@@ -111,21 +111,21 @@ export default function DepartmentWidget() {
                 ))}
 
                 {data.unassigned.length > 0 && (
-                  <div className="p-2.5 rounded-xl border border-[#2a2d4a] bg-[#1e2035]/30">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-2 h-2 rounded-full bg-slate-600 shrink-0" />
-                      <span className="text-xs font-bold text-slate-500">Nicht zugewiesen</span>
-                      <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700 text-slate-400 shrink-0">
+                  <div className="p-3.5 rounded-xl border border-[#2a2d4a] bg-[#1e2035]/30">
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-slate-600 shrink-0" />
+                      <span className="text-sm font-bold text-slate-500">Nicht zugewiesen</span>
+                      <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 shrink-0">
                         {data.unassigned.length}
                       </span>
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       {data.unassigned.map(a => (
                         <div key={a.id} className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold bg-slate-700 text-slate-400 shrink-0">
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-slate-700 text-slate-400 shrink-0">
                             {a.name.charAt(0).toUpperCase()}
                           </div>
-                          <span className="text-xs text-slate-500 truncate">{a.name}</span>
+                          <span className="text-sm text-slate-500 truncate">{a.name}</span>
                         </div>
                       ))}
                     </div>
@@ -140,17 +140,17 @@ export default function DepartmentWidget() {
                 <Divider icon={GraduationCap} label="Berufsschule" />
                 <div className="grid gap-3" style={GRID}>
                   {activeSchools.map(block => (
-                    <div key={`school-${block.id}`} className="p-2.5 rounded-xl border bg-[#1e2035]/50"
+                    <div key={`school-${block.id}`} className="p-3.5 rounded-xl border bg-[#1e2035]/50"
                       style={{ borderColor: `${block.color}50`, borderStyle: 'dashed' }}>
                       <div className="flex items-center gap-2 mb-2">
                         <GraduationCap size={12} style={{ color: block.color }} className="shrink-0" />
-                        <span className="text-xs font-bold text-white truncate">{block.school_name}</span>
+                        <span className="text-sm font-bold text-white truncate">{block.school_name}</span>
                         <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
                           style={{ backgroundColor: `${block.color}20`, color: block.color }}>
                           {block.azubis.length}
                         </span>
                       </div>
-                      <div className="text-[10px] text-slate-500 mb-2">
+                      <div className="text-xs text-slate-500 mb-2">
                         bis {format(parseISO(block.end_date), 'dd.MM.yyyy', { locale: de })}
                       </div>
                       <div className="space-y-1">
@@ -172,13 +172,13 @@ export default function DepartmentWidget() {
                       style={{ borderColor: `${event.color}50`, borderStyle: 'dashed' }}>
                       <div className="flex items-center gap-2 mb-2">
                         <CalendarDays size={12} style={{ color: event.color }} className="shrink-0" />
-                        <span className="text-xs font-bold text-white truncate">{event.title}</span>
+                        <span className="text-sm font-bold text-white truncate">{event.title}</span>
                         <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
                           style={{ backgroundColor: `${event.color}20`, color: event.color }}>
                           {event.azubis.length}
                         </span>
                       </div>
-                      <div className="text-[10px] text-slate-500 mb-2">
+                      <div className="text-xs text-slate-500 mb-2">
                         bis {format(parseISO(event.end_datetime), 'dd.MM. HH:mm', { locale: de })}
                       </div>
                       <div className="space-y-1">

@@ -116,8 +116,9 @@ export default function CalendarWidget() {
                   <div key={e.id} className="flex items-start gap-2">
                     <div className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ backgroundColor: e.color || '#6366f1' }} />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-0.5">
-                        <span className="shrink-0 font-medium">
+                      <div className="text-sm font-medium text-white truncate">{e.title}</div>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
+                        <span className="shrink-0">
                           {format(parseISO(e.start_datetime), 'dd.MM HH:mm')}
                         </span>
                         {!sameDay && (
@@ -132,11 +133,10 @@ export default function CalendarWidget() {
                             <span className="shrink-0">{format(parseISO(e.end_datetime), 'HH:mm')}</span>
                           </>
                         )}
+                        {e.description && (
+                          <span className="text-slate-500 truncate">· {e.description}</span>
+                        )}
                       </div>
-                      <div className="text-sm font-medium text-white truncate">{e.title}</div>
-                      {e.description && (
-                        <div className="text-xs text-slate-400 truncate">{e.description}</div>
-                      )}
                     </div>
                   </div>
                 )
