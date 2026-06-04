@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Megaphone, CalendarDays, AlertTriangle, Info, Clock, ArrowRightLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { announcementsApi, azubisApi } from '../../api/client'
+import { announcementsApi, azubisApi, settingsApi } from '../../api/client'
 
 const PRIORITY = {
   urgent:    { label: 'Dringend',  bg: 'bg-red-500/15',    border: 'border-red-500/40',    text: 'text-red-400',    icon: AlertTriangle },
@@ -19,18 +19,23 @@ function CountdownBadge({ date }) {
   return <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cls}`}>{days === 0 ? 'Heute!' : `${days} Tage`}</span>
 }
 
-const SECTION_INTERVAL = 8000
-
 export default function AnnouncementsWidget() {
   const [items, setItems] = useState([])
   const [rotation, setRotation] = useState(null)
   const [sectionIdx, setSectionIdx] = useState(0)
   const [visible, setVisible] = useState(true)
+  const [sectionInterval, setSectionInterval] = useState(8000)
 
   const loadData = () => {
     announcementsApi.getActive().then(setItems).catch(() => {})
     azubisApi.getNextRotation().then(setRotation).catch(() => {})
   }
+
+  useEffect(() => {
+    settingsApi.getAll().then(s => {
+      if (s.announcement_interval) setSectionInterval(s.announcement_interval)
+    }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     loadData()
@@ -63,7 +68,7 @@ export default function AnnouncementsWidget() {
     if (total <= 1) return
     const interval = setInterval(() => {
       goTo((sectionIdx + 1) % total)
-    }, SECTION_INTERVAL)
+    }, sectionInterval)
     return () => clearInterval(interval)
   }, [sectionIdx, total, goTo])
 

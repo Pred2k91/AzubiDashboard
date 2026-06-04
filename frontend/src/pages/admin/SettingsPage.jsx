@@ -113,6 +113,7 @@ function WeatherTest() {
 export default function SettingsPage() {
   const [adminPin, setAdminPin] = useState('')
   const [showSeconds, setShowSeconds] = useState(true)
+  const [announcementInterval, setAnnouncementInterval] = useState(8000)
   const [kioskZoom, setKioskZoom] = useState(100)
   const [weatherCity, setWeatherCity] = useState('')
   const [weatherApiKey, setWeatherApiKey] = useState('')
@@ -139,6 +140,7 @@ export default function SettingsPage() {
       if (s.dashboard_title) setTitle(s.dashboard_title)
       if (s.admin_pin !== undefined) setAdminPin(s.admin_pin || '')
       if (s.show_seconds !== undefined) setShowSeconds(s.show_seconds)
+      if (s.announcement_interval !== undefined) setAnnouncementInterval(s.announcement_interval)
       if (s.kiosk_zoom !== undefined) setKioskZoom(s.kiosk_zoom)
       if (s.weather_city) setWeatherCity(s.weather_city)
       if (s.weather_api_key) setWeatherApiKey(s.weather_api_key)
@@ -166,6 +168,7 @@ export default function SettingsPage() {
         settingsApi.update('dashboard_title', title),
         settingsApi.update('admin_pin', adminPin),
         settingsApi.update('show_seconds', showSeconds),
+        settingsApi.update('announcement_interval', announcementInterval),
         settingsApi.update('kiosk_zoom', kioskZoom),
         settingsApi.update('weather_city', weatherCity),
         settingsApi.update('weather_api_key', weatherApiKey),
@@ -293,6 +296,20 @@ export default function SettingsPage() {
             <p className="text-xs text-slate-600 mt-0.5">HH:MM:SS statt nur HH:MM</p>
           </div>
         </label>
+
+        <div>
+          <label className="label">Schwarzes Brett — Rotationszeit</label>
+          <select className="input-field max-w-xs" value={announcementInterval}
+            onChange={e => setAnnouncementInterval(parseInt(e.target.value))}>
+            <option value={5000}>5 Sekunden</option>
+            <option value={8000}>8 Sekunden</option>
+            <option value={10000}>10 Sekunden</option>
+            <option value={15000}>15 Sekunden</option>
+            <option value={20000}>20 Sekunden</option>
+            <option value={30000}>30 Sekunden</option>
+          </select>
+          <p className="text-xs text-slate-600 mt-1">Wie lange jede Sektion angezeigt wird</p>
+        </div>
 
         <div className="space-y-3">
           <p className="text-sm text-slate-300">Wetter</p>
