@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Megaphone, CalendarDays, AlertTriangle, Info, Clock, ArrowRightLeft, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Megaphone, CalendarDays, AlertTriangle, Info, Clock, ArrowRightLeft, ChevronLeft, ChevronRight, Cake } from 'lucide-react'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { announcementsApi, azubisApi, settingsApi } from '../../api/client'
+
+const BIRTHDAY_WINDOW = 30 // Tage im Voraus anzeigen
 
 const PRIORITY = {
   urgent:    { label: 'Dringend',  bg: 'bg-red-500/15',    border: 'border-red-500/40',    text: 'text-red-400',    icon: AlertTriangle },
@@ -22,6 +24,7 @@ function CountdownBadge({ date }) {
 export default function AnnouncementsWidget() {
   const [items, setItems] = useState([])
   const [rotation, setRotation] = useState(null)
+  const [birthdays, setBirthdays] = useState([])
   const [sectionIdx, setSectionIdx] = useState(0)
   const [visible, setVisible] = useState(true)
   const [sectionInterval, setSectionInterval] = useState(8000)
@@ -29,6 +32,7 @@ export default function AnnouncementsWidget() {
   const loadData = () => {
     announcementsApi.getActive().then(setItems).catch(() => {})
     azubisApi.getNextRotation().then(setRotation).catch(() => {})
+    azubisApi.getBirthdays().then(setBirthdays).catch(() => {})
   }
 
   useEffect(() => {
@@ -57,6 +61,7 @@ export default function AnnouncementsWidget() {
 
   const examPages = chunk(exams, PAGE_SIZE)
   const announcementPages = chunk(announcements, PAGE_SIZE)
+  const birthdayPages = chunk(birthdays, PAGE_SIZE)
 
   const sections = [
     ...examPages.map((page, i) => ({
@@ -69,6 +74,12 @@ export default function AnnouncementsWidget() {
       key: 'announcements',
       label: announcementPages.length > 1 ? `Ankündigungen ${i + 1}/${announcementPages.length}` : 'Ankündigungen',
       icon: Megaphone,
+      content: page,
+    })),
+    ...birthdayPages.map((page, i) => ({
+      key: 'birthdays',
+      label: birthdayPages.length > 1 ? `Geburtstage ${i + 1}/${birthdayPages.length}` : 'Geburtstage',
+      icon: Cake,
       content: page,
     })),
     hasRotation && { key: 'rotation', label: 'Abteilungswechsel', icon: ArrowRightLeft, rotation },
@@ -132,7 +143,7 @@ export default function AnnouncementsWidget() {
             </div>
           )}
           <span className="text-xs text-slate-500 bg-[#1e2035]/60 px-2 py-0.5 rounded-full">
-            {total === 0 ? 0 : current?.key === 'rotation' ? rotation.departments.length : current.content.length}
+            {total === 0 ? 0 : current?.key === 'rotation' ? rotation.departments.length : current.content?.length ?? 0}
           </span>
         </div>
       </div>
@@ -189,6 +200,36 @@ export default function AnnouncementsWidget() {
                       </div>
                       {item.content && <p className="text-xs text-slate-400 mt-1">{item.content}</p>}
                       {item.date && <p className="text-[10px] text-slate-600 mt-1">bis {format(parseISO(item.date), 'dd.MM.yyyy', { locale: de })}</p>}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : current?.key === 'birthdays' ? (
+          <div className="space-y-2">
+            {current.content.map(b => {
+              const isToday = b.days_until === 0
+              const isTomorrow = b.days_until === 1
+              const isSoon = b.days_until <= 7
+              return (
+                <div key={b.id} className={`p-3 rounded-xl border flex items-center gap-3 ${
+                  isToday ? 'bg-yellow-500/15 border-yellow-500/40' :
+                  isSoon  ? 'bg-indigo-500/10 border-indigo-500/20' :
+                            'bg-[#1e2035]/50 border-[#2a2d4a]'
+                }`}>
+                  <div className={`text-2xl ${isToday ? '' : 'opacity-70'}`}>🎂</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-white">{b.name}</span>
+                      {isToday && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300">Heute! 🎉</span>}
+                      {isTomorrow && <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">Morgen</span>}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
+                      <span>{format(new Date(new Date().getFullYear() + (b.days_until < 0 ? 1 : 0), new Date(b.birthday).getMonth(), new Date(b.birthday).getDate()), 'dd. MMMM', { locale: de })}</span>
+                      <span className="text-slate-600">·</span>
+                      <span>wird {b.age}</span>
+                      {!isToday && !isTomorrow && <span className="text-slate-500">· in {b.days_until} Tagen</span>}
                     </div>
                   </div>
                 </div>

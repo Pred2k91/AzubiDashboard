@@ -149,11 +149,11 @@ router.get('/by-department', (req, res) => {
 router.post('/', (req, res) => {
   try {
     const db = getDb()
-    const { name, lehrjahr, start_date, current_department_id, email } = req.body
+    const { name, lehrjahr, start_date, current_department_id, email, birthday } = req.body
     if (!name) return res.status(400).json({ error: 'name ist erforderlich' })
     const result = db.prepare(
-      'INSERT INTO azubis (name, lehrjahr, start_date, current_department_id, email) VALUES (?, ?, ?, ?, ?)'
-    ).run(name, lehrjahr || 1, start_date || null, current_department_id || null, email || '')
+      'INSERT INTO azubis (name, lehrjahr, start_date, current_department_id, email, birthday) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(name, lehrjahr || 1, start_date || null, current_department_id || null, email || '', birthday || null)
     const azubi = db.prepare(`
       SELECT a.*, d.name as department_name, d.color as department_color
       FROM azubis a LEFT JOIN departments d ON a.current_department_id = d.id
@@ -168,10 +168,10 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   try {
     const db = getDb()
-    const { name, lehrjahr, start_date, current_department_id, email, active } = req.body
+    const { name, lehrjahr, start_date, current_department_id, email, active, birthday } = req.body
     db.prepare(
-      'UPDATE azubis SET name=?, lehrjahr=?, start_date=?, current_department_id=?, email=?, active=? WHERE id=?'
-    ).run(name, lehrjahr || 1, start_date || null, current_department_id || null, email || '', active !== undefined ? active : 1, req.params.id)
+      'UPDATE azubis SET name=?, lehrjahr=?, start_date=?, current_department_id=?, email=?, active=?, birthday=? WHERE id=?'
+    ).run(name, lehrjahr || 1, start_date || null, current_department_id || null, email || '', active !== undefined ? active : 1, birthday || null, req.params.id)
     const azubi = db.prepare(`
       SELECT a.*, d.name as department_name, d.color as department_color
       FROM azubis a LEFT JOIN departments d ON a.current_department_id = d.id
@@ -182,6 +182,37 @@ router.put('/:id', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
+})
+
+// Kommende Geburtstage (nächste 30 Tage)
+router.get('/birthdays', (req, res) => {
+  try {
+    const db = getDb()
+    const azubis = db.prepare(
+      "SELECT id, name, birthday, lehrjahr FROM azubis WHERE active = 1 AND birthday IS NOT NULL AND birthday != ''"
+    ).all()
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const results = []
+
+    for (const a of azubis) {
+      const bday = new Date(a.birthday)
+      // Nächsten Geburtstag im laufenden oder nächsten Jahr berechnen
+      let next = new Date(today.getFullYear(), bday.getMonth(), bday.getDate())
+      if (next < today) next.setFullYear(today.getFullYear() + 1)
+
+      const daysUntil = Math.round((next - today) / 86400000)
+      const age = next.getFullYear() - bday.getFullYear()
+
+      if (daysUntil <= 30) {
+        results.push({ id: a.id, name: a.name, lehrjahr: a.lehrjahr, birthday: a.birthday, days_until: daysUntil, age })
+      }
+    }
+
+    results.sort((a, b) => a.days_until - b.days_until)
+    res.json(results)
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 // Nächsten geplanten Abteilungswechsel abrufen

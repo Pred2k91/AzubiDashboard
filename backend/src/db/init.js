@@ -139,6 +139,9 @@ function initDb() {
       ('widgets_enabled', '{"clock":true,"calendar":true,"todos":true,"departments":true,"notes":true}');
   `)
 
+  // Migration: birthday-Spalte hinzufügen falls nicht vorhanden
+  try { db.exec("ALTER TABLE azubis ADD COLUMN birthday TEXT") } catch (_) {}
+
   // Migration: lehrjahre-Spalte hinzufügen falls nicht vorhanden
   try { db.exec("ALTER TABLE school_blocks ADD COLUMN lehrjahre TEXT DEFAULT '[]'") } catch (_) {}
 

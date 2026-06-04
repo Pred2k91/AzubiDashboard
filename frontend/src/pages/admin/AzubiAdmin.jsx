@@ -5,7 +5,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { azubisApi, departmentsApi } from '../../api/client'
 import { format, parseISO } from 'date-fns'
 
-const EMPTY = { name: '', lehrjahr: 1, start_date: '', current_department_id: '', email: '' }
+const EMPTY = { name: '', lehrjahr: 1, start_date: '', current_department_id: '', email: '', birthday: '' }
 
 export default function AzubiAdmin() {
   const [azubis, setAzubis] = useState([])
@@ -33,7 +33,7 @@ export default function AzubiAdmin() {
     setEditing(a)
     setForm({
       name: a.name, lehrjahr: a.lehrjahr, start_date: a.start_date || '',
-      current_department_id: a.current_department_id || '', email: a.email || '',
+      current_department_id: a.current_department_id || '', email: a.email || '', birthday: a.birthday || '',
     })
     setModal(true)
   }
@@ -203,6 +203,10 @@ export default function AzubiAdmin() {
           <div>
             <label className="label">E-Mail</label>
             <input type="email" className="input-field" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="azubi@firma.de" />
+          </div>
+          <div>
+            <label className="label">Geburtsdatum</label>
+            <input type="date" className="input-field" value={form.birthday} onChange={e => setForm(f => ({ ...f, birthday: e.target.value }))} />
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button className="btn-secondary" onClick={() => setModal(false)}>Abbrechen</button>
