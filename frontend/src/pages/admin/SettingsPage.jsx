@@ -113,6 +113,7 @@ function WeatherTest() {
 export default function SettingsPage() {
   const [adminPin, setAdminPin] = useState('')
   const [showSeconds, setShowSeconds] = useState(true)
+  const [kioskZoom, setKioskZoom] = useState(100)
   const [weatherCity, setWeatherCity] = useState('')
   const [weatherApiKey, setWeatherApiKey] = useState('')
   const [title, setTitle] = useState('Ausbildungsdashboard')
@@ -138,6 +139,7 @@ export default function SettingsPage() {
       if (s.dashboard_title) setTitle(s.dashboard_title)
       if (s.admin_pin !== undefined) setAdminPin(s.admin_pin || '')
       if (s.show_seconds !== undefined) setShowSeconds(s.show_seconds)
+      if (s.kiosk_zoom !== undefined) setKioskZoom(s.kiosk_zoom)
       if (s.weather_city) setWeatherCity(s.weather_city)
       if (s.weather_api_key) setWeatherApiKey(s.weather_api_key)
       if (s.theme_accent) setAccent(s.theme_accent)
@@ -164,6 +166,7 @@ export default function SettingsPage() {
         settingsApi.update('dashboard_title', title),
         settingsApi.update('admin_pin', adminPin),
         settingsApi.update('show_seconds', showSeconds),
+        settingsApi.update('kiosk_zoom', kioskZoom),
         settingsApi.update('weather_city', weatherCity),
         settingsApi.update('weather_api_key', weatherApiKey),
         settingsApi.update('theme_accent', accent),
@@ -249,6 +252,32 @@ export default function SettingsPage() {
             <option value={600000}>10 Minuten</option>
             <option value={1800000}>30 Minuten</option>
           </select>
+        </div>
+      </div>
+
+      {/* Dashboard-Zoom */}
+      <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-4">
+        <h2 className="text-sm font-semibold text-white">Darstellung</h2>
+        <div>
+          <label className="label">Dashboard-Zoom: {kioskZoom}%</label>
+          <p className="text-xs text-slate-600 mb-2">
+            Verkleinert/vergrößert das gesamte Dashboard — nützlich wenn der Browser auf dem Bildschirm eine andere Skalierung hat.
+            Direktsteuerung auch über die +/− Buttons im Kiosk-Header.
+          </p>
+          <div className="flex items-center gap-3">
+            <input type="range" min="50" max="150" step="5" value={kioskZoom}
+              onChange={e => setKioskZoom(parseInt(e.target.value))}
+              className="flex-1 max-w-xs accent-indigo-600" />
+            <div className="flex gap-1">
+              {[75, 85, 100, 110, 125].map(z => (
+                <button key={z} onClick={() => setKioskZoom(z)}
+                  className={`px-2.5 py-1 rounded-lg text-xs border transition-all ${
+                    kioskZoom === z ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300'
+                                   : 'bg-[#0d0f1a] border-[#2a2d4a] text-slate-500'
+                  }`}>{z}%</button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

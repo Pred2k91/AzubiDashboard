@@ -38,6 +38,7 @@ export default function KioskPage() {
     clock: true, calendar: true, todos: true, departments: true, notes: true, announcements: true,
   })
   const [title, setTitle] = useState('Ausbildungsdashboard')
+  const [kioskZoom, setKioskZoom] = useState(100)
   const [logoUrl, setLogoUrl] = useState(null)
   const [backgroundUrl, setBackgroundUrl] = useState(null)
   const [backgroundUrl2, setBackgroundUrl2] = useState(null)
@@ -73,6 +74,7 @@ export default function KioskPage() {
       }
       if (s.widgets_enabled) setWidgetsEnabled(s.widgets_enabled)
       if (s.dashboard_title) setTitle(s.dashboard_title)
+      if (s.kiosk_zoom !== undefined) setKioskZoom(s.kiosk_zoom)
       if (s.logo_url) setLogoUrl(s.logo_url)
       if (s.background_url) setBackgroundUrl(s.background_url)
       if (s.background_url_2) setBackgroundUrl2(s.background_url_2)
@@ -217,6 +219,7 @@ export default function KioskPage() {
         backgroundColor: '#0d0f1a',
         transform: `translate(${pixelShift.x}px, ${pixelShift.y}px)`,
         transition: 'transform 90s ease-in-out',
+        zoom: `${kioskZoom}%`,
       }}
     >
       {/* Periodischer Dunkelscreen */}
@@ -313,6 +316,19 @@ export default function KioskPage() {
             {editMode ? <Unlock size={13} /> : <Lock size={13} />}
             {editMode ? 'Fertig' : 'Layout'}
           </button>
+          {/* Zoom-Schnellsteuerung */}
+          <div className="flex items-center gap-0.5 bg-[#1e2035] border border-[#2a2d4a] rounded-lg overflow-hidden">
+            <button
+              onClick={() => { const z = Math.max(50, kioskZoom - 5); setKioskZoom(z); settingsApi.update('kiosk_zoom', z) }}
+              className="px-2.5 py-1.5 text-slate-500 hover:text-white hover:bg-[#2a2d4a] text-sm font-bold transition-colors"
+            >−</button>
+            <span className="text-xs text-slate-500 px-1 min-w-[38px] text-center">{kioskZoom}%</span>
+            <button
+              onClick={() => { const z = Math.min(150, kioskZoom + 5); setKioskZoom(z); settingsApi.update('kiosk_zoom', z) }}
+              className="px-2.5 py-1.5 text-slate-500 hover:text-white hover:bg-[#2a2d4a] text-sm font-bold transition-colors"
+            >+</button>
+          </div>
+
           <button
             onClick={() => setPinOpen(true)}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#1e2035] border border-[#2a2d4a] text-slate-500 hover:text-slate-300 transition-all"
