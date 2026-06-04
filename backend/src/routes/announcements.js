@@ -2,9 +2,15 @@ const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
 
-function parseAzubis(row) {
-  try { return { ...row, azubi_ids: JSON.parse(row.azubi_ids || '[]') } }
-  catch { return { ...row, azubi_ids: [] } }
+function parseAzubis(db, row) {
+  try {
+    const ids = JSON.parse(row.azubi_ids || '[]')
+    if (!ids.length) return { ...row, azubi_ids: [], azubis: [] }
+    const azubis = db.prepare(
+      `SELECT id, name, lehrjahr FROM azubis WHERE id IN (${ids.join(',')}) ORDER BY lehrjahr, name`
+    ).all()
+    return { ...row, azubi_ids: ids, azubis }
+  } catch { return { ...row, azubi_ids: [], azubis: [] } }
 }
 
 // GET all active (nicht abgelaufen, nicht deaktiviert)
@@ -21,7 +27,7 @@ router.get('/', (req, res) => {
         CASE type WHEN 'exam' THEN date ELSE date END ASC,
         created_at DESC
     `).all(today)
-    res.json(rows.map(parseAzubis))
+    res.json(rows.map(r => parseAzubis(db, r)))
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
@@ -32,7 +38,7 @@ router.get('/all', (req, res) => {
     const rows = db.prepare(`
       SELECT * FROM announcements ORDER BY created_at DESC
     `).all()
-    res.json(rows.map(parseAzubis))
+    res.json(rows.map(r => parseAzubis(db, r)))
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
@@ -49,7 +55,7 @@ router.post('/', (req, res) => {
       priority || 'normal', date || null,
       JSON.stringify(azubi_ids || []), color || '#6366f1'
     )
-    res.status(201).json(parseAzubis(db.prepare('SELECT * FROM announcements WHERE id = ?').get(result.lastInsertRowid)))
+    res.status(201).json(parseAzubis(db, db.prepare('SELECT * FROM announcements WHERE id = ?').get(result.lastInsertRowid)))
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
@@ -67,7 +73,7 @@ router.put('/:id', (req, res) => {
     )
     const row = db.prepare('SELECT * FROM announcements WHERE id = ?').get(req.params.id)
     if (!row) return res.status(404).json({ error: 'Nicht gefunden' })
-    res.json(parseAzubis(row))
+    res.json(parseAzubis(db, row))
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 

@@ -72,13 +72,25 @@ export default function AnnouncementsWidget() {
                   <span className="text-sm font-semibold text-white leading-tight">{item.title}</span>
                   {item.date && <CountdownBadge date={item.date} />}
                 </div>
+                {item.content && <p className="text-xs text-slate-400">{item.content}</p>}
                 {item.date && (
-                  <div className="flex items-center gap-1 text-xs text-slate-400 mb-1">
-                    <Clock size={10} />
-                    {format(parseISO(item.date), 'dd. MMMM yyyy', { locale: de })}
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                    <div className="flex items-center gap-1 text-xs text-slate-400">
+                      <Clock size={10} />
+                      {format(parseISO(item.date), 'dd. MMMM yyyy', { locale: de })}
+                    </div>
+                    {item.azubis?.length > 0 && (
+                      <>
+                        <span className="text-slate-600">·</span>
+                        {item.azubis.map(a => (
+                          <span key={a.id} className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2a2d4a] text-slate-300">
+                            {a.name.split(' ')[0]}
+                          </span>
+                        ))}
+                      </>
+                    )}
                   </div>
                 )}
-                {item.content && <p className="text-xs text-slate-400">{item.content}</p>}
               </div>
             ))}
           </>
