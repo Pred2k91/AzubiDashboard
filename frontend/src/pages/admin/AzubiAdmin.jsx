@@ -227,8 +227,8 @@ export default function AzubiAdmin() {
                 <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-purple-600/20 text-purple-300 shrink-0">
                   {a.name.charAt(0).toUpperCase()}
                 </div>
-                <span className="flex-1 text-sm text-white min-w-0 truncate">{a.name}</span>
-                <span className="text-xs text-slate-600 shrink-0">{a.lehrjahr}. Lj.</span>
+                <span className="text-sm text-white flex-1" style={{ minWidth: '120px' }}>{a.name}</span>
+                <span className="text-xs text-slate-500 shrink-0">{a.lehrjahr}. Lj.</span>
                 <select
                   className="input-field w-48 shrink-0 text-xs py-1.5"
                   value={rotationAssignments[a.id] || ''}
