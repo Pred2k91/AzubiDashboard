@@ -134,63 +134,64 @@ export default function DepartmentWidget() {
               </div>
             )}
 
-            {/* Berufsschule */}
-            {activeSchools.length > 0 && (
-              <>
-                <Divider icon={GraduationCap} label="Berufsschule" />
-                <div className="grid gap-3" style={GRID}>
-                  {activeSchools.map(block => (
-                    <div key={`school-${block.id}`} className="p-3.5 rounded-xl border bg-[#1e2035]/50"
-                      style={{ borderColor: `${block.color}50`, borderStyle: 'dashed' }}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <GraduationCap size={12} style={{ color: block.color }} className="shrink-0" />
-                        <span className="text-sm font-bold text-white truncate">{block.school_name}</span>
-                        <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
-                          style={{ backgroundColor: `${block.color}20`, color: block.color }}>
-                          {block.azubis.length}
-                        </span>
-                      </div>
-                      <div className="text-xs text-slate-500 mb-2">
-                        bis {format(parseISO(block.end_date), 'dd.MM.yyyy', { locale: de })}
-                      </div>
-                      <div className="space-y-1">
-                        {block.azubis.map(a => <AzubiRow key={a.id} a={a} color={block.color} />)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+            {/* Berufsschule + Aktive Termine nebeneinander */}
+            {(activeSchools.length > 0 || activeEvents.length > 0) && (
+              <div className={`grid gap-4 ${activeSchools.length > 0 && activeEvents.length > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
 
-            {/* Termine */}
-            {activeEvents.length > 0 && (
-              <>
-                <Divider icon={CalendarDays} label="Aktive Termine" />
-                <div className="grid gap-3" style={GRID}>
-                  {activeEvents.map(event => (
-                    <div key={`event-${event.id}`} className="p-2.5 rounded-xl border bg-[#1e2035]/50"
-                      style={{ borderColor: `${event.color}50`, borderStyle: 'dashed' }}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <CalendarDays size={12} style={{ color: event.color }} className="shrink-0" />
-                        <span className="text-sm font-bold text-white truncate">{event.title}</span>
-                        <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
-                          style={{ backgroundColor: `${event.color}20`, color: event.color }}>
-                          {event.azubis.length}
-                        </span>
+                {/* Berufsschule */}
+                {activeSchools.length > 0 && (
+                  <div className="space-y-2">
+                    <Divider icon={GraduationCap} label="Berufsschule" />
+                    {activeSchools.map(block => (
+                      <div key={`school-${block.id}`} className="p-3 rounded-xl border bg-[#1e2035]/50"
+                        style={{ borderColor: `${block.color}50`, borderStyle: 'dashed' }}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <GraduationCap size={12} style={{ color: block.color }} className="shrink-0" />
+                          <span className="text-sm font-bold text-white truncate">{block.school_name}</span>
+                          <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
+                            style={{ backgroundColor: `${block.color}20`, color: block.color }}>
+                            {block.azubis.length}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-500 mb-2">
+                          bis {format(parseISO(block.end_date), 'dd.MM.yyyy', { locale: de })}
+                        </div>
+                        <div className="space-y-1">
+                          {block.azubis.map(a => <AzubiRow key={a.id} a={a} color={block.color} />)}
+                        </div>
                       </div>
-                      <div className="text-xs text-slate-500 mb-2">
-                        bis {format(parseISO(event.end_datetime), 'dd.MM. HH:mm', { locale: de })}
+                    ))}
+                  </div>
+                )}
+
+                {/* Aktive Termine */}
+                {activeEvents.length > 0 && (
+                  <div className="space-y-2">
+                    <Divider icon={CalendarDays} label="Aktive Termine" />
+                    {activeEvents.map(event => (
+                      <div key={`event-${event.id}`} className="p-3 rounded-xl border bg-[#1e2035]/50"
+                        style={{ borderColor: `${event.color}50`, borderStyle: 'dashed' }}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <CalendarDays size={12} style={{ color: event.color }} className="shrink-0" />
+                          <span className="text-sm font-bold text-white truncate">{event.title}</span>
+                          <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
+                            style={{ backgroundColor: `${event.color}20`, color: event.color }}>
+                            {event.azubis.length}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-500 mb-2">
+                          bis {format(parseISO(event.end_datetime), 'dd.MM. HH:mm', { locale: de })}
+                        </div>
+                        <div className="space-y-1">
+                          {event.azubis.map(a => <AzubiRow key={a.id} a={a} color={event.color} />)}
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        {event.azubis.map(a => <AzubiRow key={a.id} a={a} color={event.color} />)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
+                    ))}
+                  </div>
+                )}
+
+              </div>
             )}
-          </div>
-        )}
       </div>
 
       {/* Scroll-Indikator */}
