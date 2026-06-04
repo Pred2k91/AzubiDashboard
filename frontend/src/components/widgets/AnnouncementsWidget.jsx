@@ -227,9 +227,7 @@ export default function AnnouncementsWidget() {
                     </div>
                     <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
                       <span>{format(new Date(new Date().getFullYear() + (b.days_until < 0 ? 1 : 0), new Date(b.birthday).getMonth(), new Date(b.birthday).getDate()), 'dd. MMMM', { locale: de })}</span>
-                      <span className="text-slate-600">·</span>
-                      <span>wird {b.age}</span>
-                      {!isToday && !isTomorrow && <span className="text-slate-500">· in {b.days_until} Tagen</span>}
+                      {!isToday && !isTomorrow && <><span className="text-slate-600">·</span><span className="text-slate-500">in {b.days_until} Tagen</span></>}
                     </div>
                   </div>
                 </div>
