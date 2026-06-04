@@ -82,6 +82,7 @@ function ImageUpload({ label, description, settingKey, currentUrl, onUpdate }) {
 }
 
 export default function SettingsPage() {
+  const [adminPin, setAdminPin] = useState('')
   const [title, setTitle] = useState('Ausbildungsdashboard')
   const [accent, setAccent] = useState('#6366f1')
   const [refreshInterval, setRefreshInterval] = useState(300000)
@@ -102,6 +103,7 @@ export default function SettingsPage() {
   useEffect(() => {
     settingsApi.getAll().then(s => {
       if (s.dashboard_title) setTitle(s.dashboard_title)
+      if (s.admin_pin !== undefined) setAdminPin(s.admin_pin || '')
       if (s.theme_accent) setAccent(s.theme_accent)
       if (s.refresh_interval) setRefreshInterval(s.refresh_interval)
       if (s.logo_url) setLogoUrl(s.logo_url)
@@ -123,6 +125,7 @@ export default function SettingsPage() {
     try {
       await Promise.all([
         settingsApi.update('dashboard_title', title),
+        settingsApi.update('admin_pin', adminPin),
         settingsApi.update('theme_accent', accent),
         settingsApi.update('refresh_interval', refreshInterval),
         settingsApi.update('background_opacity', bgOpacity),
@@ -180,6 +183,20 @@ export default function SettingsPage() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <label className="label">Admin-PIN</label>
+          <input
+            type="password"
+            inputMode="numeric"
+            className="input-field max-w-xs tracking-widest text-lg"
+            value={adminPin}
+            onChange={e => setAdminPin(e.target.value)}
+            placeholder="Leer = kein Schutz"
+            maxLength={8}
+          />
+          <p className="text-xs text-slate-600 mt-1">PIN für den Admin-Bereich — leer lassen für freien Zugang</p>
         </div>
 
         <div>
