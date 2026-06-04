@@ -60,6 +60,12 @@ export const schoolsApi = {
   deleteBlock: (blockId) => api.delete(`/schools/blocks/${blockId}`).then(r => r.data),
 }
 
+export const reportsApi = {
+  getStatus: () => api.get('/reports').then(r => r.data),
+  markSubmitted: (id, date) => api.put(`/reports/${id}`, { date }).then(r => r.data),
+  markBulk: (ids, date) => api.put('/reports/bulk/submit', { ids, date }).then(r => r.data),
+}
+
 export const settingsApi = {
   getAll: () => api.get('/settings').then(r => r.data),
   update: (key, value) => api.put(`/settings/${key}`, { value }).then(r => r.data),

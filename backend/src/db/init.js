@@ -132,6 +132,8 @@ function initDb() {
     );
 
     INSERT OR IGNORE INTO settings (key, value) VALUES
+      ('report_warn_days', '14'),
+      ('report_alert_days', '28'),
       ('kiosk_layout', '[]'),
       ('theme_accent', '"#6366f1"'),
       ('dashboard_title', '"Ausbildungsdashboard"'),
@@ -141,6 +143,8 @@ function initDb() {
 
   // Migration: birthday-Spalte hinzufügen falls nicht vorhanden
   try { db.exec("ALTER TABLE azubis ADD COLUMN birthday TEXT") } catch (_) {}
+  // Migration: last_report_date-Spalte hinzufügen
+  try { db.exec("ALTER TABLE azubis ADD COLUMN last_report_date TEXT") } catch (_) {}
 
   // Migration: lehrjahre-Spalte hinzufügen falls nicht vorhanden
   try { db.exec("ALTER TABLE school_blocks ADD COLUMN lehrjahre TEXT DEFAULT '[]'") } catch (_) {}

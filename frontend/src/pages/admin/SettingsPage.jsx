@@ -115,6 +115,8 @@ export default function SettingsPage() {
   const [showSeconds, setShowSeconds] = useState(true)
   const [announcementInterval, setAnnouncementInterval] = useState(8000)
   const [kioskZoom, setKioskZoom] = useState(100)
+  const [reportWarnDays, setReportWarnDays] = useState(14)
+  const [reportAlertDays, setReportAlertDays] = useState(28)
   const [weatherCity, setWeatherCity] = useState('')
   const [weatherApiKey, setWeatherApiKey] = useState('')
   const [title, setTitle] = useState('Ausbildungsdashboard')
@@ -142,6 +144,8 @@ export default function SettingsPage() {
       if (s.show_seconds !== undefined) setShowSeconds(s.show_seconds)
       if (s.announcement_interval !== undefined) setAnnouncementInterval(s.announcement_interval)
       if (s.kiosk_zoom !== undefined) setKioskZoom(s.kiosk_zoom)
+      if (s.report_warn_days !== undefined) setReportWarnDays(s.report_warn_days)
+      if (s.report_alert_days !== undefined) setReportAlertDays(s.report_alert_days)
       if (s.weather_city) setWeatherCity(s.weather_city)
       if (s.weather_api_key) setWeatherApiKey(s.weather_api_key)
       if (s.theme_accent) setAccent(s.theme_accent)
@@ -169,6 +173,8 @@ export default function SettingsPage() {
         settingsApi.update('admin_pin', adminPin),
         settingsApi.update('show_seconds', showSeconds),
         settingsApi.update('announcement_interval', announcementInterval),
+        settingsApi.update('report_warn_days', reportWarnDays),
+        settingsApi.update('report_alert_days', reportAlertDays),
         settingsApi.update('kiosk_zoom', kioskZoom),
         settingsApi.update('weather_city', weatherCity),
         settingsApi.update('weather_api_key', weatherApiKey),
@@ -418,6 +424,31 @@ export default function SettingsPage() {
             <RotateCcw size={14} />
             Zurücksetzen
           </button>
+        </div>
+      </div>
+
+      {/* Berichtsheft-Schwellwerte */}
+      <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-4">
+        <h2 className="text-sm font-semibold text-white">Berichtsheft-Status</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+              Gelb ab (Tage)
+            </label>
+            <input type="number" min="1" max="90" className="input-field" value={reportWarnDays}
+              onChange={e => setReportWarnDays(parseInt(e.target.value))} />
+            <p className="text-xs text-slate-600 mt-1">Standard: 14 Tage (2 Wochen)</p>
+          </div>
+          <div>
+            <label className="label flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
+              Rot ab (Tage)
+            </label>
+            <input type="number" min="1" max="180" className="input-field" value={reportAlertDays}
+              onChange={e => setReportAlertDays(parseInt(e.target.value))} />
+            <p className="text-xs text-slate-600 mt-1">Standard: 28 Tage (4 Wochen)</p>
+          </div>
         </div>
       </div>
 

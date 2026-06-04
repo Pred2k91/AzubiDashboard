@@ -9,6 +9,7 @@ import TodoWidget from '../components/widgets/TodoWidget'
 import NotesWidget from '../components/widgets/NotesWidget'
 import DepartmentWidget from '../components/widgets/DepartmentWidget'
 import AnnouncementsWidget from '../components/widgets/AnnouncementsWidget'
+import ReportsWidget from '../components/widgets/ReportsWidget'
 import UpcomingRotationWidget from '../components/widgets/UpcomingRotationWidget'
 import { settingsApi } from '../api/client'
 
@@ -19,6 +20,7 @@ const WIDGET_MAP = {
   departments: { component: DepartmentWidget, label: 'Abteilungen' },
   notes: { component: NotesWidget, label: 'Notizen' },
   announcements: { component: AnnouncementsWidget, label: 'Schwarzes Brett' },
+  reports: { component: ReportsWidget, label: 'Berichtshefte' },
 }
 
 const DEFAULT_LAYOUT = [
@@ -36,7 +38,7 @@ export default function KioskPage() {
   const [layout, setLayout] = useState(DEFAULT_LAYOUT)
   const [editMode, setEditMode] = useState(false)
   const [widgetsEnabled, setWidgetsEnabled] = useState({
-    clock: true, calendar: true, todos: true, departments: true, notes: true, announcements: true,
+    clock: true, calendar: true, todos: true, departments: true, notes: true, announcements: true, reports: false,
   })
   const [title, setTitle] = useState('Ausbildungsdashboard')
   const [kioskZoom, setKioskZoom] = useState(100)
