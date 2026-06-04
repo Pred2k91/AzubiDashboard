@@ -4,10 +4,11 @@ import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { azubisApi } from '../../api/client'
 
-export default function DepartmentWidget() {
+export default function DepartmentWidget({ onAutoResize }) {
   const [data, setData] = useState({ departments: [], unassigned: [], active_events: [], active_schools: [] })
   const [hasMore, setHasMore] = useState(false)
   const bodyRef = useRef(null)
+  const contentRef = useRef(null)
 
   const load = () => azubisApi.getByDepartment().then(setData).catch(() => {})
 
@@ -25,6 +26,16 @@ export default function DepartmentWidget() {
     el.addEventListener('scroll', check)
     return () => el.removeEventListener('scroll', check)
   }, [data])
+
+  // Auto-Resize: Inhaltshöhe an KioskPage melden
+  useEffect(() => {
+    if (!onAutoResize || !contentRef.current) return
+    const observer = new ResizeObserver(() => {
+      if (contentRef.current) onAutoResize(contentRef.current.scrollHeight)
+    })
+    observer.observe(contentRef.current)
+    return () => observer.disconnect()
+  }, [onAutoResize])
 
   const activeDepts = data.departments.filter(d => d.azubis.length > 0)
   const activeEvents = data.active_events || []
@@ -77,6 +88,7 @@ export default function DepartmentWidget() {
         ref={bodyRef}
         style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', minHeight: 0, padding: '1rem' }}
       >
+        <div ref={contentRef}>
         {!hasContent ? (
           <div className="flex flex-col items-center justify-center py-8 text-slate-600">
             <Building2 size={24} className="mb-2 opacity-30" />
@@ -194,6 +206,7 @@ export default function DepartmentWidget() {
             )}
           </div>
         )}
+        </div>
       </div>
 
       {/* Scroll-Indikator */}

@@ -194,6 +194,18 @@ export default function KioskPage() {
     await saveLayout(compacted)
   }
 
+  const handleDeptAutoResize = useCallback((contentHeight) => {
+    if (editMode) return
+    const WIDGET_HEADER = 48
+    const totalPx = contentHeight + WIDGET_HEADER + GRID_MARGIN * 2
+    const rows = Math.max(6, Math.ceil(totalPx / (rowHeight + GRID_MARGIN)))
+    setLayout(prev => {
+      const current = prev.find(l => l.i === 'departments')
+      if (!current || current.h === rows) return prev
+      return prev.map(l => l.i === 'departments' ? { ...l, h: rows } : l)
+    })
+  }, [editMode, rowHeight])
+
   const toggleWidget = async (key) => {
     const updated = { ...widgetsEnabled, [key]: !widgetsEnabled[key] }
     setWidgetsEnabled(updated)
@@ -384,7 +396,7 @@ export default function KioskPage() {
                 {editMode && (
                   <div className="absolute inset-0 ring-2 ring-indigo-500/40 ring-inset rounded-xl z-10 pointer-events-none" />
                 )}
-                <Widget />
+                <Widget {...(item.i === 'departments' ? { onAutoResize: handleDeptAutoResize } : {})} />
               </div>
             )
           })}
