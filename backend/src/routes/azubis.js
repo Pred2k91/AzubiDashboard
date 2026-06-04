@@ -155,7 +155,7 @@ router.post('/', (req, res) => {
     if (!name) return res.status(400).json({ error: 'name ist erforderlich' })
     const result = db.prepare(
       'INSERT INTO azubis (name, lehrjahr, start_date, current_department_id, email, birthday) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(name, lehrjahr || 1, start_date || null, current_department_id || null, email || '', birthday || null)
+    ).run(name, lehrjahr != null ? lehrjahr : 1, start_date || null, current_department_id || null, email || '', birthday || null)
     const azubi = db.prepare(`
       SELECT a.*, d.name as department_name, d.color as department_color
       FROM azubis a LEFT JOIN departments d ON a.current_department_id = d.id
@@ -173,7 +173,7 @@ router.put('/:id', (req, res) => {
     const { name, lehrjahr, start_date, current_department_id, email, active, birthday } = req.body
     db.prepare(
       'UPDATE azubis SET name=?, lehrjahr=?, start_date=?, current_department_id=?, email=?, active=?, birthday=? WHERE id=?'
-    ).run(name, lehrjahr || 1, start_date || null, current_department_id || null, email || '', active !== undefined ? active : 1, birthday || null, req.params.id)
+    ).run(name, lehrjahr != null ? lehrjahr : 1, start_date || null, current_department_id || null, email || '', active !== undefined ? active : 1, birthday || null, req.params.id)
     const azubi = db.prepare(`
       SELECT a.*, d.name as department_name, d.color as department_color
       FROM azubis a LEFT JOIN departments d ON a.current_department_id = d.id
