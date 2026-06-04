@@ -12,6 +12,7 @@ const settingsRoutes = require('./routes/settings')
 const { router: uploadRoutes, UPLOADS_DIR } = require('./routes/upload')
 const schoolsRoutes = require('./routes/schools')
 const announcementsRoutes = require('./routes/announcements')
+const weatherRoutes = require('./routes/weather')
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -31,6 +32,7 @@ app.use('/api/settings', settingsRoutes)
 app.use('/api/upload', uploadRoutes)
 app.use('/api/schools', schoolsRoutes)
 app.use('/api/announcements', announcementsRoutes)
+app.use('/api/weather', weatherRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })

@@ -83,6 +83,9 @@ function ImageUpload({ label, description, settingKey, currentUrl, onUpdate }) {
 
 export default function SettingsPage() {
   const [adminPin, setAdminPin] = useState('')
+  const [showSeconds, setShowSeconds] = useState(true)
+  const [weatherCity, setWeatherCity] = useState('')
+  const [weatherApiKey, setWeatherApiKey] = useState('')
   const [title, setTitle] = useState('Ausbildungsdashboard')
   const [accent, setAccent] = useState('#6366f1')
   const [refreshInterval, setRefreshInterval] = useState(300000)
@@ -105,6 +108,9 @@ export default function SettingsPage() {
     settingsApi.getAll().then(s => {
       if (s.dashboard_title) setTitle(s.dashboard_title)
       if (s.admin_pin !== undefined) setAdminPin(s.admin_pin || '')
+      if (s.show_seconds !== undefined) setShowSeconds(s.show_seconds)
+      if (s.weather_city) setWeatherCity(s.weather_city)
+      if (s.weather_api_key) setWeatherApiKey(s.weather_api_key)
       if (s.theme_accent) setAccent(s.theme_accent)
       if (s.refresh_interval) setRefreshInterval(s.refresh_interval)
       if (s.logo_url) setLogoUrl(s.logo_url)
@@ -128,6 +134,9 @@ export default function SettingsPage() {
       await Promise.all([
         settingsApi.update('dashboard_title', title),
         settingsApi.update('admin_pin', adminPin),
+        settingsApi.update('show_seconds', showSeconds),
+        settingsApi.update('weather_city', weatherCity),
+        settingsApi.update('weather_api_key', weatherApiKey),
         settingsApi.update('theme_accent', accent),
         settingsApi.update('refresh_interval', refreshInterval),
         settingsApi.update('background_opacity', bgOpacity),
@@ -211,6 +220,41 @@ export default function SettingsPage() {
             <option value={600000}>10 Minuten</option>
             <option value={1800000}>30 Minuten</option>
           </select>
+        </div>
+      </div>
+
+      {/* Uhrzeit-Widget */}
+      <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-5">
+        <h2 className="text-sm font-semibold text-white">Uhrzeit-Widget</h2>
+
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" className="w-4 h-4 accent-indigo-600"
+            checked={showSeconds} onChange={e => setShowSeconds(e.target.checked)} />
+          <div>
+            <p className="text-sm text-slate-300">Sekunden anzeigen</p>
+            <p className="text-xs text-slate-600 mt-0.5">HH:MM:SS statt nur HH:MM</p>
+          </div>
+        </label>
+
+        <div className="space-y-3">
+          <p className="text-sm text-slate-300">Wetter</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Stadt</label>
+              <input className="input-field" value={weatherCity}
+                onChange={e => setWeatherCity(e.target.value)}
+                placeholder="z.B. Oldenburg" />
+            </div>
+            <div>
+              <label className="label">OpenWeatherMap API-Key</label>
+              <input className="input-field" type="password" value={weatherApiKey}
+                onChange={e => setWeatherApiKey(e.target.value)}
+                placeholder="32-stelliger Key" />
+            </div>
+          </div>
+          <p className="text-xs text-slate-600">
+            Kostenlos unter <span className="text-indigo-400">openweathermap.org</span> → Account → API Keys
+          </p>
         </div>
       </div>
 
