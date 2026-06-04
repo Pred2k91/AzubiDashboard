@@ -192,6 +192,8 @@ export default function DepartmentWidget() {
 
               </div>
             )}
+          </div>
+        )}
       </div>
 
       {/* Scroll-Indikator */}
