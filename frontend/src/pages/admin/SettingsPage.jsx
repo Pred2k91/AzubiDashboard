@@ -81,6 +81,35 @@ function ImageUpload({ label, description, settingKey, currentUrl, onUpdate }) {
   )
 }
 
+function WeatherTest() {
+  const [status, setStatus] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const test = async () => {
+    setLoading(true); setStatus(null)
+    try {
+      const r = await axios.get('/api/weather')
+      setStatus(r.data)
+    } catch { setStatus({ available: false, error: 'Verbindungsfehler' }) }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <div className="shrink-0">
+      <button className="btn-secondary text-xs py-1.5" onClick={test} disabled={loading}>
+        {loading ? 'Teste...' : 'Verbindung testen'}
+      </button>
+      {status && (
+        <div className={`mt-2 text-xs p-2 rounded-lg ${status.available ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+          {status.available
+            ? `✓ ${status.emoji} ${status.temp}°C in ${status.city}`
+            : `✗ ${status.error || 'Nicht verfügbar'}`}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const [adminPin, setAdminPin] = useState('')
   const [showSeconds, setShowSeconds] = useState(true)
@@ -252,9 +281,12 @@ export default function SettingsPage() {
                 placeholder="32-stelliger Key" />
             </div>
           </div>
-          <p className="text-xs text-slate-600">
-            Kostenlos unter <span className="text-indigo-400">openweathermap.org</span> → Account → API Keys
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-slate-600 flex-1">
+              Kostenlos unter <span className="text-indigo-400">openweathermap.org</span> → Account → API Keys · Neue Keys brauchen bis zu 2h zum Aktivieren
+            </p>
+            <WeatherTest />
+          </div>
         </div>
       </div>
 
