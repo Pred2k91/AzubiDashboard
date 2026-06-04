@@ -9,7 +9,7 @@ import { schoolsApi, azubisApi } from '../../api/client'
 const COLORS = ['#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#64748b']
 const SCHOOL_EMPTY = { name: '', color: '#06b6d4', location: '' }
 const BLOCK_EMPTY = { start_date: '', end_date: '', notes: '', azubi_ids: [] }
-const ALL_LEHRJAHRE = [1, 2, 3, 4]
+const ALL_LEHRJAHRE = [0, 1, 2, 3, 4]
 
 export default function SchoolsAdmin() {
   const [schools, setSchools] = useState([])
@@ -312,7 +312,7 @@ export default function SchoolsAdmin() {
                       : status === 'partial' ? 'border-indigo-500/50 bg-indigo-600/10 text-indigo-400'
                       : 'border-[#2a2d4a] text-slate-500 hover:border-[#3a3d5a] hover:text-slate-300'
                     }`}>
-                    {j}. Lj.<br/><span className="text-[10px] opacity-70">{count} Azubis</span>
+                    {j === 0 ? 'Start' : `${j}. Lj.`}<br/><span className="text-[10px] opacity-70">{count} Azubis</span>
                   </button>
                 )
               })}

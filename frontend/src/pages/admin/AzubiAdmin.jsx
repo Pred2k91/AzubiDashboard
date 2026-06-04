@@ -182,6 +182,7 @@ export default function AzubiAdmin() {
             <div>
               <label className="label">Lehrjahr</label>
               <select className="input-field" value={form.lehrjahr} onChange={e => setForm(f => ({ ...f, lehrjahr: parseInt(e.target.value) }))}>
+                <option value={0}>0. Lehrjahr (startet noch)</option>
                 <option value={1}>1. Lehrjahr</option>
                 <option value={2}>2. Lehrjahr</option>
                 <option value={3}>3. Lehrjahr</option>

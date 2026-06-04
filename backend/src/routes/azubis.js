@@ -6,6 +6,8 @@ function calculateLehrjahr(startDateStr) {
   if (!startDateStr) return null
   const start = new Date(startDateStr)
   const now = new Date()
+  // Noch nicht gestartet → nicht automatisch ändern
+  if (start > now) return null
   let years = now.getFullYear() - start.getFullYear()
   const monthDiff = now.getMonth() - start.getMonth()
   if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < start.getDate())) {
