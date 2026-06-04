@@ -214,12 +214,14 @@ export default function KioskPage() {
 
   return (
     <div
-      className={`h-screen flex relative overflow-hidden ${isMirrored ? 'flex-col-reverse' : 'flex-col'}`}
+      className={`flex relative overflow-hidden ${isMirrored ? 'flex-col-reverse' : 'flex-col'}`}
       style={{
         backgroundColor: '#0d0f1a',
         transform: `translate(${pixelShift.x}px, ${pixelShift.y}px)`,
         transition: 'transform 90s ease-in-out',
         zoom: `${kioskZoom}%`,
+        width: `${(100 / kioskZoom * 100).toFixed(4)}vw`,
+        height: `${(100 / kioskZoom * 100).toFixed(4)}vh`,
       }}
     >
       {/* Periodischer Dunkelscreen */}
