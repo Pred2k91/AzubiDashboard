@@ -33,6 +33,7 @@ export const departmentsApi = {
 export const azubisApi = {
   getAll: () => api.get('/azubis').then(r => r.data),
   getByDepartment: () => api.get('/azubis/by-department').then(r => r.data),
+  getNextRotation: () => api.get('/azubis/next-rotation').then(r => r.data),
   create: (data) => api.post('/azubis', data).then(r => r.data),
   update: (id, data) => api.put(`/azubis/${id}`, data).then(r => r.data),
   delete: (id) => api.delete(`/azubis/${id}`).then(r => r.data),

@@ -9,6 +9,7 @@ import TodoWidget from '../components/widgets/TodoWidget'
 import NotesWidget from '../components/widgets/NotesWidget'
 import DepartmentWidget from '../components/widgets/DepartmentWidget'
 import AnnouncementsWidget from '../components/widgets/AnnouncementsWidget'
+import UpcomingRotationWidget from '../components/widgets/UpcomingRotationWidget'
 import { settingsApi } from '../api/client'
 
 const WIDGET_MAP = {

@@ -184,7 +184,46 @@ router.put('/:id', (req, res) => {
   }
 })
 
-// Bulk rotation: assign multiple azubis to departments at once
+// Nächsten geplanten Abteilungswechsel abrufen
+router.get('/next-rotation', (req, res) => {
+  try {
+    const db = getDb()
+    const today = new Date().toISOString().slice(0, 10)
+
+    const nextDate = db.prepare(
+      'SELECT start_date FROM rotations WHERE start_date > ? ORDER BY start_date ASC LIMIT 1'
+    ).get(today)
+
+    if (!nextDate) return res.json({ scheduled: false })
+
+    const assignments = db.prepare(`
+      SELECT r.start_date, a.id as azubi_id, a.name, a.lehrjahr,
+             d.id as dept_id, d.name as dept_name, d.color
+      FROM rotations r
+      JOIN azubis a ON r.azubi_id = a.id AND a.active = 1
+      JOIN departments d ON r.department_id = d.id
+      WHERE r.start_date = ?
+      ORDER BY d.name ASC, a.name ASC
+    `).all(nextDate.start_date)
+
+    // Nach Abteilung gruppieren
+    const grouped = {}
+    for (const row of assignments) {
+      if (!grouped[row.dept_id]) {
+        grouped[row.dept_id] = { id: row.dept_id, name: row.dept_name, color: row.color, azubis: [] }
+      }
+      grouped[row.dept_id].azubis.push({ id: row.azubi_id, name: row.name, lehrjahr: row.lehrjahr })
+    }
+
+    res.json({
+      scheduled: true,
+      date: nextDate.start_date,
+      departments: Object.values(grouped),
+    })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Bulk Abteilungswechsel: mehrere Azubis auf einmal zuweisen
 router.post('/rotation', (req, res) => {
   try {
     const db = getDb()

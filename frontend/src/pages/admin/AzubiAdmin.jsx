@@ -90,7 +90,7 @@ export default function AzubiAdmin() {
         <div className="flex gap-2">
           <button className="btn-secondary" onClick={openRotation}>
             <RotateCcw size={14} />
-            Rotation
+            Abteilungswechsel
           </button>
           <button className="btn-primary" onClick={openNew}>
             <Plus size={16} />
@@ -211,11 +211,11 @@ export default function AzubiAdmin() {
         </div>
       </Modal>
 
-      {/* Rotation Modal */}
-      <Modal open={rotationModal} onClose={() => setRotationModal(false)} title="Abteilungsrotation" size="lg">
+      {/* Abteilungswechsel Modal */}
+      <Modal open={rotationModal} onClose={() => setRotationModal(false)} title="Abteilungswechsel" size="lg">
         <div className="space-y-4">
           <div className="p-3 bg-indigo-600/10 border border-indigo-500/20 rounded-lg text-xs text-indigo-300">
-            Weise alle Azubis den neuen Abteilungen zu. Typisch: August und Februar.
+            Weise alle Azubis den neuen Abteilungen zu. Typisch: August und Februar. Das Widget "Abteilungswechsel" zeigt die neuen Zuteilungen im Voraus an.
           </div>
           <div>
             <label className="label">Rotationsdatum</label>
@@ -243,7 +243,7 @@ export default function AzubiAdmin() {
           <div className="flex justify-end gap-3 pt-2">
             <button className="btn-secondary" onClick={() => setRotationModal(false)}>Abbrechen</button>
             <button className="btn-primary" onClick={handleRotationSave} disabled={loading}>
-              {loading ? 'Speichern...' : 'Rotation speichern'}
+              {loading ? 'Speichern...' : 'Abteilungswechsel speichern'}
             </button>
           </div>
         </div>
