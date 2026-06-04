@@ -75,7 +75,7 @@ export default function AzubiAdmin() {
     (a.department_name || '').toLowerCase().includes(search.toLowerCase())
   )
 
-  const byLehrjahr = [1, 2, 3, 4].filter(y => filtered.some(a => a.lehrjahr === y))
+  const byLehrjahr = [0, 1, 2, 3, 4].filter(y => filtered.some(a => a.lehrjahr === y))
 
   return (
     <div className="p-6 space-y-6">
@@ -118,7 +118,9 @@ export default function AzubiAdmin() {
       ) : byLehrjahr.map(year => (
         <div key={year} className="bg-[#141625] rounded-xl border border-[#2a2d4a]">
           <div className="px-4 py-3 border-b border-[#2a2d4a] flex items-center gap-2">
-            <span className="text-sm font-semibold text-white">{year}. Lehrjahr</span>
+            <span className="text-sm font-semibold text-white">
+              {year === 0 ? 'Startet noch (0. Lehrjahr)' : `${year}. Lehrjahr`}
+            </span>
             <span className="text-xs bg-purple-600/20 text-purple-300 px-2 py-0.5 rounded-full">
               {filtered.filter(a => a.lehrjahr === year).length}
             </span>
