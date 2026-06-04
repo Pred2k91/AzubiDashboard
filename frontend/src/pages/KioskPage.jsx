@@ -34,9 +34,22 @@ export default function KioskPage() {
   const [title, setTitle] = useState('Ausbildungsdashboard')
   const [logoUrl, setLogoUrl] = useState(null)
   const [backgroundUrl, setBackgroundUrl] = useState(null)
+  const [backgroundUrl2, setBackgroundUrl2] = useState(null)
   const [bgOpacity, setBgOpacity] = useState(0.5)
   const [containerWidth, setContainerWidth] = useState(window.innerWidth)
   const [containerHeight, setContainerHeight] = useState(window.innerHeight)
+
+  // Burn-in Schutz
+  const [pixelShift, setPixelShift] = useState({ x: 0, y: 0 })
+  const [nightDimEnabled, setNightDimEnabled] = useState(false)
+  const [nightDimStart, setNightDimStart] = useState(18)
+  const [nightDimEnd, setNightDimEnd] = useState(7)
+  const [nightDimLevel, setNightDimLevel] = useState(0.7)
+  const [isDimmed, setIsDimmed] = useState(false)
+  const [darkScreenActive, setDarkScreenActive] = useState(false)
+  const [darkScreenInterval, setDarkScreenIntervalVal] = useState(60)
+  const [darkScreenDuration, setDarkScreenDuration] = useState(30)
+  const [isMirrored, setIsMirrored] = useState(false)
 
   const HEADER_HEIGHT = 44
   const GRID_MARGIN = 12
@@ -55,7 +68,14 @@ export default function KioskPage() {
       if (s.dashboard_title) setTitle(s.dashboard_title)
       if (s.logo_url) setLogoUrl(s.logo_url)
       if (s.background_url) setBackgroundUrl(s.background_url)
+      if (s.background_url_2) setBackgroundUrl2(s.background_url_2)
       if (s.background_opacity !== undefined) setBgOpacity(s.background_opacity)
+      if (s.night_dim_enabled !== undefined) setNightDimEnabled(s.night_dim_enabled)
+      if (s.night_dim_start !== undefined) setNightDimStart(s.night_dim_start)
+      if (s.night_dim_end !== undefined) setNightDimEnd(s.night_dim_end)
+      if (s.night_dim_level !== undefined) setNightDimLevel(s.night_dim_level)
+      if (s.dark_screen_interval !== undefined) setDarkScreenIntervalVal(s.dark_screen_interval)
+      if (s.dark_screen_duration !== undefined) setDarkScreenDuration(s.dark_screen_duration)
     }).catch(() => {})
 
     const handleResize = () => {
@@ -66,17 +86,69 @@ export default function KioskPage() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  // Pixel-Shift: alle 8 Minuten um 15-20px verschieben
+  useEffect(() => {
+    const S = 18
+    const POSITIONS = [
+      { x: 0, y: 0 }, { x: S, y: 8 }, { x: -12, y: S },
+      { x: -S, y: -8 }, { x: 10, y: -S }, { x: S, y: -12 },
+      { x: -8, y: S }, { x: -S, y: 12 }, { x: 12, y: -8 },
+    ]
+    let idx = 0
+    const interval = setInterval(() => {
+      idx = (idx + 1) % POSITIONS.length
+      setPixelShift(POSITIONS[idx])
+    }, 8 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Periodischer Dunkelscreen + Spiegelung
+  useEffect(() => {
+    if (!darkScreenInterval || darkScreenInterval <= 0) return
+    const interval = setInterval(() => {
+      setDarkScreenActive(true)
+      setTimeout(() => {
+        setIsMirrored(prev => !prev)
+        setDarkScreenActive(false)
+      }, darkScreenDuration * 1000)
+    }, darkScreenInterval * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [darkScreenInterval, darkScreenDuration])
+
+  // Gespiegelte Layout-Berechnung (Widgets links↔rechts tauschen)
+  const COLS = 16
+  const mirrorLayout = (items) =>
+    items.map(item => ({ ...item, x: COLS - item.x - item.w }))
+
+  // Nacht-Dimming: jede Minute prüfen
+  useEffect(() => {
+    const check = () => {
+      if (!nightDimEnabled) { setIsDimmed(false); return }
+      const h = new Date().getHours()
+      const dimmed = nightDimStart > nightDimEnd
+        ? h >= nightDimStart || h < nightDimEnd
+        : h >= nightDimStart && h < nightDimEnd
+      setIsDimmed(dimmed)
+    }
+    check()
+    const interval = setInterval(check, 60000)
+    return () => clearInterval(interval)
+  }, [nightDimEnabled, nightDimStart, nightDimEnd])
+
   const saveLayout = useCallback(async (newLayout) => {
     await settingsApi.update('kiosk_layout', newLayout).catch(() => {})
   }, [])
 
   const handleLayoutChange = (newLayout) => {
+    if (!editMode) return  // Keine Layout-Änderung durch Spiegelung speichern
     const merged = newLayout.map(item => {
       const orig = layout.find(l => l.i === item.i)
       return { ...item, minW: orig?.minW, minH: orig?.minH }
     })
-    setLayout(merged)
-    if (editMode) saveLayout(merged)
+    // Gespiegelte Koordinaten zurückrechnen vor dem Speichern
+    const unmirrored = isMirrored ? mirrorLayout(merged) : merged
+    setLayout(unmirrored)
+    saveLayout(unmirrored)
   }
 
   const handleReset = async () => {
@@ -124,29 +196,59 @@ export default function KioskPage() {
     }
   }
 
-  const activeWidgets = layout.filter(l => widgetsEnabled[l.i])
+  const activeWidgets = (() => {
+    const visible = layout.filter(l => widgetsEnabled[l.i])
+    return isMirrored ? mirrorLayout(visible) : visible
+  })()
 
   return (
     <div
-      className="h-screen flex flex-col relative overflow-hidden"
-      style={{ backgroundColor: '#0d0f1a' }}
+      className={`h-screen flex relative overflow-hidden ${isMirrored ? 'flex-col-reverse' : 'flex-col'}`}
+      style={{
+        backgroundColor: '#0d0f1a',
+        transform: `translate(${pixelShift.x}px, ${pixelShift.y}px)`,
+        transition: 'transform 90s ease-in-out',
+      }}
     >
-      {/* Hintergrundbild */}
-      {backgroundUrl && (
-        <>
-          <div
-            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-            style={{ backgroundImage: `url(${backgroundUrl})` }}
-          />
-          <div
-            className="absolute inset-0 bg-[#0d0f1a]"
-            style={{ opacity: 1 - bgOpacity }}
-          />
-        </>
+      {/* Periodischer Dunkelscreen */}
+      <div
+        className="absolute inset-0 z-[60] pointer-events-none"
+        style={{
+          backgroundColor: '#000',
+          opacity: darkScreenActive ? 1 : 0,
+          transition: darkScreenActive ? 'opacity 3s ease-in' : 'opacity 4s ease-out',
+        }}
+      />
+
+      {/* Nacht-Dimming Overlay */}
+      {isDimmed && (
+        <div
+          className="absolute inset-0 z-50 pointer-events-none"
+          style={{ backgroundColor: `rgba(0,0,0,${nightDimLevel})`, transition: 'opacity 2s ease' }}
+        />
       )}
 
+      {/* Hintergrundbild */}
+      {(backgroundUrl || backgroundUrl2) && (() => {
+        const activeBg = isMirrored && backgroundUrl2 ? backgroundUrl2 : backgroundUrl
+        if (!activeBg) return null
+        return (
+          <>
+            <div
+              className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+              style={{ backgroundImage: `url(${activeBg})`, transition: 'background-image 2s ease' }}
+            />
+            <div
+              className="absolute inset-0 bg-[#0d0f1a]"
+              style={{ opacity: 1 - bgOpacity }}
+            />
+          </>
+        )
+      })()}
+
       {/* Header */}
-      <div className="relative flex items-center justify-between px-6 py-3 border-b border-[#2a2d4a]/80 shrink-0 backdrop-blur-sm bg-[#0d0f1a]/60">
+      <div className={`relative flex items-center justify-between px-6 py-3 shrink-0 backdrop-blur-sm ${isMirrored ? 'border-t' : 'border-b'} border-[#2a2d4a]/80`}
+        style={{ background: 'rgba(13, 15, 26, var(--widget-opacity))' }}>
         <div className="flex items-center gap-3">
           {logoUrl ? (
             <img src={logoUrl} alt="Logo" className="h-8 w-auto object-contain" />

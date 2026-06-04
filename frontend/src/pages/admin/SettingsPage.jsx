@@ -87,8 +87,15 @@ export default function SettingsPage() {
   const [refreshInterval, setRefreshInterval] = useState(300000)
   const [logoUrl, setLogoUrl] = useState(null)
   const [backgroundUrl, setBackgroundUrl] = useState(null)
+  const [backgroundUrl2, setBackgroundUrl2] = useState(null)
   const [bgOpacity, setBgOpacity] = useState(0.5)
   const [widgetOpacity, setWidgetOpacity] = useState(0.85)
+  const [nightDimEnabled, setNightDimEnabled] = useState(false)
+  const [nightDimStart, setNightDimStart] = useState(18)
+  const [nightDimEnd, setNightDimEnd] = useState(7)
+  const [nightDimLevel, setNightDimLevel] = useState(0.7)
+  const [darkScreenInterval, setDarkScreenInterval] = useState(60)
+  const [darkScreenDuration, setDarkScreenDuration] = useState(30)
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -99,8 +106,15 @@ export default function SettingsPage() {
       if (s.refresh_interval) setRefreshInterval(s.refresh_interval)
       if (s.logo_url) setLogoUrl(s.logo_url)
       if (s.background_url) setBackgroundUrl(s.background_url)
+      if (s.background_url_2) setBackgroundUrl2(s.background_url_2)
       if (s.background_opacity !== undefined) setBgOpacity(s.background_opacity)
       if (s.widget_opacity !== undefined) setWidgetOpacity(s.widget_opacity)
+      if (s.night_dim_enabled !== undefined) setNightDimEnabled(s.night_dim_enabled)
+      if (s.night_dim_start !== undefined) setNightDimStart(s.night_dim_start)
+      if (s.night_dim_end !== undefined) setNightDimEnd(s.night_dim_end)
+      if (s.night_dim_level !== undefined) setNightDimLevel(s.night_dim_level)
+      if (s.dark_screen_interval !== undefined) setDarkScreenInterval(s.dark_screen_interval)
+      if (s.dark_screen_duration !== undefined) setDarkScreenDuration(s.dark_screen_duration)
     }).catch(() => {})
   }, [])
 
@@ -113,6 +127,12 @@ export default function SettingsPage() {
         settingsApi.update('refresh_interval', refreshInterval),
         settingsApi.update('background_opacity', bgOpacity),
         settingsApi.update('widget_opacity', widgetOpacity),
+        settingsApi.update('night_dim_enabled', nightDimEnabled),
+        settingsApi.update('night_dim_start', nightDimStart),
+        settingsApi.update('night_dim_end', nightDimEnd),
+        settingsApi.update('night_dim_level', nightDimLevel),
+        settingsApi.update('dark_screen_interval', darkScreenInterval),
+        settingsApi.update('dark_screen_duration', darkScreenDuration),
       ])
       applyAccentColor(accent)
       applyWidgetOpacity(widgetOpacity)
@@ -190,11 +210,19 @@ export default function SettingsPage() {
         />
 
         <ImageUpload
-          label="Hintergrundbild"
-          description="Wird hinter den Widgets in der Kiosk-Ansicht angezeigt"
+          label="Hintergrundbild 1 (Normal)"
+          description="Wird in der normalen Ansicht angezeigt"
           settingKey="background"
           currentUrl={backgroundUrl}
           onUpdate={setBackgroundUrl}
+        />
+
+        <ImageUpload
+          label="Hintergrundbild 2 (Gespiegelt)"
+          description="Wird nach dem Dunkelscreen in der gespiegelten Ansicht angezeigt — optional"
+          settingKey="background2"
+          currentUrl={backgroundUrl2}
+          onUpdate={setBackgroundUrl2}
         />
 
         {backgroundUrl && (
@@ -248,6 +276,95 @@ export default function SettingsPage() {
             <RotateCcw size={14} />
             Zurücksetzen
           </button>
+        </div>
+      </div>
+
+      {/* Burn-in Schutz */}
+      <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-5">
+        <h2 className="text-sm font-semibold text-white">Burn-in Schutz</h2>
+
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm text-slate-300">Pixel-Shift</p>
+            <p className="text-xs text-slate-600 mt-0.5">Verschiebt alle 8 Minuten den gesamten Inhalt um ~18px — bei TV-Abstand nicht wahrnehmbar</p>
+          </div>
+          <div className="shrink-0 text-xs text-indigo-300 bg-indigo-600/10 border border-indigo-500/20 px-2.5 py-1 rounded-lg">
+            Immer aktiv
+          </div>
+        </div>
+
+        <div>
+          <p className="text-sm text-slate-300 mb-1">Periodischer Dunkelscreen</p>
+          <p className="text-xs text-slate-600 mb-3">Blendet den Bildschirm kurz komplett schwarz — setzt alle Pixel zurück, effektivster Schutz</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Intervall</label>
+              <select className="input-field" value={darkScreenInterval} onChange={e => setDarkScreenInterval(parseInt(e.target.value))}>
+                <option value={0}>Deaktiviert</option>
+                <option value={30}>Alle 30 Minuten</option>
+                <option value={60}>Alle 60 Minuten</option>
+                <option value={90}>Alle 90 Minuten</option>
+                <option value={120}>Alle 2 Stunden</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Dauer</label>
+              <select className="input-field" value={darkScreenDuration} onChange={e => setDarkScreenDuration(parseInt(e.target.value))}>
+                <option value={10}>10 Sekunden</option>
+                <option value={20}>20 Sekunden</option>
+                <option value={30}>30 Sekunden</option>
+                <option value={60}>60 Sekunden</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="w-4 h-4 accent-indigo-600"
+              checked={nightDimEnabled}
+              onChange={e => setNightDimEnabled(e.target.checked)}
+            />
+            <div>
+              <p className="text-sm text-slate-300">Nacht-Dimming</p>
+              <p className="text-xs text-slate-600 mt-0.5">Dunkelt den Bildschirm automatisch ab — schont den Monitor und spart Strom</p>
+            </div>
+          </label>
+
+          {nightDimEnabled && (
+            <div className="mt-4 space-y-4 pl-7">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Dimmen ab (Uhr)</label>
+                  <select className="input-field" value={nightDimStart} onChange={e => setNightDimStart(parseInt(e.target.value))}>
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{String(i).padStart(2, '0')}:00 Uhr</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Aufhellen ab (Uhr)</label>
+                  <select className="input-field" value={nightDimEnd} onChange={e => setNightDimEnd(parseInt(e.target.value))}>
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{String(i).padStart(2, '0')}:00 Uhr</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="label">Abdunkelung: {Math.round(nightDimLevel * 100)}%</label>
+                <input
+                  type="range" min="0.3" max="0.95" step="0.05"
+                  value={nightDimLevel}
+                  onChange={e => setNightDimLevel(parseFloat(e.target.value))}
+                  className="w-full max-w-xs accent-indigo-600"
+                />
+                <p className="text-xs text-slate-600 mt-1">Höher = dunkler</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
