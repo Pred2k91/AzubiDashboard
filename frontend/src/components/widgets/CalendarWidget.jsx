@@ -41,9 +41,9 @@ export default function CalendarWidget() {
       return isSameDay(s, day) || (s <= day && en >= day)
     })
 
-  // ── WOCHENANSICHT ─────────────────────────────────────────────────────────
+  // ── WOCHENANSICHT (Mo–Fr) ─────────────────────────────────────────────────
   const weekStart = startOfWeek(current, { weekStartsOn: 1 })
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  const weekDays = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i))
   const kw = getISOWeek(current)
 
   const weekEvents = events

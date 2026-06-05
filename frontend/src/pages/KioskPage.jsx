@@ -25,7 +25,7 @@ const WIDGET_MAP = {
 
 const DEFAULT_LAYOUT = [
   { i: 'clock', x: 0, y: 0, w: 4, h: 5, minW: 2, minH: 3 },
-  { i: 'calendar', x: 4, y: 0, w: 5, h: 10, minW: 3, minH: 6 },
+  { i: 'calendar', x: 4, y: 0, w: 5, h: 8, minW: 2, minH: 3 },
   { i: 'todos', x: 0, y: 5, w: 4, h: 8, minW: 2, minH: 4 },
   { i: 'departments', x: 9, y: 0, w: 7, h: 10, minW: 4, minH: 6 },
   { i: 'notes', x: 4, y: 10, w: 8, h: 6, minW: 3, minH: 4 },
