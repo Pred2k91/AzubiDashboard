@@ -72,7 +72,8 @@ router.get('/by-department', (req, res) => {
     const today = new Date().toISOString().slice(0, 10)
 
     // ── Aktive Termine (höchste Priorität) ────────────────────────────────────
-    const busyAzubiIds = new Set()
+    // Erst alle Events mit Azubis aufbauen, DANN busyAzubiIds sammeln
+    // so dass Azubis in mehreren gleichzeitigen Terminen in allen angezeigt werden
     const activeEventsWithAzubis = activeEvents.map(event => {
       const azubis = db.prepare(`
         SELECT a.id, a.name, a.lehrjahr
@@ -81,9 +82,10 @@ router.get('/by-department', (req, res) => {
         WHERE ea.event_id = ? AND a.active = 1
         ORDER BY a.name ASC
       `).all(event.id)
-      azubis.forEach(a => busyAzubiIds.add(a.id))
       return { ...event, azubis }
     })
+    const busyAzubiIds = new Set()
+    activeEventsWithAzubis.forEach(e => e.azubis.forEach(a => busyAzubiIds.add(a.id)))
 
     // ── Aktive Schulblöcke (mittlere Priorität) ───────────────────────────────
     const schoolBusyIds = new Set()

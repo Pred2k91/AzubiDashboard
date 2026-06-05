@@ -14,15 +14,19 @@ export default function ReportsAdmin() {
   const [data, setData] = useState({ azubis: [], warn: 14, alert: 28 })
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState({})
+  const [rowDates, setRowDates] = useState({})
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
   const [selected, setSelected] = useState(new Set())
+
+  const today = new Date().toISOString().slice(0, 10)
+  const getRowDate = (id) => rowDates[id] ?? today
 
   const load = () => reportsApi.getStatus().then(setData).catch(() => {})
   useEffect(() => { load() }, [])
 
   const handleMark = async (id) => {
     setLoading(l => ({ ...l, [id]: true }))
-    await reportsApi.markSubmitted(id, selectedDate)
+    await reportsApi.markSubmitted(id, getRowDate(id))
     await load()
     setLoading(l => ({ ...l, [id]: false }))
   }
@@ -173,14 +177,22 @@ export default function ReportsAdmin() {
                     </span>
                   </td>
                   <td>
-                    <button
-                      onClick={() => handleMark(a.id)}
-                      disabled={loading[a.id]}
-                      className="btn-secondary text-xs py-1.5"
-                    >
-                      <CheckCircle size={13} />
-                      {loading[a.id] ? '...' : 'Eingereicht'}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="date"
+                        className="input-field text-xs py-1 w-32"
+                        value={getRowDate(a.id)}
+                        onChange={e => setRowDates(d => ({ ...d, [a.id]: e.target.value }))}
+                      />
+                      <button
+                        onClick={() => handleMark(a.id)}
+                        disabled={loading[a.id]}
+                        className="btn-secondary text-xs py-1.5 shrink-0"
+                      >
+                        <CheckCircle size={13} />
+                        {loading[a.id] ? '...' : 'Eingereicht'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )
