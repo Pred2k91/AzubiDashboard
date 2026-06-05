@@ -57,19 +57,17 @@ router.get('/by-department', (req, res) => {
     const db = getDb()
     syncLehrjahre(db)
 
-    // ISO-Format mit T für Vergleich mit gespeicherten Terminen
-    const now = new Date().toISOString().slice(0, 16)
+    // Nur Datum vergleichen — vermeidet UTC vs. lokale Zeitzone Probleme
+    const today = new Date().toISOString().slice(0, 10)
 
-    // Active events that have azubis assigned
+    // Active events that have azubis assigned (Datumsvergleich, nicht Uhrzeit)
     const activeEvents = db.prepare(`
       SELECT ce.id, ce.title, ce.color, ce.start_datetime, ce.end_datetime
       FROM calendar_events ce
-      WHERE ce.start_datetime <= ? AND ce.end_datetime >= ?
+      WHERE DATE(ce.start_datetime) <= ? AND DATE(ce.end_datetime) >= ?
         AND EXISTS (SELECT 1 FROM event_azubis ea WHERE ea.event_id = ce.id)
       ORDER BY ce.start_datetime ASC
-    `).all(now, now)
-
-    const today = new Date().toISOString().slice(0, 10)
+    `).all(today, today)
 
     // ── Aktive Termine (höchste Priorität) ────────────────────────────────────
     // Erst alle Events mit Azubis aufbauen, DANN busyAzubiIds sammeln
