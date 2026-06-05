@@ -23,7 +23,7 @@ router.get('/', (req, res) => {
     const { warn, alert } = getThresholds(db)
     const azubis = db.prepare(`
       SELECT id, name, lehrjahr, last_report_date
-      FROM azubis WHERE active = 1
+      FROM azubis WHERE active = 1 AND lehrjahr > 0
       ORDER BY lehrjahr ASC, name ASC
     `).all()
 
