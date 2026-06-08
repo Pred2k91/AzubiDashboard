@@ -30,6 +30,20 @@ export default function CalendarWidget() {
     return () => clearInterval(interval)
   }, [current, view])
 
+  // Woche/Monat automatisch vorschalten wenn Datum wechselt (Kiosk läuft 24/7)
+  useEffect(() => {
+    const check = setInterval(() => {
+      setCurrent(prev => {
+        const now = new Date()
+        if (getISOWeek(prev) !== getISOWeek(now) || prev.getFullYear() !== now.getFullYear()) {
+          return now
+        }
+        return prev
+      })
+    }, 60 * 1000)
+    return () => clearInterval(check)
+  }, [])
+
   const prev = () => view === 'week' ? setCurrent(subWeeks(current, 1)) : setCurrent(subMonths(current, 1))
   const next = () => view === 'week' ? setCurrent(addWeeks(current, 1)) : setCurrent(addMonths(current, 1))
   const goToday = () => setCurrent(new Date())

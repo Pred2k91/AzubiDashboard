@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Megaphone, CalendarDays, AlertTriangle, Info, Clock, ArrowRightLeft, ChevronLeft, ChevronRight, Cake } from 'lucide-react'
-import { format, parseISO, differenceInDays } from 'date-fns'
+import { format, parseISO, differenceInCalendarDays, startOfToday } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { announcementsApi, azubisApi, settingsApi } from '../../api/client'
 
@@ -13,7 +13,7 @@ const PRIORITY = {
 }
 
 function CountdownBadge({ date }) {
-  const days = differenceInDays(parseISO(date), new Date())
+  const days = differenceInCalendarDays(parseISO(date), startOfToday())
   if (days < 0) return <span className="text-xs text-slate-600">Vergangen</span>
   const cls = days <= 14 ? 'bg-red-500/20 text-red-300'
             : days <= 30 ? 'bg-amber-500/20 text-amber-300'
@@ -238,7 +238,7 @@ export default function AnnouncementsWidget() {
           <div className="space-y-3">
             {/* Countdown */}
             {(() => {
-              const days = differenceInDays(parseISO(rotation.date), new Date())
+              const days = differenceInCalendarDays(parseISO(rotation.date), startOfToday())
               const cls = days <= 7 ? 'text-red-400 bg-red-500/10 border-red-500/30'
                         : days <= 30 ? 'text-amber-400 bg-amber-500/10 border-amber-500/30'
                         : 'text-green-400 bg-green-500/10 border-green-500/30'
