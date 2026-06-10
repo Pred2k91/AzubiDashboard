@@ -78,7 +78,10 @@ export default function KioskPage() {
       }
       if (s.widgets_enabled) setWidgetsEnabled(s.widgets_enabled)
       if (s.dashboard_title) setTitle(s.dashboard_title)
-      if (s.kiosk_zoom !== undefined) setKioskZoom(s.kiosk_zoom)
+      // Gerätespezifischer Zoom: localStorage hat Vorrang vor dem globalen Server-Wert
+      const localZoom = localStorage.getItem('kiosk_zoom')
+      if (localZoom !== null) setKioskZoom(Number(localZoom))
+      else if (s.kiosk_zoom !== undefined) setKioskZoom(s.kiosk_zoom)
       if (s.logo_url) setLogoUrl(s.logo_url)
       if (s.background_url) setBackgroundUrl(s.background_url)
       if (s.background_url_2) setBackgroundUrl2(s.background_url_2)
@@ -349,12 +352,12 @@ export default function KioskPage() {
           {/* Zoom-Schnellsteuerung */}
           <div className="flex items-center gap-0.5 bg-[#1e2035] border border-[#2a2d4a] rounded-lg overflow-hidden">
             <button
-              onClick={() => { const z = Math.max(50, kioskZoom - 5); setKioskZoom(z); settingsApi.update('kiosk_zoom', z) }}
+              onClick={() => { const z = Math.max(50, kioskZoom - 5); setKioskZoom(z); localStorage.setItem('kiosk_zoom', z) }}
               className="px-2.5 py-1.5 text-slate-500 hover:text-white hover:bg-[#2a2d4a] text-sm font-bold transition-colors"
             >−</button>
             <span className="text-xs text-slate-500 px-1 min-w-[38px] text-center">{kioskZoom}%</span>
             <button
-              onClick={() => { const z = Math.min(150, kioskZoom + 5); setKioskZoom(z); settingsApi.update('kiosk_zoom', z) }}
+              onClick={() => { const z = Math.min(150, kioskZoom + 5); setKioskZoom(z); localStorage.setItem('kiosk_zoom', z) }}
               className="px-2.5 py-1.5 text-slate-500 hover:text-white hover:bg-[#2a2d4a] text-sm font-bold transition-colors"
             >+</button>
           </div>
