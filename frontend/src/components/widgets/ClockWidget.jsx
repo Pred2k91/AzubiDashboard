@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
-import { format } from 'date-fns'
-import { de } from 'date-fns/locale'
 import { getISOWeek } from 'date-fns'
+import { de } from 'date-fns/locale'
+import { formatInTimeZone, toZonedTime } from 'date-fns-tz'
 import { Droplets, Wind } from 'lucide-react'
 import { settingsApi } from '../../api/client'
 import axios from 'axios'
+
+const TZ = 'Europe/Berlin'
 
 export default function ClockWidget() {
   const [now, setNow] = useState(new Date())
@@ -37,7 +39,8 @@ export default function ClockWidget() {
     return () => clearInterval(interval)
   }, [])
 
-  const kw = getISOWeek(now)
+  const zonedNow = toZonedTime(now, TZ)
+  const kw = getISOWeek(zonedNow)
 
   return (
     <div className="widget-card justify-center items-center text-center">
@@ -48,18 +51,18 @@ export default function ClockWidget() {
           className="font-extrabold leading-none tracking-tight text-white"
           style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)' }}
         >
-          {format(now, 'HH:mm')}
+          {formatInTimeZone(now, TZ, 'HH:mm')}
           {showSeconds && (
-            <span className="text-indigo-400">:{format(now, 'ss')}</span>
+            <span className="text-indigo-400">:{formatInTimeZone(now, TZ, 'ss')}</span>
           )}
         </div>
 
         {/* Wochentag + Datum + KW */}
         <div className="text-slate-400 font-medium capitalize mt-1" style={{ fontSize: 'clamp(0.85rem, 1.8vw, 1.15rem)' }}>
-          {format(now, 'EEEE', { locale: de })}
+          {formatInTimeZone(now, TZ, 'EEEE', { locale: de })}
         </div>
         <div className="flex items-center gap-2 text-slate-500" style={{ fontSize: 'clamp(0.75rem, 1.4vw, 0.95rem)' }}>
-          <span>{format(now, 'dd. MMMM yyyy', { locale: de })}</span>
+          <span>{formatInTimeZone(now, TZ, 'dd. MMMM yyyy', { locale: de })}</span>
           <span className="text-slate-600">·</span>
           <span className="text-indigo-400 font-semibold">KW {kw}</span>
         </div>
