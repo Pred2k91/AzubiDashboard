@@ -35,7 +35,7 @@ export default function ReportsWidget() {
 
   const goTo = useCallback((idx) => {
     setVisible(false)
-    setTimeout(() => { setPageIdx(idx); setVisible(true) }, 350)
+    setTimeout(() => { setPageIdx(idx); setVisible(true) }, 500)
   }, [])
 
   useEffect(() => {
@@ -99,7 +99,7 @@ export default function ReportsWidget() {
         </div>
       </div>
 
-      <div className="widget-body space-y-1.5" style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(8px)', transition: 'opacity 0.35s ease, transform 0.35s ease' }}>
+      <div className="widget-body space-y-1.5" style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(8px)', transition: 'opacity 0.5s ease, transform 0.5s ease' }}>
         {notOk.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-6 text-green-500">
             <CheckCircle size={28} className="mb-2 opacity-60" />

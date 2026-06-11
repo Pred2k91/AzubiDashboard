@@ -32,7 +32,7 @@ export default function TodoWidget() {
 
   const goTo = useCallback((idx) => {
     setVisible(false)
-    setTimeout(() => { setPageIdx(idx); setVisible(true) }, 350)
+    setTimeout(() => { setPageIdx(idx); setVisible(true) }, 500)
   }, [])
 
   useEffect(() => {
@@ -91,7 +91,7 @@ export default function TodoWidget() {
         </div>
       </div>
 
-      <div className="widget-body space-y-2" style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(8px)', transition: 'opacity 0.35s ease, transform 0.35s ease' }}>
+      <div className="widget-body space-y-2" style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(8px)', transition: 'opacity 0.5s ease, transform 0.5s ease' }}>
         {todos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-slate-600">
             <CheckSquare size={24} className="mb-2 opacity-30" />
