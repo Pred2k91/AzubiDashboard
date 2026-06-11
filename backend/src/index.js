@@ -40,6 +40,10 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
+app.get('/api/time', (req, res) => {
+  res.json({ utc: Date.now() })
+})
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Dashboard Backend running on port ${PORT}`)
 })
