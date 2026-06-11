@@ -1,32 +1,47 @@
 import { useState, useEffect } from 'react'
-import { getISOWeek } from 'date-fns'
-import { de } from 'date-fns/locale'
-import { formatInTimeZone, toZonedTime } from 'date-fns-tz'
 import { Droplets, Wind } from 'lucide-react'
 import { settingsApi } from '../../api/client'
 import axios from 'axios'
 
-const TZ = 'Europe/Berlin'
+const MONTHS_DE = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
+const DAYS_DE = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']
+
+// Berechnet den UTC-Offset für Europe/Berlin ohne Intl-API
+function getBerlinOffset(date) {
+  const y = date.getUTCFullYear()
+  const lastSunMar = new Date(Date.UTC(y, 2, 31))
+  lastSunMar.setUTCDate(31 - lastSunMar.getUTCDay())
+  const lastSunOct = new Date(Date.UTC(y, 9, 31))
+  lastSunOct.setUTCDate(31 - lastSunOct.getUTCDay())
+  return date >= lastSunMar && date < lastSunOct ? 2 : 1
+}
+
+function getISOWeekNum(utcDate) {
+  const d = new Date(Date.UTC(utcDate.getUTCFullYear(), utcDate.getUTCMonth(), utcDate.getUTCDate()))
+  const day = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - day)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7)
+}
+
+const pad = n => String(n).padStart(2, '0')
 
 export default function ClockWidget() {
   const [now, setNow] = useState(new Date())
   const [showSeconds, setShowSeconds] = useState(true)
   const [weather, setWeather] = useState(null)
 
-  // Uhr
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(t)
   }, [])
 
-  // Einstellungen laden
   useEffect(() => {
     settingsApi.getAll().then(s => {
       if (s.show_seconds !== undefined) setShowSeconds(s.show_seconds)
     }).catch(() => {})
   }, [])
 
-  // Wetter laden
   const loadWeather = () => {
     axios.get('/api/weather').then(r => {
       if (r.data.available) setWeather(r.data)
@@ -39,8 +54,15 @@ export default function ClockWidget() {
     return () => clearInterval(interval)
   }, [])
 
-  const zonedNow = toZonedTime(now, TZ)
-  const kw = getISOWeek(zonedNow)
+  // Berlin-Zeit komplett über UTC berechnen — kein Intl, kein date-fns-tz
+  const offset = getBerlinOffset(now)
+  const berlin = new Date(now.getTime() + offset * 3600000)
+  const kw = getISOWeekNum(berlin)
+
+  const timeStr = `${pad(berlin.getUTCHours())}:${pad(berlin.getUTCMinutes())}`
+  const secStr = pad(berlin.getUTCSeconds())
+  const weekday = DAYS_DE[berlin.getUTCDay()]
+  const dateStr = `${berlin.getUTCDate()}. ${MONTHS_DE[berlin.getUTCMonth()]} ${berlin.getUTCFullYear()}`
 
   return (
     <div className="widget-card justify-center items-center text-center">
@@ -51,18 +73,18 @@ export default function ClockWidget() {
           className="font-extrabold leading-none tracking-tight text-white"
           style={{ fontSize: 'clamp(2.5rem, 6vw, 5rem)' }}
         >
-          {formatInTimeZone(now, TZ, 'HH:mm')}
+          {timeStr}
           {showSeconds && (
-            <span className="text-indigo-400">:{formatInTimeZone(now, TZ, 'ss')}</span>
+            <span className="text-indigo-400">:{secStr}</span>
           )}
         </div>
 
         {/* Wochentag + Datum + KW */}
         <div className="text-slate-400 font-medium capitalize mt-1" style={{ fontSize: 'clamp(0.85rem, 1.8vw, 1.15rem)' }}>
-          {formatInTimeZone(now, TZ, 'EEEE', { locale: de })}
+          {weekday}
         </div>
         <div className="flex items-center gap-2 text-slate-500" style={{ fontSize: 'clamp(0.75rem, 1.4vw, 0.95rem)' }}>
-          <span>{formatInTimeZone(now, TZ, 'dd. MMMM yyyy', { locale: de })}</span>
+          <span>{dateStr}</span>
           <span className="text-slate-600">·</span>
           <span className="text-indigo-400 font-semibold">KW {kw}</span>
         </div>
@@ -92,7 +114,6 @@ export default function ClockWidget() {
           </div>
         )}
 
-        {/* Punkte */}
         {!weather && (
           <div className="mt-2 flex gap-1">
             {[...Array(3)].map((_, i) => (
