@@ -92,7 +92,7 @@ export default function AnnouncementsWidget() {
     setTimeout(() => {
       setSectionIdx(idx)
       setVisible(true)
-    }, 200)
+    }, 350)
   }, [])
 
   // Auto-rotate
@@ -148,7 +148,7 @@ export default function AnnouncementsWidget() {
         </div>
       </div>
 
-      <div className="widget-body" style={{ transition: 'opacity 0.2s ease', opacity: visible ? 1 : 0 }}>
+      <div className="widget-body" style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(8px)', transition: 'opacity 0.35s ease, transform 0.35s ease' }}>
         {total === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-slate-600 h-full">
             <Megaphone size={24} className="mb-2 opacity-30" />
