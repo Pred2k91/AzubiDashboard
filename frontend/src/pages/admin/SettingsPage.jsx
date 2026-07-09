@@ -116,7 +116,6 @@ function WeatherTest() {
 }
 
 export default function SettingsPage() {
-  const [adminPin, setAdminPin] = useState('')
   const [showSeconds, setShowSeconds] = useState(true)
   const [announcementInterval, setAnnouncementInterval] = useState(8000)
   const [kioskZoom, setKioskZoom] = useState(100)
@@ -151,7 +150,6 @@ export default function SettingsPage() {
     settingsApi.getAll().then(s => {
       if (s.dashboard_title) setTitle(s.dashboard_title)
       if (s.trainer_name) setTrainerName(s.trainer_name)
-      if (s.admin_pin !== undefined) setAdminPin(s.admin_pin || '')
       if (s.show_seconds !== undefined) setShowSeconds(s.show_seconds)
       if (s.announcement_interval !== undefined) setAnnouncementInterval(s.announcement_interval)
       if (s.kiosk_zoom !== undefined) setKioskZoom(s.kiosk_zoom)
@@ -186,7 +184,6 @@ export default function SettingsPage() {
       await Promise.all([
         settingsApi.update('dashboard_title', title),
         settingsApi.update('trainer_name', trainerName),
-        settingsApi.update('admin_pin', adminPin),
         settingsApi.update('show_seconds', showSeconds),
         settingsApi.update('announcement_interval', announcementInterval),
         settingsApi.update('report_warn_days', reportWarnDays),
@@ -267,20 +264,6 @@ export default function SettingsPage() {
               </button>
             ))}
           </div>
-        </div>
-
-        <div>
-          <label className="label">Admin-PIN</label>
-          <input
-            type="password"
-            inputMode="numeric"
-            className="input-field max-w-xs tracking-widest text-lg"
-            value={adminPin}
-            onChange={e => setAdminPin(e.target.value)}
-            placeholder="Leer = kein Schutz"
-            maxLength={8}
-          />
-          <p className="text-xs text-slate-600 mt-1">PIN für den Admin-Bereich — leer lassen für freien Zugang</p>
         </div>
 
         <div>

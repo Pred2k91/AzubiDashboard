@@ -1,0 +1,70 @@
+import { useState } from 'react'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
+import { LogIn, Lock } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
+
+export default function LoginPage() {
+  const { login } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      const loggedInUser = await login(email, password)
+      const from = location.state?.from?.pathname
+      if (loggedInUser.must_change_password) {
+        navigate('/change-password', { replace: true })
+      } else {
+        navigate(from || (loggedInUser.role === 'ausbilder' ? '/admin' : '/'), { replace: true })
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Anmeldung fehlgeschlagen')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#0d0f1a] p-4">
+      <div className="w-full max-w-sm bg-[#141625] border border-[#2a2d4a] rounded-2xl p-8 shadow-2xl">
+        <div className="flex flex-col items-center gap-3 mb-6">
+          <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 flex items-center justify-center">
+            <Lock size={24} className="text-indigo-400" />
+          </div>
+          <h1 className="text-lg font-bold text-white">Anmelden</h1>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="label">E-Mail</label>
+            <input
+              type="email" required autoFocus className="input-field"
+              value={email} onChange={e => setEmail(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">Passwort</label>
+            <input
+              type="password" required className="input-field"
+              value={password} onChange={e => setPassword(e.target.value)}
+            />
+          </div>
+          {error && <p className="text-sm text-red-400">{error}</p>}
+          <button type="submit" disabled={loading} className="btn-primary w-full justify-center">
+            <LogIn size={14} />
+            {loading ? 'Anmelden...' : 'Anmelden'}
+          </button>
+        </form>
+        <Link to="/forgot-password" className="block text-center text-xs text-slate-500 hover:text-slate-300 mt-4">
+          Passwort vergessen?
+        </Link>
+      </div>
+    </div>
+  )
+}

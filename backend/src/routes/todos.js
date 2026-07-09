@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
+const { requireRole } = require('../middleware/auth')
 
 router.get('/', (req, res) => {
   try {
@@ -19,7 +20,7 @@ router.get('/', (req, res) => {
   }
 })
 
-router.post('/', (req, res) => {
+router.post('/', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     const { title, description, priority, status, due_date } = req.body
@@ -49,7 +50,7 @@ router.put('/:id', (req, res) => {
   }
 })
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     db.prepare('DELETE FROM todos WHERE id = ?').run(req.params.id)

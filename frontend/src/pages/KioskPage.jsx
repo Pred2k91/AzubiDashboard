@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import GridLayout from 'react-grid-layout'
 import { Settings, Lock, Unlock, RotateCcw, AlignVerticalJustifyStart } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import PinModal from '../components/ui/PinModal'
 import ClockWidget from '../components/widgets/ClockWidget'
 import CalendarWidget from '../components/widgets/CalendarWidget'
 import TodoWidget from '../components/widgets/TodoWidget'
@@ -35,7 +34,6 @@ const DEFAULT_LAYOUT = [
 
 export default function KioskPage() {
   const navigate = useNavigate()
-  const [pinOpen, setPinOpen] = useState(false)
   const [layout, setLayout] = useState(DEFAULT_LAYOUT)
   const [editMode, setEditMode] = useState(false)
   const [widgetsEnabled, setWidgetsEnabled] = useState({
@@ -363,7 +361,7 @@ export default function KioskPage() {
           </div>
 
           <button
-            onClick={() => setPinOpen(true)}
+            onClick={() => navigate('/admin')}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#1e2035] border border-[#2a2d4a] text-slate-500 hover:text-slate-300 transition-all"
           >
             <Settings size={13} />
@@ -408,12 +406,6 @@ export default function KioskPage() {
           })}
         </GridLayout>
       </div>
-
-      <PinModal
-        open={pinOpen}
-        onClose={() => setPinOpen(false)}
-        onSuccess={() => { setPinOpen(false); navigate('/admin') }}
-      />
     </div>
     </div>
   )

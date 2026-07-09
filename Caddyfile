@@ -1,0 +1,13 @@
+# TLS-Reverse-Proxy — wird NICHT automatisch gestartet (siehe docker-compose.yml,
+# Service "caddy" mit profiles: ["tls"]). Erst relevant, wenn die IT eine echte
+# Domain/Zertifikat bereitstellt.
+#
+# Aktivierung:
+#   1. SITE_DOMAIN=ihre-domain.example in der .env setzen (Default: localhost)
+#   2. Port 443 (und 80 für ACME-Challenge) am Host freigeben
+#   3. docker compose --profile tls up -d
+#   4. Beim backend-Service COOKIE_SECURE=true und TRUST_PROXY=true setzen und neu starten
+
+{$SITE_DOMAIN:localhost} {
+	reverse_proxy frontend:80
+}

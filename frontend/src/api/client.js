@@ -1,6 +1,23 @@
 import axios from 'axios'
 
-const api = axios.create({ baseURL: '/api' })
+const api = axios.create({ baseURL: '/api', withCredentials: true })
+
+export const authApi = {
+  login: (email, password) => api.post('/auth/login', { email, password }).then(r => r.data),
+  logout: () => api.post('/auth/logout').then(r => r.data),
+  me: () => api.get('/auth/me').then(r => r.data),
+  changePassword: (currentPassword, newPassword) => api.post('/auth/change-password', { currentPassword, newPassword }).then(r => r.data),
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }).then(r => r.data),
+  resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }).then(r => r.data),
+}
+
+export const usersApi = {
+  getAll: () => api.get('/users').then(r => r.data),
+  create: (data) => api.post('/users', data).then(r => r.data),
+  update: (id, data) => api.put(`/users/${id}`, data).then(r => r.data),
+  resetPassword: (id) => api.post(`/users/${id}/reset-password`).then(r => r.data),
+  delete: (id) => api.delete(`/users/${id}`).then(r => r.data),
+}
 
 export const calendarApi = {
   getAll: (start, end) => api.get('/calendar', { params: { start, end } }).then(r => r.data),

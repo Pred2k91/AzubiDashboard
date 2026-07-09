@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
+const { requireRole } = require('../middleware/auth')
 
 // Anzahl Tage vor dem Wechseldatum, ab der die Vorschau im Dashboard erscheint
 const ROTATION_PREVIEW_DAYS = 30
@@ -60,7 +61,7 @@ function syncNextRotation(db) {
 }
 
 // Get all azubis with department info
-router.get('/', (req, res) => {
+router.get('/', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     syncLehrjahre(db)
@@ -213,7 +214,7 @@ router.get('/by-department', (req, res) => {
   }
 })
 
-router.post('/', (req, res) => {
+router.post('/', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     const { name, lehrjahr, start_date, current_department_id, email, birthday, next_department_id, next_rotation_date } = req.body
@@ -235,7 +236,7 @@ router.post('/', (req, res) => {
   }
 })
 
-router.put('/:id', (req, res) => {
+router.put('/:id', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     const { name, lehrjahr, start_date, current_department_id, email, active, birthday, next_department_id, next_rotation_date } = req.body
@@ -328,7 +329,7 @@ router.get('/next-rotation', (req, res) => {
 })
 
 // Bulk Abteilungswechsel: mehrere Azubis auf einmal zuweisen
-router.post('/rotation', (req, res) => {
+router.post('/rotation', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     const { assignments, rotation_date } = req.body
@@ -356,7 +357,7 @@ router.post('/rotation', (req, res) => {
   }
 })
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     db.prepare('UPDATE azubis SET active = 0 WHERE id = ?').run(req.params.id)

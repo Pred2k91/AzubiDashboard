@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
+const { requireRole } = require('../middleware/auth')
 
 router.get('/', (req, res) => {
   try {
@@ -12,7 +13,7 @@ router.get('/', (req, res) => {
   }
 })
 
-router.post('/', (req, res) => {
+router.post('/', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     const { name, color, description, location } = req.body
@@ -30,7 +31,7 @@ router.post('/', (req, res) => {
   }
 })
 
-router.put('/:id', (req, res) => {
+router.put('/:id', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     const { name, color, description, location } = req.body
@@ -45,7 +46,7 @@ router.put('/:id', (req, res) => {
   }
 })
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     db.prepare('DELETE FROM departments WHERE id = ?').run(req.params.id)

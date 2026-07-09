@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
+const { requireRole, optionalAuth } = require('../middleware/auth')
 
 function getThresholds(db) {
   const rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('report_warn_days','report_alert_days')").all()
@@ -16,13 +17,15 @@ function calcStatus(lastDate, warn, alert) {
   return { status: 'ok', days }
 }
 
-// GET /api/reports — Status aller Azubis
-router.get('/', (req, res) => {
+// GET /api/reports — Status aller Azubis (bleibt öffentlich fürs Kiosk-Widget,
+// E-Mail-Adresse wird aber nur an eingeloggte Ausbilder mitgeliefert)
+router.get('/', optionalAuth, (req, res) => {
   try {
     const db = getDb()
     const { warn, alert } = getThresholds(db)
+    const includeEmail = req.user?.role === 'ausbilder'
     const azubis = db.prepare(`
-      SELECT id, name, lehrjahr, last_report_date, email
+      SELECT id, name, lehrjahr, last_report_date${includeEmail ? ', email' : ''}
       FROM azubis WHERE active = 1 AND lehrjahr > 0
       ORDER BY lehrjahr ASC, name ASC
     `).all()
@@ -40,7 +43,7 @@ router.get('/', (req, res) => {
 })
 
 // PUT /api/reports/:id — Einreichung markieren
-router.put('/:id', (req, res) => {
+router.put('/:id', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     const date = req.body.date || new Date().toISOString().slice(0, 10)
@@ -50,7 +53,7 @@ router.put('/:id', (req, res) => {
 })
 
 // PUT /api/reports/bulk — Mehrere auf einmal markieren
-router.put('/bulk/submit', (req, res) => {
+router.put('/bulk/submit', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     const { ids, date } = req.body

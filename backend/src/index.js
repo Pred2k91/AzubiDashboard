@@ -1,8 +1,11 @@
 const express = require('express')
 const cors = require('cors')
+const cookieParser = require('cookie-parser')
 const path = require('path')
 const { initDb } = require('./db/init')
 
+const authRoutes = require('./routes/auth')
+const usersRoutes = require('./routes/users')
 const calendarRoutes = require('./routes/calendar')
 const todosRoutes = require('./routes/todos')
 const notesRoutes = require('./routes/notes')
@@ -18,12 +21,17 @@ const reportsRoutes = require('./routes/reports')
 const app = express()
 const PORT = process.env.PORT || 3001
 
+if (process.env.TRUST_PROXY === 'true') app.set('trust proxy', 1)
+
 app.use(cors())
 app.use(express.json())
+app.use(cookieParser())
 app.use('/uploads', express.static(UPLOADS_DIR))
 
 initDb()
 
+app.use('/api/auth', authRoutes)
+app.use('/api/users', usersRoutes)
 app.use('/api/calendar', calendarRoutes)
 app.use('/api/todos', todosRoutes)
 app.use('/api/notes', notesRoutes)

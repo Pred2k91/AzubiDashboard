@@ -1,5 +1,7 @@
 const Database = require('better-sqlite3')
 const path = require('path')
+const crypto = require('crypto')
+const bcrypt = require('bcryptjs')
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../../../data/dashboard.db')
 
@@ -131,6 +133,36 @@ function initDb() {
       updated_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT,
+      auth_provider TEXT NOT NULL DEFAULT 'local',
+      role TEXT NOT NULL DEFAULT 'azubi',
+      azubi_id INTEGER REFERENCES azubis(id) ON DELETE SET NULL,
+      active INTEGER DEFAULT 1,
+      must_change_password INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      last_login_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL,
+      user_agent TEXT DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     INSERT OR IGNORE INTO settings (key, value) VALUES
       ('report_warn_days', '14'),
       ('report_alert_days', '28'),
@@ -153,7 +185,33 @@ function initDb() {
   try { db.exec("ALTER TABLE azubis ADD COLUMN next_department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL") } catch (_) {}
   try { db.exec("ALTER TABLE azubis ADD COLUMN next_rotation_date TEXT") } catch (_) {}
 
+  // Migration: alten Klartext-Admin-PIN entfernen — abgelöst durch echte Benutzerkonten
+  db.prepare("DELETE FROM settings WHERE key = 'admin_pin'").run()
+
+  bootstrapFirstUser(db)
+
   console.log('Database initialized at:', DB_PATH)
+}
+
+// Legt beim allerersten Start ein Ausbilder-Konto an, falls noch keine Benutzer existieren
+function bootstrapFirstUser(db) {
+  const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get().c
+  if (userCount > 0) return
+
+  const email = (process.env.BOOTSTRAP_ADMIN_EMAIL || 'admin@example.com').toLowerCase()
+  const password = process.env.BOOTSTRAP_ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64url')
+  const hash = bcrypt.hashSync(password, 10)
+
+  db.prepare(
+    'INSERT INTO users (email, password_hash, role, must_change_password) VALUES (?, ?, ?, 1)'
+  ).run(email, hash, 'ausbilder')
+
+  console.log('========================================')
+  console.log('Erstes Ausbilder-Konto wurde angelegt:')
+  console.log('  E-Mail:   ' + email)
+  console.log('  Passwort: ' + password)
+  console.log('Bitte nach dem ersten Login sofort ändern!')
+  console.log('========================================')
 }
 
 module.exports = { getDb, initDb }

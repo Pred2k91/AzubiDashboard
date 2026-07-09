@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
+const { requireRole } = require('../middleware/auth')
 
 function parseAzubis(db, row) {
   try {
@@ -42,7 +43,7 @@ router.get('/all', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-router.post('/', (req, res) => {
+router.post('/', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     const { title, content, type, priority, date, azubi_ids, color } = req.body
@@ -59,7 +60,7 @@ router.post('/', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-router.put('/:id', (req, res) => {
+router.put('/:id', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     const { title, content, type, priority, date, azubi_ids, color, active } = req.body
@@ -77,7 +78,7 @@ router.put('/:id', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     db.prepare('DELETE FROM announcements WHERE id = ?').run(req.params.id)

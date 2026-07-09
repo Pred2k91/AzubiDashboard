@@ -2,7 +2,13 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { settingsApi } from './api/client'
 import { applyAccentColor, applyWidgetOpacity } from './utils/theme'
+import { AuthProvider } from './contexts/AuthContext'
+import RequireRole from './components/RequireRole'
 import KioskPage from './pages/KioskPage'
+import LoginPage from './pages/LoginPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
+import ChangePasswordPage from './pages/ChangePasswordPage'
 import AdminLayout from './pages/AdminLayout'
 import AdminOverview from './pages/admin/AdminOverview'
 import CalendarAdmin from './pages/admin/CalendarAdmin'
@@ -14,6 +20,7 @@ import SchoolsAdmin from './pages/admin/SchoolsAdmin'
 import AnnouncementsAdmin from './pages/admin/AnnouncementsAdmin'
 import ReportsAdmin from './pages/admin/ReportsAdmin'
 import SettingsPage from './pages/admin/SettingsPage'
+import UsersAdmin from './pages/admin/UsersAdmin'
 
 export default function App() {
   useEffect(() => {
@@ -25,22 +32,29 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<KioskPage />} />
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<AdminOverview />} />
-          <Route path="calendar" element={<CalendarAdmin />} />
-          <Route path="todos" element={<TodosAdmin />} />
-          <Route path="notes" element={<NotesAdmin />} />
-          <Route path="azubis" element={<AzubiAdmin />} />
-          <Route path="departments" element={<DepartmentsAdmin />} />
-          <Route path="schools" element={<SchoolsAdmin />} />
-          <Route path="announcements" element={<AnnouncementsAdmin />} />
-          <Route path="reports" element={<ReportsAdmin />} />
-          <Route path="settings" element={<SettingsPage />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<KioskPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/change-password" element={<RequireRole><ChangePasswordPage /></RequireRole>} />
+          <Route path="/admin" element={<RequireRole role="ausbilder"><AdminLayout /></RequireRole>}>
+            <Route index element={<AdminOverview />} />
+            <Route path="calendar" element={<CalendarAdmin />} />
+            <Route path="todos" element={<TodosAdmin />} />
+            <Route path="notes" element={<NotesAdmin />} />
+            <Route path="azubis" element={<AzubiAdmin />} />
+            <Route path="departments" element={<DepartmentsAdmin />} />
+            <Route path="schools" element={<SchoolsAdmin />} />
+            <Route path="announcements" element={<AnnouncementsAdmin />} />
+            <Route path="reports" element={<ReportsAdmin />} />
+            <Route path="users" element={<UsersAdmin />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

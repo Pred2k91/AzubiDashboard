@@ -1,10 +1,12 @@
-import { NavLink, Outlet, Link } from 'react-router-dom'
+import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, CalendarDays, CheckSquare, StickyNote,
   Users, Building2, Settings, ExternalLink, GraduationCap, Megaphone, BookOpen,
+  UserCog, LogOut,
 } from 'lucide-react'
 import { settingsApi } from '../api/client'
+import { useAuth } from '../contexts/AuthContext'
 
 const NAV = [
   { to: '/admin', label: 'Übersicht', icon: LayoutDashboard, end: true },
@@ -16,17 +18,25 @@ const NAV = [
   { to: '/admin/schools', label: 'Berufsschulen', icon: GraduationCap },
   { to: '/admin/announcements', label: 'Schwarzes Brett', icon: Megaphone },
   { to: '/admin/reports', label: 'Berichtshefte', icon: BookOpen },
+  { to: '/admin/users', label: 'Nutzer', icon: UserCog },
   { to: '/admin/settings', label: 'Einstellungen', icon: Settings },
 ]
 
 export default function AdminLayout() {
   const [logoUrl, setLogoUrl] = useState(null)
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
 
   useEffect(() => {
     settingsApi.getAll().then(s => {
       if (s.logo_url) setLogoUrl(s.logo_url)
     }).catch(() => {})
   }, [])
+
+  const handleLogout = async () => {
+    await logout()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0d0f1a]">
@@ -66,7 +76,10 @@ export default function AdminLayout() {
           ))}
         </nav>
 
-        <div className="p-3 border-t border-[#2a2d4a]">
+        <div className="p-3 border-t border-[#2a2d4a] space-y-1">
+          {user && (
+            <div className="px-3 py-1.5 text-xs text-slate-600 truncate">{user.email}</div>
+          )}
           <Link
             to="/"
             className="nav-item"
@@ -74,6 +87,10 @@ export default function AdminLayout() {
             <ExternalLink size={16} />
             Kiosk-Ansicht
           </Link>
+          <button onClick={handleLogout} className="nav-item w-full text-left">
+            <LogOut size={16} />
+            Abmelden
+          </button>
         </div>
       </aside>
 

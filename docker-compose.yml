@@ -10,6 +10,25 @@ services:
     environment:
       - PORT=3001
       - DB_PATH=/data/dashboard.db
+      # Bootstrap-Konto (nur beim allerersten Start relevant, danach ignoriert).
+      # Werte über eine .env-Datei setzen (siehe .env.example) — NICHT hier eintragen,
+      # diese Datei ist versioniert. Leer lassen -> zufälliges Passwort landet im Log.
+      - BOOTSTRAP_ADMIN_EMAIL=${BOOTSTRAP_ADMIN_EMAIL:-}
+      - BOOTSTRAP_ADMIN_PASSWORD=${BOOTSTRAP_ADMIN_PASSWORD:-}
+      # Cookie-/Proxy-Sicherheit: erst auf true stellen, wenn der "caddy"-Service
+      # (siehe unten, profiles: ["tls"]) aktiv ist und echtes TLS terminiert.
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      - TRUST_PROXY=${TRUST_PROXY:-false}
+      # SMTP-Mailversand (Passwort-Reset, Zugangsdaten) — standardmäßig deaktiviert.
+      # Erst nach Abstimmung mit der IT auf MAIL_ENABLED=true stellen und SMTP_* füllen.
+      - MAIL_ENABLED=${MAIL_ENABLED:-false}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - MAIL_FROM=${MAIL_FROM:-}
+      - APP_BASE_URL=${APP_BASE_URL:-http://localhost:3000}
     networks:
       - dashboard-net
 
@@ -24,9 +43,32 @@ services:
     networks:
       - dashboard-net
 
+  # Optionaler TLS-Reverse-Proxy — startet NUR mit "docker compose --profile tls up".
+  # Siehe Caddyfile für Aktivierungsschritte.
+  caddy:
+    image: caddy:2-alpine
+    container_name: dashboard-caddy
+    restart: unless-stopped
+    profiles: ["tls"]
+    ports:
+      - "443:443"
+      - "80:80"
+    environment:
+      - SITE_DOMAIN=${SITE_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - frontend
+    networks:
+      - dashboard-net
+
 networks:
   dashboard-net:
     driver: bridge
 
 volumes:
   sqlite-data:
+  caddy-data:
+  caddy-config:

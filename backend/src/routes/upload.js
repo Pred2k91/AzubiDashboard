@@ -4,6 +4,7 @@ const multer = require('multer')
 const path = require('path')
 const fs = require('fs')
 const { getDb } = require('../db/init')
+const { requireRole } = require('../middleware/auth')
 
 const UPLOADS_DIR = path.join(process.env.DB_PATH ? path.dirname(process.env.DB_PATH) : '/data', 'uploads')
 
@@ -34,7 +35,7 @@ const upload = multer({
   },
 })
 
-router.post('/:type', upload.single('file'), (req, res) => {
+router.post('/:type', requireRole('ausbilder'), upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Keine Datei' })
   const url = `/uploads/${req.file.filename}`
   const key = KEY_MAP[req.params.type] || 'background_url'
@@ -44,7 +45,7 @@ router.post('/:type', upload.single('file'), (req, res) => {
   res.json({ url })
 })
 
-router.delete('/:type', (req, res) => {
+router.delete('/:type', requireRole('ausbilder'), (req, res) => {
   const key = KEY_MAP[req.params.type] || 'background_url'
   getDb().prepare(
     "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at"
