@@ -149,6 +149,10 @@ function initDb() {
   // Migration: lehrjahre-Spalte hinzufügen falls nicht vorhanden
   try { db.exec("ALTER TABLE school_blocks ADD COLUMN lehrjahre TEXT DEFAULT '[]'") } catch (_) {}
 
+  // Migration: geplanter Abteilungswechsel pro Azubi (next_department_id/next_rotation_date)
+  try { db.exec("ALTER TABLE azubis ADD COLUMN next_department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL") } catch (_) {}
+  try { db.exec("ALTER TABLE azubis ADD COLUMN next_rotation_date TEXT") } catch (_) {}
+
   console.log('Database initialized at:', DB_PATH)
 }
 

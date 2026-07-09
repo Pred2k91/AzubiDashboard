@@ -1,8 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
-import { Building2, Users, MapPin, CalendarDays, GraduationCap } from 'lucide-react'
+import { Building2, Users, MapPin, CalendarDays, GraduationCap, ArrowRight } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { azubisApi } from '../../api/client'
+
+// Vorschau auf geplante Abteilungswechsel: ab wie vielen Tagen vorher anzeigen
+const ROTATION_PREVIEW_DAYS = 30
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return Math.round((parseISO(dateStr) - today) / 86400000)
+}
 
 export default function DepartmentWidget({ onAutoResize }) {
   const [data, setData] = useState({ departments: [], unassigned: [], active_events: [], active_schools: [] })
@@ -48,14 +58,30 @@ export default function DepartmentWidget({ onAutoResize }) {
 
   const hasContent = activeDepts.length > 0 || data.unassigned.length > 0 || activeEvents.length > 0 || activeSchools.length > 0
 
-  const AzubiRow = ({ a, color }) => (
-    <div className="flex items-center gap-2">
-      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-        style={{ backgroundColor: `${color}25`, color }}>
-        {a.name.charAt(0).toUpperCase()}
+  const RotationPreview = ({ a }) => {
+    const days = daysUntil(a.next_rotation_date)
+    if (!a.next_department_name || days === null || days < 0 || days > ROTATION_PREVIEW_DAYS) return null
+    return (
+      <div className="flex items-center gap-1.5 pl-8 -mt-0.5 text-[11px] font-medium" style={{ color: a.next_department_color || '#818cf8' }}>
+        <ArrowRight size={10} className="shrink-0" />
+        <span className="truncate">
+          ab {format(parseISO(a.next_rotation_date), 'dd.MM.', { locale: de })} → {a.next_department_name}
+        </span>
       </div>
-      <span className="text-sm text-slate-300 truncate">{a.name}</span>
-      <span className="ml-auto text-xs text-slate-400 shrink-0">{a.lehrjahr}. Lj.</span>
+    )
+  }
+
+  const AzubiRow = ({ a, color }) => (
+    <div className="space-y-0.5">
+      <div className="flex items-center gap-2">
+        <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+          style={{ backgroundColor: `${color}25`, color }}>
+          {a.name.charAt(0).toUpperCase()}
+        </div>
+        <span className="text-sm text-slate-300 truncate">{a.name}</span>
+        <span className="ml-auto text-xs text-slate-400 shrink-0">{a.lehrjahr}. Lj.</span>
+      </div>
+      <RotationPreview a={a} />
     </div>
   )
 
@@ -133,11 +159,14 @@ export default function DepartmentWidget({ onAutoResize }) {
                     </div>
                     <div className="space-y-1.5">
                       {data.unassigned.map(a => (
-                        <div key={a.id} className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-slate-700 text-slate-400 shrink-0">
-                            {a.name.charAt(0).toUpperCase()}
+                        <div key={a.id} className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-slate-700 text-slate-400 shrink-0">
+                              {a.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-sm text-slate-500 truncate">{a.name}</span>
                           </div>
-                          <span className="text-sm text-slate-500 truncate">{a.name}</span>
+                          <RotationPreview a={a} />
                         </div>
                       ))}
                     </div>

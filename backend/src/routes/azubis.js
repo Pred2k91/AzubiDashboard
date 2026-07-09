@@ -33,15 +33,41 @@ function syncLehrjahre(db) {
   run()
 }
 
+// Geplante Abteilungswechsel ausführen, deren Stichtag erreicht ist
+function syncNextRotation(db) {
+  const today = new Date().toISOString().slice(0, 10)
+  const pending = db.prepare(
+    'SELECT id, next_department_id, next_rotation_date FROM azubis WHERE active = 1 AND next_rotation_date IS NOT NULL AND next_rotation_date <= ?'
+  ).all(today)
+  if (pending.length === 0) return
+  const update = db.prepare(
+    'UPDATE azubis SET current_department_id = ?, next_department_id = NULL, next_rotation_date = NULL WHERE id = ?'
+  )
+  const insertRotation = db.prepare(
+    'INSERT INTO rotations (azubi_id, department_id, start_date) VALUES (?, ?, ?)'
+  )
+  const run = db.transaction(() => {
+    for (const a of pending) {
+      update.run(a.next_department_id || null, a.id)
+      if (a.next_department_id) insertRotation.run(a.id, a.next_department_id, a.next_rotation_date)
+      console.log(`Abteilungswechsel automatisch ausgeführt: Azubi ${a.id} → Abteilung ${a.next_department_id}`)
+    }
+  })
+  run()
+}
+
 // Get all azubis with department info
 router.get('/', (req, res) => {
   try {
     const db = getDb()
     syncLehrjahre(db)
+    syncNextRotation(db)
     const azubis = db.prepare(`
-      SELECT a.*, d.name as department_name, d.color as department_color, d.location as department_location
+      SELECT a.*, d.name as department_name, d.color as department_color, d.location as department_location,
+             nd.name as next_department_name, nd.color as next_department_color
       FROM azubis a
       LEFT JOIN departments d ON a.current_department_id = d.id
+      LEFT JOIN departments nd ON a.next_department_id = nd.id
       WHERE a.active = 1
       ORDER BY a.lehrjahr ASC, a.name ASC
     `).all()
@@ -56,6 +82,7 @@ router.get('/by-department', (req, res) => {
   try {
     const db = getDb()
     syncLehrjahre(db)
+    syncNextRotation(db)
 
     // Nur Datum vergleichen — vermeidet UTC vs. lokale Zeitzone Probleme
     const today = new Date().toISOString().slice(0, 10)
@@ -116,22 +143,30 @@ router.get('/by-department', (req, res) => {
       ? `AND a.id NOT IN (${[...allBusyIds].join(',')})`
       : ''
     const busyWhere = allBusyIds.size > 0
-      ? `AND id NOT IN (${[...allBusyIds].join(',')})`
+      ? `AND a.id NOT IN (${[...allBusyIds].join(',')})`
       : ''
 
     const departments = db.prepare(`
       SELECT d.id, d.name, d.color, d.location,
-        json_group_array(json_object('id', a.id, 'name', a.name, 'lehrjahr', a.lehrjahr)) as azubis
+        json_group_array(json_object(
+          'id', a.id, 'name', a.name, 'lehrjahr', a.lehrjahr,
+          'next_department_name', nd.name, 'next_department_color', nd.color,
+          'next_rotation_date', a.next_rotation_date
+        )) as azubis
       FROM departments d
       LEFT JOIN azubis a ON a.current_department_id = d.id AND a.active = 1 ${busyJoin}
+      LEFT JOIN departments nd ON a.next_department_id = nd.id
       GROUP BY d.id
       ORDER BY d.name ASC
     `).all()
 
     const unassigned = db.prepare(`
-      SELECT id, name, lehrjahr FROM azubis
-      WHERE current_department_id IS NULL AND active = 1 ${busyWhere}
-      ORDER BY name ASC
+      SELECT a.id, a.name, a.lehrjahr,
+             nd.name as next_department_name, nd.color as next_department_color, a.next_rotation_date
+      FROM azubis a
+      LEFT JOIN departments nd ON a.next_department_id = nd.id
+      WHERE a.current_department_id IS NULL AND a.active = 1 ${busyWhere}
+      ORDER BY a.name ASC
     `).all()
 
     res.json({
@@ -151,14 +186,17 @@ router.get('/by-department', (req, res) => {
 router.post('/', (req, res) => {
   try {
     const db = getDb()
-    const { name, lehrjahr, start_date, current_department_id, email, birthday } = req.body
+    const { name, lehrjahr, start_date, current_department_id, email, birthday, next_department_id, next_rotation_date } = req.body
     if (!name) return res.status(400).json({ error: 'name ist erforderlich' })
     const result = db.prepare(
-      'INSERT INTO azubis (name, lehrjahr, start_date, current_department_id, email, birthday) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(name, lehrjahr != null ? lehrjahr : 1, start_date || null, current_department_id || null, email || '', birthday || null)
+      'INSERT INTO azubis (name, lehrjahr, start_date, current_department_id, email, birthday, next_department_id, next_rotation_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(name, lehrjahr != null ? lehrjahr : 1, start_date || null, current_department_id || null, email || '', birthday || null, next_department_id || null, next_rotation_date || null)
     const azubi = db.prepare(`
-      SELECT a.*, d.name as department_name, d.color as department_color
-      FROM azubis a LEFT JOIN departments d ON a.current_department_id = d.id
+      SELECT a.*, d.name as department_name, d.color as department_color,
+             nd.name as next_department_name, nd.color as next_department_color
+      FROM azubis a
+      LEFT JOIN departments d ON a.current_department_id = d.id
+      LEFT JOIN departments nd ON a.next_department_id = nd.id
       WHERE a.id = ?
     `).get(result.lastInsertRowid)
     res.status(201).json(azubi)
@@ -170,13 +208,16 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   try {
     const db = getDb()
-    const { name, lehrjahr, start_date, current_department_id, email, active, birthday } = req.body
+    const { name, lehrjahr, start_date, current_department_id, email, active, birthday, next_department_id, next_rotation_date } = req.body
     db.prepare(
-      'UPDATE azubis SET name=?, lehrjahr=?, start_date=?, current_department_id=?, email=?, active=?, birthday=? WHERE id=?'
-    ).run(name, lehrjahr != null ? lehrjahr : 1, start_date || null, current_department_id || null, email || '', active !== undefined ? active : 1, birthday || null, req.params.id)
+      'UPDATE azubis SET name=?, lehrjahr=?, start_date=?, current_department_id=?, email=?, active=?, birthday=?, next_department_id=?, next_rotation_date=? WHERE id=?'
+    ).run(name, lehrjahr != null ? lehrjahr : 1, start_date || null, current_department_id || null, email || '', active !== undefined ? active : 1, birthday || null, next_department_id || null, next_rotation_date || null, req.params.id)
     const azubi = db.prepare(`
-      SELECT a.*, d.name as department_name, d.color as department_color
-      FROM azubis a LEFT JOIN departments d ON a.current_department_id = d.id
+      SELECT a.*, d.name as department_name, d.color as department_color,
+             nd.name as next_department_name, nd.color as next_department_color
+      FROM azubis a
+      LEFT JOIN departments d ON a.current_department_id = d.id
+      LEFT JOIN departments nd ON a.next_department_id = nd.id
       WHERE a.id = ?
     `).get(req.params.id)
     if (!azubi) return res.status(404).json({ error: 'Nicht gefunden' })

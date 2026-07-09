@@ -5,7 +5,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { azubisApi, departmentsApi } from '../../api/client'
 import { format, parseISO } from 'date-fns'
 
-const EMPTY = { name: '', lehrjahr: 1, start_date: '', current_department_id: '', email: '', birthday: '' }
+const EMPTY = { name: '', lehrjahr: 1, start_date: '', current_department_id: '', email: '', birthday: '', next_department_id: '', next_rotation_date: '' }
 
 export default function AzubiAdmin() {
   const [azubis, setAzubis] = useState([])
@@ -34,6 +34,7 @@ export default function AzubiAdmin() {
     setForm({
       name: a.name, lehrjahr: a.lehrjahr, start_date: a.start_date || '',
       current_department_id: a.current_department_id || '', email: a.email || '', birthday: a.birthday || '',
+      next_department_id: a.next_department_id || '', next_rotation_date: a.next_rotation_date || '',
     })
     setModal(true)
   }
@@ -49,7 +50,13 @@ export default function AzubiAdmin() {
     if (!form.name) return
     setLoading(true)
     try {
-      const data = { ...form, current_department_id: form.current_department_id || null, start_date: form.start_date || null }
+      const data = {
+        ...form,
+        current_department_id: form.current_department_id || null,
+        start_date: form.start_date || null,
+        next_department_id: form.next_department_id || null,
+        next_rotation_date: form.next_rotation_date || null,
+      }
       if (editing) await azubisApi.update(editing.id, data)
       else await azubisApi.create(data)
       await load()
@@ -210,6 +217,24 @@ export default function AzubiAdmin() {
           <div>
             <label className="label">Geburtsdatum</label>
             <input type="date" className="input-field" value={form.birthday} onChange={e => setForm(f => ({ ...f, birthday: e.target.value }))} />
+          </div>
+          <div className="pt-2 border-t border-[#2a2d4a]">
+            <p className="text-xs text-slate-500 mb-3">
+              Geplanter Abteilungswechsel — erscheint 30 Tage vorher als Vorschau im Dashboard und wird am Stichtag automatisch übernommen.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Nächste Abteilung</label>
+                <select className="input-field" value={form.next_department_id} onChange={e => setForm(f => ({ ...f, next_department_id: e.target.value }))}>
+                  <option value="">— Keine —</option>
+                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Nächster Abteilungswechsel</label>
+                <input type="date" className="input-field" value={form.next_rotation_date} onChange={e => setForm(f => ({ ...f, next_rotation_date: e.target.value }))} />
+              </div>
+            </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button className="btn-secondary" onClick={() => setModal(false)}>Abbrechen</button>
