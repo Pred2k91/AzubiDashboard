@@ -9,6 +9,9 @@ import LoginPage from './pages/LoginPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
+import ProfilePage from './pages/ProfilePage'
+import PortalLayout from './pages/PortalLayout'
+import PortalDashboard from './pages/portal/PortalDashboard'
 import AdminLayout from './pages/AdminLayout'
 import AdminOverview from './pages/admin/AdminOverview'
 import CalendarAdmin from './pages/admin/CalendarAdmin'
@@ -50,7 +53,12 @@ export default function App() {
             <Route path="announcements" element={<AnnouncementsAdmin />} />
             <Route path="reports" element={<ReportsAdmin />} />
             <Route path="users" element={<UsersAdmin />} />
+            <Route path="profile" element={<ProfilePage />} />
             <Route path="settings" element={<SettingsPage />} />
+          </Route>
+          <Route path="/portal" element={<RequireRole role="azubi"><PortalLayout /></RequireRole>}>
+            <Route index element={<PortalDashboard />} />
+            <Route path="profile" element={<ProfilePage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

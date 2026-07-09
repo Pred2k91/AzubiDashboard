@@ -9,6 +9,14 @@ export const authApi = {
   changePassword: (currentPassword, newPassword) => api.post('/auth/change-password', { currentPassword, newPassword }).then(r => r.data),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }).then(r => r.data),
   resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }).then(r => r.data),
+  updateEmail: (email) => api.put('/auth/me', { email }).then(r => r.data),
+}
+
+export const meApi = {
+  getProfile: () => api.get('/me').then(r => r.data),
+  getTeam: () => api.get('/me/team').then(r => r.data),
+  getCalendar: () => api.get('/me/calendar').then(r => r.data),
+  getReports: () => api.get('/me/reports').then(r => r.data),
 }
 
 export const usersApi = {

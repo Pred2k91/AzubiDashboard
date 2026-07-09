@@ -22,7 +22,7 @@ export default function LoginPage() {
       if (loggedInUser.must_change_password) {
         navigate('/change-password', { replace: true })
       } else {
-        navigate(from || (loggedInUser.role === 'ausbilder' ? '/admin' : '/'), { replace: true })
+        navigate(from || (loggedInUser.role === 'ausbilder' ? '/admin' : '/portal'), { replace: true })
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Anmeldung fehlgeschlagen')

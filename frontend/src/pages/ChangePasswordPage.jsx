@@ -20,7 +20,7 @@ export default function ChangePasswordPage() {
     try {
       await authApi.changePassword(currentPassword, newPassword)
       const updated = await refresh()
-      navigate(updated.role === 'ausbilder' ? '/admin' : '/', { replace: true })
+      navigate(updated.role === 'ausbilder' ? '/admin' : '/portal', { replace: true })
     } catch (err) {
       setError(err.response?.data?.error || 'Ändern fehlgeschlagen')
     } finally {

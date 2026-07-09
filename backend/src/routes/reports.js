@@ -66,3 +66,5 @@ router.put('/bulk/submit', requireRole('ausbilder'), (req, res) => {
 })
 
 module.exports = router
+module.exports.calcStatus = calcStatus
+module.exports.getThresholds = getThresholds

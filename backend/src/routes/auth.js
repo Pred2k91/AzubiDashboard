@@ -68,6 +68,20 @@ router.get('/me', requireAuth, (req, res) => {
   res.json({ user: publicUser(req.user) })
 })
 
+router.put('/me', requireAuth, (req, res) => {
+  try {
+    const { email } = req.body
+    if (!email) return res.status(400).json({ error: 'E-Mail ist erforderlich' })
+    const db = getDb()
+    db.prepare('UPDATE users SET email = ? WHERE id = ?').run(String(email).toLowerCase(), req.user.id)
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id)
+    res.json({ user: publicUser(user) })
+  } catch (err) {
+    if (err.message.includes('UNIQUE')) return res.status(400).json({ error: 'E-Mail wird bereits verwendet' })
+    res.status(500).json({ error: err.message })
+  }
+})
+
 router.post('/change-password', requireAuth, (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body
