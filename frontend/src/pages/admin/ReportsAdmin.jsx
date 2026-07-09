@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, CheckCircle, AlertTriangle, Clock, Calendar, Search } from 'lucide-react'
+import { BookOpen, CheckCircle, AlertTriangle, Clock, Calendar, Search, Mail, AlertOctagon } from 'lucide-react'
 import { format, parseISO, getISOWeek } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { reportsApi } from '../../api/client'
+import { reportsApi, settingsApi } from '../../api/client'
+import { buildReminderMail, buildEscalationMail, buildMailtoUrl } from '../../utils/reportMailTemplates'
 
 const STATUS_CONFIG = {
   ok:    { label: 'Aktuell',    icon: CheckCircle,  cls: 'text-green-400',  bg: 'bg-green-500/10 border-green-500/20' },
@@ -17,12 +18,22 @@ export default function ReportsAdmin() {
   const [rowDates, setRowDates] = useState({})
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
   const [selected, setSelected] = useState(new Set())
+  const [trainerName, setTrainerName] = useState('')
 
   const today = new Date().toISOString().slice(0, 10)
   const getRowDate = (id) => rowDates[id] ?? today
 
   const load = () => reportsApi.getStatus().then(setData).catch(() => {})
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    settingsApi.getAll().then(s => { if (s.trainer_name) setTrainerName(s.trainer_name) }).catch(() => {})
+  }, [])
+
+  const handleSendMail = (azubi, type) => {
+    if (!azubi.email) return
+    const mail = (type === 'escalation' ? buildEscalationMail : buildReminderMail)(azubi, { trainerName })
+    window.location.href = buildMailtoUrl(azubi.email, mail)
+  }
 
   const handleMark = async (id) => {
     setLoading(l => ({ ...l, [id]: true }))
@@ -192,6 +203,26 @@ export default function ReportsAdmin() {
                         <CheckCircle size={13} />
                         {loading[a.id] ? '...' : 'Eingereicht'}
                       </button>
+                      {a.status !== 'ok' && (
+                        <>
+                          <button
+                            onClick={() => handleSendMail(a, 'reminder')}
+                            disabled={!a.email}
+                            title={a.email ? 'Erinnerungsmail öffnen' : 'Keine E-Mail-Adresse hinterlegt'}
+                            className="btn-secondary text-xs py-1.5 px-2 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <Mail size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleSendMail(a, 'escalation')}
+                            disabled={!a.email}
+                            title={a.email ? 'Eskalationsmail öffnen' : 'Keine E-Mail-Adresse hinterlegt'}
+                            className="btn-danger text-xs py-1.5 px-2 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <AlertOctagon size={13} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

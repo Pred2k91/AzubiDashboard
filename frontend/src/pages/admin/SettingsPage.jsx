@@ -120,6 +120,7 @@ export default function SettingsPage() {
   const [weatherCity, setWeatherCity] = useState('')
   const [weatherApiKey, setWeatherApiKey] = useState('')
   const [title, setTitle] = useState('Ausbildungsdashboard')
+  const [trainerName, setTrainerName] = useState('')
   const [accent, setAccent] = useState('#6366f1')
   const [refreshInterval, setRefreshInterval] = useState(300000)
   const [logoUrl, setLogoUrl] = useState(null)
@@ -140,6 +141,7 @@ export default function SettingsPage() {
   useEffect(() => {
     settingsApi.getAll().then(s => {
       if (s.dashboard_title) setTitle(s.dashboard_title)
+      if (s.trainer_name) setTrainerName(s.trainer_name)
       if (s.admin_pin !== undefined) setAdminPin(s.admin_pin || '')
       if (s.show_seconds !== undefined) setShowSeconds(s.show_seconds)
       if (s.announcement_interval !== undefined) setAnnouncementInterval(s.announcement_interval)
@@ -170,6 +172,7 @@ export default function SettingsPage() {
     try {
       await Promise.all([
         settingsApi.update('dashboard_title', title),
+        settingsApi.update('trainer_name', trainerName),
         settingsApi.update('admin_pin', adminPin),
         settingsApi.update('show_seconds', showSeconds),
         settingsApi.update('announcement_interval', announcementInterval),
@@ -224,6 +227,17 @@ export default function SettingsPage() {
             placeholder="Ausbildungsdashboard"
           />
           <p className="text-xs text-slate-600 mt-1">Wird im Header der Kiosk-Ansicht angezeigt</p>
+        </div>
+
+        <div>
+          <label className="label">Ausbilder-Name</label>
+          <input
+            className="input-field"
+            value={trainerName}
+            onChange={e => setTrainerName(e.target.value)}
+            placeholder="z. B. Max Mustermann"
+          />
+          <p className="text-xs text-slate-600 mt-1">Wird als Signatur in Berichtsheft-Erinnerungs-E-Mails verwendet</p>
         </div>
 
         <div>
