@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import { Settings, Save, RotateCcw, Upload, X, Image, Building2 } from 'lucide-react'
+import { Settings, Save, RotateCcw, Upload, X, Image, Building2, Mail } from 'lucide-react'
 import { settingsApi } from '../../api/client'
 import { applyAccentColor, applyWidgetOpacity } from '../../utils/theme'
+import {
+  TEMPLATE_PLACEHOLDERS,
+  DEFAULT_REMINDER_SUBJECT, DEFAULT_REMINDER_BODY,
+  DEFAULT_ESCALATION_SUBJECT, DEFAULT_ESCALATION_BODY,
+} from '../../utils/reportMailTemplates'
 import axios from 'axios'
 
 const ACCENT_COLORS = [
@@ -117,6 +122,10 @@ export default function SettingsPage() {
   const [kioskZoom, setKioskZoom] = useState(100)
   const [reportWarnDays, setReportWarnDays] = useState(14)
   const [reportAlertDays, setReportAlertDays] = useState(28)
+  const [reminderSubject, setReminderSubject] = useState(DEFAULT_REMINDER_SUBJECT)
+  const [reminderBody, setReminderBody] = useState(DEFAULT_REMINDER_BODY)
+  const [escalationSubject, setEscalationSubject] = useState(DEFAULT_ESCALATION_SUBJECT)
+  const [escalationBody, setEscalationBody] = useState(DEFAULT_ESCALATION_BODY)
   const [weatherCity, setWeatherCity] = useState('')
   const [weatherApiKey, setWeatherApiKey] = useState('')
   const [title, setTitle] = useState('Ausbildungsdashboard')
@@ -148,6 +157,10 @@ export default function SettingsPage() {
       if (s.kiosk_zoom !== undefined) setKioskZoom(s.kiosk_zoom)
       if (s.report_warn_days !== undefined) setReportWarnDays(s.report_warn_days)
       if (s.report_alert_days !== undefined) setReportAlertDays(s.report_alert_days)
+      if (s.report_reminder_subject) setReminderSubject(s.report_reminder_subject)
+      if (s.report_reminder_body) setReminderBody(s.report_reminder_body)
+      if (s.report_escalation_subject) setEscalationSubject(s.report_escalation_subject)
+      if (s.report_escalation_body) setEscalationBody(s.report_escalation_body)
       if (s.weather_city) setWeatherCity(s.weather_city)
       if (s.weather_api_key) setWeatherApiKey(s.weather_api_key)
       if (s.theme_accent) setAccent(s.theme_accent)
@@ -178,6 +191,10 @@ export default function SettingsPage() {
         settingsApi.update('announcement_interval', announcementInterval),
         settingsApi.update('report_warn_days', reportWarnDays),
         settingsApi.update('report_alert_days', reportAlertDays),
+        settingsApi.update('report_reminder_subject', reminderSubject),
+        settingsApi.update('report_reminder_body', reminderBody),
+        settingsApi.update('report_escalation_subject', escalationSubject),
+        settingsApi.update('report_escalation_body', escalationBody),
         settingsApi.update('kiosk_zoom', kioskZoom),
         settingsApi.update('weather_city', weatherCity),
         settingsApi.update('weather_api_key', weatherApiKey),
@@ -463,6 +480,46 @@ export default function SettingsPage() {
               onChange={e => setReportAlertDays(parseInt(e.target.value))} />
             <p className="text-xs text-slate-600 mt-1">Standard: 28 Tage (4 Wochen)</p>
           </div>
+        </div>
+      </div>
+
+      {/* Berichtsheft E-Mail-Vorlagen */}
+      <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-5">
+        <div>
+          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+            <Mail size={14} className="text-slate-400" />
+            Berichtsheft E-Mail-Vorlagen
+          </h2>
+          <p className="text-xs text-slate-600 mt-1">
+            Werden bei den Erinnerungs-/Eskalations-Buttons im Bereich "Berichtshefte" verwendet. Platzhalter werden beim Öffnen der Mail automatisch ersetzt:{' '}
+            {TEMPLATE_PLACEHOLDERS.map(p => `{{${p.key}}}`).join(', ')}
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="label mb-0">Erinnerung — Betreff</label>
+            <button className="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1"
+              onClick={() => { setReminderSubject(DEFAULT_REMINDER_SUBJECT); setReminderBody(DEFAULT_REMINDER_BODY) }}>
+              <RotateCcw size={11} />Zurücksetzen
+            </button>
+          </div>
+          <input className="input-field" value={reminderSubject} onChange={e => setReminderSubject(e.target.value)} />
+          <label className="label">Erinnerung — Text</label>
+          <textarea className="input-field font-mono text-xs" rows={8} value={reminderBody} onChange={e => setReminderBody(e.target.value)} />
+        </div>
+
+        <div className="space-y-3 pt-2 border-t border-[#2a2d4a]">
+          <div className="flex items-center justify-between">
+            <label className="label mb-0">Eskalation — Betreff</label>
+            <button className="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1"
+              onClick={() => { setEscalationSubject(DEFAULT_ESCALATION_SUBJECT); setEscalationBody(DEFAULT_ESCALATION_BODY) }}>
+              <RotateCcw size={11} />Zurücksetzen
+            </button>
+          </div>
+          <input className="input-field" value={escalationSubject} onChange={e => setEscalationSubject(e.target.value)} />
+          <label className="label">Eskalation — Text</label>
+          <textarea className="input-field font-mono text-xs" rows={10} value={escalationBody} onChange={e => setEscalationBody(e.target.value)} />
         </div>
       </div>
 

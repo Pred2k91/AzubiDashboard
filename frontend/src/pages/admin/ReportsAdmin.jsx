@@ -19,6 +19,7 @@ export default function ReportsAdmin() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
   const [selected, setSelected] = useState(new Set())
   const [trainerName, setTrainerName] = useState('')
+  const [mailTemplates, setMailTemplates] = useState({})
 
   const today = new Date().toISOString().slice(0, 10)
   const getRowDate = (id) => rowDates[id] ?? today
@@ -26,12 +27,22 @@ export default function ReportsAdmin() {
   const load = () => reportsApi.getStatus().then(setData).catch(() => {})
   useEffect(() => {
     load()
-    settingsApi.getAll().then(s => { if (s.trainer_name) setTrainerName(s.trainer_name) }).catch(() => {})
+    settingsApi.getAll().then(s => {
+      if (s.trainer_name) setTrainerName(s.trainer_name)
+      setMailTemplates({
+        reminderSubject: s.report_reminder_subject,
+        reminderBody: s.report_reminder_body,
+        escalationSubject: s.report_escalation_subject,
+        escalationBody: s.report_escalation_body,
+      })
+    }).catch(() => {})
   }, [])
 
   const handleSendMail = (azubi, type) => {
     if (!azubi.email) return
-    const mail = (type === 'escalation' ? buildEscalationMail : buildReminderMail)(azubi, { trainerName })
+    const mail = type === 'escalation'
+      ? buildEscalationMail(azubi, { trainerName, subjectTemplate: mailTemplates.escalationSubject, bodyTemplate: mailTemplates.escalationBody })
+      : buildReminderMail(azubi, { trainerName, subjectTemplate: mailTemplates.reminderSubject, bodyTemplate: mailTemplates.reminderBody })
     window.location.href = buildMailtoUrl(azubi.email, mail)
   }
 
