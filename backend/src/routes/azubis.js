@@ -2,6 +2,9 @@ const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
 
+// Anzahl Tage vor dem Wechseldatum, ab der die Vorschau im Dashboard erscheint
+const ROTATION_PREVIEW_DAYS = 30
+
 function calculateLehrjahr(startDateStr) {
   if (!startDateStr) return null
   const start = new Date(startDateStr)
@@ -136,35 +139,61 @@ router.get('/by-department', (req, res) => {
       return { ...block, azubis }
     }).filter(b => b.azubis.length > 0)
 
-    // Alle beschäftigten Azubis (Termin + Schule)
-    const allBusyIds = new Set([...busyAzubiIds, ...schoolBusyIds])
+    // ── Anstehende Abteilungswechsel (Vorschau-Fenster) ───────────────────────
+    // Azubis mit Wechsel in den nächsten ROTATION_PREVIEW_DAYS Tagen werden aus der
+    // normalen Abteilungsübersicht herausgenommen und stattdessen unter ihrer
+    // künftigen Abteilung gruppiert nach Wechseldatum ausgegeben.
+    const previewLimit = new Date()
+    previewLimit.setDate(previewLimit.getDate() + ROTATION_PREVIEW_DAYS)
+    const previewLimitStr = previewLimit.toISOString().slice(0, 10)
 
-    const busyJoin = allBusyIds.size > 0
-      ? `AND a.id NOT IN (${[...allBusyIds].join(',')})`
+    const previewRows = db.prepare(`
+      SELECT a.id, a.name, a.lehrjahr, a.next_rotation_date,
+             nd.id as next_department_id, nd.name as next_department_name, nd.color as next_department_color
+      FROM azubis a
+      JOIN departments nd ON a.next_department_id = nd.id
+      WHERE a.active = 1 AND a.next_rotation_date IS NOT NULL AND a.next_rotation_date <= ?
+      ORDER BY a.next_rotation_date ASC, nd.name ASC, a.name ASC
+    `).all(previewLimitStr)
+
+    const previewIds = new Set(previewRows.map(r => r.id))
+
+    const rotationGroups = {}
+    for (const row of previewRows) {
+      if (!rotationGroups[row.next_rotation_date]) rotationGroups[row.next_rotation_date] = {}
+      const deptGroup = rotationGroups[row.next_rotation_date]
+      if (!deptGroup[row.next_department_id]) {
+        deptGroup[row.next_department_id] = { id: row.next_department_id, name: row.next_department_name, color: row.next_department_color, azubis: [] }
+      }
+      deptGroup[row.next_department_id].azubis.push({ id: row.id, name: row.name, lehrjahr: row.lehrjahr })
+    }
+    const upcomingRotations = Object.keys(rotationGroups).sort().map(date => ({
+      date,
+      departments: Object.values(rotationGroups[date]),
+    }))
+
+    // Alle beschäftigten Azubis (Termin + Schule + anstehender Wechsel)
+    const allBusyIds = new Set([...busyAzubiIds, ...schoolBusyIds])
+    const excludeIds = new Set([...allBusyIds, ...previewIds])
+
+    const busyJoin = excludeIds.size > 0
+      ? `AND a.id NOT IN (${[...excludeIds].join(',')})`
       : ''
-    const busyWhere = allBusyIds.size > 0
-      ? `AND a.id NOT IN (${[...allBusyIds].join(',')})`
+    const busyWhere = excludeIds.size > 0
+      ? `AND a.id NOT IN (${[...excludeIds].join(',')})`
       : ''
 
     const departments = db.prepare(`
       SELECT d.id, d.name, d.color, d.location,
-        json_group_array(json_object(
-          'id', a.id, 'name', a.name, 'lehrjahr', a.lehrjahr,
-          'next_department_name', nd.name, 'next_department_color', nd.color,
-          'next_rotation_date', a.next_rotation_date
-        )) as azubis
+        json_group_array(json_object('id', a.id, 'name', a.name, 'lehrjahr', a.lehrjahr)) as azubis
       FROM departments d
       LEFT JOIN azubis a ON a.current_department_id = d.id AND a.active = 1 ${busyJoin}
-      LEFT JOIN departments nd ON a.next_department_id = nd.id
       GROUP BY d.id
       ORDER BY d.name ASC
     `).all()
 
     const unassigned = db.prepare(`
-      SELECT a.id, a.name, a.lehrjahr,
-             nd.name as next_department_name, nd.color as next_department_color, a.next_rotation_date
-      FROM azubis a
-      LEFT JOIN departments nd ON a.next_department_id = nd.id
+      SELECT a.id, a.name, a.lehrjahr FROM azubis a
       WHERE a.current_department_id IS NULL AND a.active = 1 ${busyWhere}
       ORDER BY a.name ASC
     `).all()
@@ -177,6 +206,7 @@ router.get('/by-department', (req, res) => {
       unassigned,
       active_events: activeEventsWithAzubis,
       active_schools: activeSchoolBlocksWithAzubis,
+      upcoming_rotations: upcomingRotations,
     })
   } catch (err) {
     res.status(500).json({ error: err.message })

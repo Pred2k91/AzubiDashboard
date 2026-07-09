@@ -4,18 +4,8 @@ import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { azubisApi } from '../../api/client'
 
-// Vorschau auf geplante Abteilungswechsel: ab wie vielen Tagen vorher anzeigen
-const ROTATION_PREVIEW_DAYS = 30
-
-function daysUntil(dateStr) {
-  if (!dateStr) return null
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return Math.round((parseISO(dateStr) - today) / 86400000)
-}
-
 export default function DepartmentWidget({ onAutoResize }) {
-  const [data, setData] = useState({ departments: [], unassigned: [], active_events: [], active_schools: [] })
+  const [data, setData] = useState({ departments: [], unassigned: [], active_events: [], active_schools: [], upcoming_rotations: [] })
   const [hasMore, setHasMore] = useState(false)
   const bodyRef = useRef(null)
   const contentRef = useRef(null)
@@ -50,38 +40,24 @@ export default function DepartmentWidget({ onAutoResize }) {
   const activeDepts = data.departments.filter(d => d.azubis.length > 0)
   const activeEvents = data.active_events || []
   const activeSchools = data.active_schools || []
+  const upcomingRotations = data.upcoming_rotations || []
   const total =
     data.departments.reduce((s, d) => s + d.azubis.length, 0) +
     data.unassigned.length +
     activeEvents.reduce((s, e) => s + e.azubis.length, 0) +
-    activeSchools.reduce((s, b) => s + b.azubis.length, 0)
+    activeSchools.reduce((s, b) => s + b.azubis.length, 0) +
+    upcomingRotations.reduce((s, g) => s + g.departments.reduce((s2, d) => s2 + d.azubis.length, 0), 0)
 
-  const hasContent = activeDepts.length > 0 || data.unassigned.length > 0 || activeEvents.length > 0 || activeSchools.length > 0
-
-  const RotationPreview = ({ a }) => {
-    const days = daysUntil(a.next_rotation_date)
-    if (!a.next_department_name || days === null || days < 0 || days > ROTATION_PREVIEW_DAYS) return null
-    return (
-      <div className="flex items-center gap-1.5 pl-8 -mt-0.5 text-[11px] font-medium" style={{ color: a.next_department_color || '#818cf8' }}>
-        <ArrowRight size={10} className="shrink-0" />
-        <span className="truncate">
-          ab {format(parseISO(a.next_rotation_date), 'dd.MM.', { locale: de })} → {a.next_department_name}
-        </span>
-      </div>
-    )
-  }
+  const hasContent = activeDepts.length > 0 || data.unassigned.length > 0 || activeEvents.length > 0 || activeSchools.length > 0 || upcomingRotations.length > 0
 
   const AzubiRow = ({ a, color }) => (
-    <div className="space-y-0.5">
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-          style={{ backgroundColor: `${color}25`, color }}>
-          {a.name.charAt(0).toUpperCase()}
-        </div>
-        <span className="text-sm text-slate-300 truncate">{a.name}</span>
-        <span className="ml-auto text-xs text-slate-400 shrink-0">{a.lehrjahr}. Lj.</span>
+    <div className="flex items-center gap-2">
+      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+        style={{ backgroundColor: `${color}25`, color }}>
+        {a.name.charAt(0).toUpperCase()}
       </div>
-      <RotationPreview a={a} />
+      <span className="text-sm text-slate-300 truncate">{a.name}</span>
+      <span className="ml-auto text-xs text-slate-400 shrink-0">{a.lehrjahr}. Lj.</span>
     </div>
   )
 
@@ -159,14 +135,11 @@ export default function DepartmentWidget({ onAutoResize }) {
                     </div>
                     <div className="space-y-1.5">
                       {data.unassigned.map(a => (
-                        <div key={a.id} className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-slate-700 text-slate-400 shrink-0">
-                              {a.name.charAt(0).toUpperCase()}
-                            </div>
-                            <span className="text-sm text-slate-500 truncate">{a.name}</span>
+                        <div key={a.id} className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-slate-700 text-slate-400 shrink-0">
+                            {a.name.charAt(0).toUpperCase()}
                           </div>
-                          <RotationPreview a={a} />
+                          <span className="text-sm text-slate-500 truncate">{a.name}</span>
                         </div>
                       ))}
                     </div>
@@ -174,6 +147,31 @@ export default function DepartmentWidget({ onAutoResize }) {
                 )}
               </div>
             )}
+
+            {/* Anstehende Abteilungswechsel */}
+            {upcomingRotations.map(group => (
+              <div key={group.date} className="space-y-2">
+                <Divider icon={ArrowRight} label={`Abteilungen ab ${format(parseISO(group.date), 'dd.MM.yyyy', { locale: de })}`} />
+                <div className="grid gap-3" style={GRID}>
+                  {group.departments.map(dept => (
+                    <div key={dept.id} className="p-3.5 rounded-xl border bg-[#1e2035]/50"
+                      style={{ borderColor: `${dept.color}40`, borderStyle: 'dashed' }}>
+                      <div className="flex items-center gap-2 mb-2.5">
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: dept.color }} />
+                        <span className="text-sm font-bold text-white truncate">{dept.name}</span>
+                        <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full shrink-0"
+                          style={{ backgroundColor: `${dept.color}20`, color: dept.color }}>
+                          {dept.azubis.length}
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        {dept.azubis.map(a => <AzubiRow key={a.id} a={a} color={dept.color} />)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
 
             {/* Berufsschule + Aktive Termine nebeneinander */}
             {(activeSchools.length > 0 || activeEvents.length > 0) && (
