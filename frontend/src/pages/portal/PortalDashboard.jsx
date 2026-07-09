@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Building2, ArrowRight, CalendarDays, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Building2, ArrowRight, BookOpen, CalendarDays, CheckCircle, AlertTriangle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { meApi } from '../../api/client'
@@ -85,6 +85,10 @@ export default function PortalDashboard() {
         {/* Berichtsheft-Status */}
         {reports && s ? (
           <div className={`rounded-xl border p-4 flex flex-col items-center justify-center text-center ${s.bg}`}>
+            <span className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide ${s.cls} mb-2`}>
+              <BookOpen size={12} />
+              Berichtsheft
+            </span>
             <StatusIcon size={26} className={`${s.cls} mb-2`} />
             <div className={`text-2xl font-bold ${s.cls}`}>{s.label}</div>
             <div className="text-sm text-slate-300 mt-2">
