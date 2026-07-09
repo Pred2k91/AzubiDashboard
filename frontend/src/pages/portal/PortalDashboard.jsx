@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
-import { Building2, ArrowRight, BookOpen, CalendarDays, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Building2, ArrowRight, CalendarDays, CheckCircle, AlertTriangle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { meApi } from '../../api/client'
 
 const STATUS_CONFIG = {
-  ok:    { label: 'Aktuell',    icon: CheckCircle,  cls: 'text-green-400',  bg: 'bg-green-500/10 border-green-500/20' },
-  warn:  { label: 'Überfällig', icon: AlertTriangle, cls: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-  alert: { label: 'Kritisch',   icon: AlertTriangle, cls: 'text-red-400',   bg: 'bg-red-500/10 border-red-500/20' },
+  ok:    { label: 'Aktuell',    icon: CheckCircle,  cls: 'text-green-400',  bg: 'bg-green-500/20 border-green-500/40' },
+  warn:  { label: 'Überfällig', icon: AlertTriangle, cls: 'text-amber-400', bg: 'bg-amber-500/20 border-amber-500/40' },
+  alert: { label: 'Kritisch',   icon: AlertTriangle, cls: 'text-red-400',   bg: 'bg-red-500/20 border-red-500/40' },
 }
 
 export default function PortalDashboard() {
@@ -83,27 +83,21 @@ export default function PortalDashboard() {
         </div>
 
         {/* Berichtsheft-Status */}
-        <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-4">
-          <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
-            <BookOpen size={14} className="text-indigo-400" />
-            Berichtsheft
-          </h2>
-          {reports && s ? (
-            <div className="flex items-center justify-between gap-3">
-              <span className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full border shrink-0 ${s.bg} ${s.cls}`}>
-                <StatusIcon size={11} />
-                {s.label}
-              </span>
-              <span className="text-sm text-slate-400 text-right">
-                {reports.last_report_date
-                  ? `zuletzt am ${format(parseISO(reports.last_report_date), 'dd.MM.yyyy', { locale: de })}`
-                  : 'bisher nicht eingereicht'}
-              </span>
+        {reports && s ? (
+          <div className={`rounded-xl border p-4 flex flex-col items-center justify-center text-center ${s.bg}`}>
+            <StatusIcon size={26} className={`${s.cls} mb-2`} />
+            <div className={`text-2xl font-bold ${s.cls}`}>{s.label}</div>
+            <div className="text-sm text-slate-300 mt-2">
+              {reports.last_report_date
+                ? `Zuletzt eingereicht am ${format(parseISO(reports.last_report_date), 'dd.MM.yyyy', { locale: de })}`
+                : 'Bisher nicht eingereicht'}
             </div>
-          ) : (
+          </div>
+        ) : (
+          <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-4 flex items-center justify-center">
             <p className="text-sm text-slate-600">Keine Daten</p>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Eigene Termine */}
