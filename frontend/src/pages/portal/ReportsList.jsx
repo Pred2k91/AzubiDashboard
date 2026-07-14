@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, Plus, CheckCircle, AlertTriangle, Clock, Pencil, ChevronDown, ChevronUp } from 'lucide-react'
+import { BookOpen, Plus, CheckCircle, AlertTriangle, Clock, Pencil, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { reportEntriesApi } from '../../api/client'
@@ -11,6 +11,16 @@ const STATUS_CONFIG = {
   submitted: { label: 'Eingereicht',   icon: Clock,        cls: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
   approved:  { label: 'Freigegeben',   icon: CheckCircle,  cls: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
   rejected:  { label: 'Abgelehnt',     icon: AlertTriangle, cls: 'text-red-400',  bg: 'bg-red-500/10 border-red-500/20' },
+}
+
+const CAL_STATUS_STYLE = {
+  draft:        { cls: 'bg-slate-500/15 border-slate-500/40 text-slate-300',  label: 'In Erstellung' },
+  submitted:    { cls: 'bg-amber-500/15 border-amber-500/40 text-amber-300',  label: 'Eingereicht' },
+  approved:     { cls: 'bg-green-500/15 border-green-500/40 text-green-300', label: 'Freigegeben' },
+  rejected:     { cls: 'bg-red-500/15 border-red-500/40 text-red-300',      label: 'Abgelehnt' },
+  missing:      { cls: 'bg-transparent border-dashed border-slate-600 text-slate-500', label: 'Fehlt noch' },
+  future:       { cls: 'bg-transparent border-transparent text-slate-800', label: '' },
+  before_start: { cls: 'bg-transparent border-transparent text-slate-800', label: '' },
 }
 
 const MAX_MISSING_WEEKS = 400 // Sicherheitsgrenze (~7,7 Jahre) gegen einen fehlerhaften start_date
@@ -28,28 +38,52 @@ function weeksSince(startDate, today) {
   return weeks
 }
 
+function firstOfMonthStr(dateStr) {
+  return dateStr.slice(0, 7) + '-01'
+}
+
+function addMonthsStr(monthStart, n) {
+  const [y, m] = monthStart.split('-').map(Number)
+  const d = new Date(Date.UTC(y, m - 1 + n, 1))
+  return d.toISOString().slice(0, 10)
+}
+
+// Reihen (je eine Kalenderwoche) für die Monatsansicht: von Montag der Woche des
+// Monatsersten bis Montag der Woche des Monatsletzten.
+function buildCalendarWeeks(monthStart) {
+  const [y, m] = monthStart.split('-').map(Number)
+  const lastOfMonth = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)
+  const gridStart = mondayOf(monthStart)
+  const gridEnd = mondayOf(lastOfMonth)
+  const rows = []
+  let cur = gridStart
+  while (cur <= gridEnd) {
+    rows.push(cur)
+    cur = addDays(cur, 7)
+  }
+  return rows
+}
+
+function weekStatusFor(weekMonday, entryByWeek, rangeStartMonday, todayMonday) {
+  const entry = entryByWeek.get(weekMonday)
+  if (entry) return entry.status
+  if (weekMonday > todayMonday) return 'future'
+  if (rangeStartMonday && weekMonday < rangeStartMonday) return 'before_start'
+  return 'missing'
+}
+
 export default function ReportsList() {
   const navigate = useNavigate()
   const [data, setData] = useState({ linked: true, report_period: 'week', start_date: null, entries: [] })
-  const [pickDate, setPickDate] = useState(new Date().toISOString().slice(0, 10))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [openSections, setOpenSections] = useState({ missing: true, progress: true, done: false })
+  const today = new Date().toISOString().slice(0, 10)
+  const [calMonth, setCalMonth] = useState(firstOfMonthStr(today))
 
   const load = () => reportEntriesApi.getMine().then(setData).catch(() => {})
 
   useEffect(() => { load() }, [])
-
-  const today = new Date().toISOString().slice(0, 10)
-  // Berichte werden immer wochenweise geöffnet -- der Rhythmus entscheidet nur, wie
-  // die Woche im Editor ausgefüllt wird (pro Tag einzeln vs. ein gemeinsames Feld).
-  // <input type="date"> liefert beim Tippen zwischenzeitlich einen leeren String,
-  // solange das Datum noch unvollständig ist -- erst validieren, sonst wirft
-  // new Date('').toISOString() eine Exception und React blendet die ganze Seite aus.
-  const hasValidPickDate = /^\d{4}-\d{2}-\d{2}$/.test(pickDate)
-  const pickPeriodStart = hasValidPickDate ? mondayOf(pickDate) : null
-  const pickPeriodEnd = pickPeriodStart ? addDays(pickPeriodStart, 4) : null
-  const existingForPick = pickPeriodStart ? data.entries.find(e => e.period_start === pickPeriodStart) : null
 
   // Übersicht in 3 Abschnitte: fehlende Wochen (noch kein Eintrag angelegt), Berichte
   // die noch Aktion brauchen (in Erstellung/eingereicht/abgelehnt) und fertige (freigegeben).
@@ -73,10 +107,10 @@ export default function ReportsList() {
     }
   }
 
-  const handleCreateOrOpen = () => {
-    if (!hasValidPickDate) return
-    if (existingForPick) { navigate(`/portal/report/${existingForPick.id}`); return }
-    createEntryFor(pickDate)
+  const selectWeek = (weekMonday) => {
+    const existing = entryByWeek.get(weekMonday)
+    if (existing) { navigate(`/portal/report/${existing.id}`); return }
+    createEntryFor(weekMonday)
   }
 
   if (!data.linked) {
@@ -101,31 +135,18 @@ export default function ReportsList() {
         </p>
       </div>
 
-      <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-4">
-        <div className="flex items-end gap-3 flex-wrap">
-          <div>
-            <label className="label">Woche auswählen</label>
-            <input
-              type="date"
-              className="input-field w-44"
-              value={pickDate}
-              max={today}
-              min={data.start_date || undefined}
-              onChange={e => setPickDate(e.target.value)}
-            />
-          </div>
-          {pickPeriodStart && (
-            <p className="text-xs text-slate-500 pb-2.5">
-              → Woche vom {format(parseISO(pickPeriodStart), 'dd.MM.', { locale: de })} bis {format(parseISO(pickPeriodEnd), 'dd.MM.yyyy', { locale: de })}
-            </p>
-          )}
-          <button className="btn-primary" onClick={handleCreateOrOpen} disabled={loading || !hasValidPickDate}>
-            <Plus size={16} />
-            {existingForPick ? 'Bericht öffnen' : (loading ? 'Anlegen...' : 'Bericht anlegen')}
-          </button>
-        </div>
-        {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
-      </div>
+      <WeekCalendar
+        calMonth={calMonth}
+        onPrevMonth={() => setCalMonth(m => addMonthsStr(m, -1))}
+        onNextMonth={() => setCalMonth(m => addMonthsStr(m, 1))}
+        onToday={() => setCalMonth(firstOfMonthStr(today))}
+        entryByWeek={entryByWeek}
+        rangeStartMonday={data.start_date ? mondayOf(data.start_date) : null}
+        todayMonday={mondayOf(today)}
+        onSelectWeek={selectWeek}
+        loading={loading}
+      />
+      {error && <p className="text-sm text-red-400">{error}</p>}
 
       <ReportSection
         title="Fehlende Berichte"
@@ -220,5 +241,73 @@ function EntryRow({ entry, onClick }) {
         {s.label}
       </span>
     </button>
+  )
+}
+
+const WEEKDAY_HEADERS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+
+function WeekCalendar({ calMonth, onPrevMonth, onNextMonth, onToday, entryByWeek, rangeStartMonday, todayMonday, onSelectWeek, loading }) {
+  const weekRows = buildCalendarWeeks(calMonth)
+  const monthKey = calMonth.slice(0, 7)
+  const todayStr = new Date().toISOString().slice(0, 10)
+
+  return (
+    <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-white">Woche auswählen</h2>
+        <div className="flex items-center gap-1.5">
+          <button onClick={onPrevMonth} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
+            <ChevronLeft size={14} />
+          </button>
+          <span className="text-sm text-slate-300 w-32 text-center capitalize">
+            {format(parseISO(calMonth), 'MMMM yyyy', { locale: de })}
+          </span>
+          <button onClick={onNextMonth} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
+            <ChevronRight size={14} />
+          </button>
+          <button onClick={onToday} className="btn-secondary text-xs py-1 ml-1">Heute</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-slate-500">
+        {WEEKDAY_HEADERS.map(d => <div key={d}>{d}</div>)}
+      </div>
+
+      <div className="space-y-1">
+        {weekRows.map(weekMonday => {
+          const status = weekStatusFor(weekMonday, entryByWeek, rangeStartMonday, todayMonday)
+          const style = CAL_STATUS_STYLE[status]
+          const clickable = status !== 'future' && status !== 'before_start' && !loading
+          return (
+            <div key={weekMonday} className="grid grid-cols-7 gap-1">
+              {Array.from({ length: 7 }, (_, i) => addDays(weekMonday, i)).map(date => {
+                const inMonth = date.slice(0, 7) === monthKey
+                const isToday = date === todayStr
+                return (
+                  <button
+                    key={date}
+                    disabled={!clickable}
+                    onClick={() => onSelectWeek(weekMonday)}
+                    title={style.label}
+                    className={`aspect-square rounded-md border text-xs flex items-center justify-center transition-opacity ${style.cls} ${!inMonth ? 'opacity-30' : ''} ${isToday ? 'ring-1 ring-indigo-400' : ''} ${clickable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
+                  >
+                    {Number(date.slice(8, 10))}
+                  </button>
+                )
+              })}
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-[#2a2d4a] text-xs text-slate-500">
+        {['missing', 'draft', 'submitted', 'approved', 'rejected'].map(key => (
+          <span key={key} className="flex items-center gap-1.5">
+            <span className={`w-3.5 h-3.5 rounded border ${CAL_STATUS_STYLE[key].cls}`} />
+            {CAL_STATUS_STYLE[key].label}
+          </span>
+        ))}
+      </div>
+    </div>
   )
 }
