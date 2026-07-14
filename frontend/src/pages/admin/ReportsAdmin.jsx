@@ -394,8 +394,13 @@ export default function ReportsAdmin() {
                     <p className="text-xs text-red-400">Kommentar: {entry.review_comment}</p>
                   )}
 
-                  {entry.status === 'submitted' && (
+                  {entry.status !== 'draft' && (
                     <div className="space-y-2 pt-2 border-t border-[#2a2d4a]">
+                      {entry.reviewed_at && entry.status !== 'submitted' && (
+                        <p className={`text-xs ${entry.status === 'approved' ? 'text-green-400' : 'text-red-400'}`}>
+                          {entry.status === 'approved' ? 'Freigegeben' : 'Abgelehnt'} am {format(parseISO(entry.reviewed_at.slice(0, 10)), 'dd.MM.yyyy', { locale: de })}
+                        </p>
+                      )}
                       <textarea
                         className="input-field text-xs"
                         rows={2}
@@ -404,12 +409,16 @@ export default function ReportsAdmin() {
                         onChange={e => setDetailComments(c => ({ ...c, [entry.id]: e.target.value }))}
                       />
                       <div className="flex justify-end gap-2">
-                        <button className="btn-danger text-xs" onClick={() => handleEntryReview(entry, 'rejected')} disabled={detailLoading}>
-                          Ablehnen
-                        </button>
-                        <button className="btn-primary text-xs" onClick={() => handleEntryReview(entry, 'approved')} disabled={detailLoading}>
-                          {detailLoading ? '...' : 'Freigeben'}
-                        </button>
+                        {entry.status !== 'rejected' && (
+                          <button className="btn-danger text-xs" onClick={() => handleEntryReview(entry, 'rejected')} disabled={detailLoading}>
+                            {entry.status === 'approved' ? 'Nachträglich ablehnen' : 'Ablehnen'}
+                          </button>
+                        )}
+                        {entry.status !== 'approved' && (
+                          <button className="btn-primary text-xs" onClick={() => handleEntryReview(entry, 'approved')} disabled={detailLoading}>
+                            {detailLoading ? '...' : (entry.status === 'rejected' ? 'Nachträglich freigeben' : 'Freigeben')}
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}

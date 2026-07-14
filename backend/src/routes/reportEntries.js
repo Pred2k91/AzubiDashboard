@@ -33,8 +33,14 @@ function entryWithDays(db, entry) {
   return { ...entry, days }
 }
 
-function syncLastReportDate(db, azubiId, periodEnd) {
-  db.prepare('UPDATE azubis SET last_report_date = ? WHERE id = ?').run(periodEnd, azubiId)
+// Leitet last_report_date aus dem tatsächlichen Datenbestand ab, statt es fest zu
+// setzen — damit eine nachträglich zurückgenommene Freigabe (approved -> rejected)
+// das Datum korrekt auf den nächstjüngeren gültigen Eintrag zurückfallen lässt.
+function recomputeLastReportDate(db, azubiId) {
+  const row = db.prepare(
+    "SELECT MAX(period_end) as maxEnd FROM report_entries WHERE azubi_id = ? AND status IN ('submitted','approved')"
+  ).get(azubiId)
+  db.prepare('UPDATE azubis SET last_report_date = ? WHERE id = ?').run(row?.maxEnd || null, azubiId)
 }
 
 // ── Azubi-Sicht (immer über req.user.azubi_id, nie über Client-Angaben) ──────
@@ -127,7 +133,7 @@ router.put('/me/report-entries/:id', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'Bitte alle Tage ausfüllen oder als Abwesenheit markieren, bevor du einreichst.' })
       }
       db.prepare("UPDATE report_entries SET status='submitted', submitted_at=datetime('now'), updated_at=datetime('now') WHERE id=?").run(entry.id)
-      syncLastReportDate(db, azubi.id, entry.period_end)
+      recomputeLastReportDate(db, azubi.id)
     } else {
       db.prepare("UPDATE report_entries SET updated_at=datetime('now') WHERE id=?").run(entry.id)
     }
@@ -186,13 +192,18 @@ router.put('/report-entries/:id/review', requireRole('ausbilder'), (req, res) =>
     const db = getDb()
     const entry = db.prepare('SELECT * FROM report_entries WHERE id = ?').get(req.params.id)
     if (!entry) return res.status(404).json({ error: 'Nicht gefunden' })
-    if (entry.status !== 'submitted') return res.status(400).json({ error: 'Nur eingereichte Berichte können bearbeitet werden' })
+    // 'draft' ausgenommen — der Azubi hat den Bericht noch nicht eingereicht.
+    // 'submitted'/'approved'/'rejected' dürfen jederzeit korrigiert werden
+    // (z.B. eine versehentliche Freigabe nachträglich zurücknehmen).
+    if (entry.status === 'draft') {
+      return res.status(400).json({ error: 'Nur eingereichte oder bereits geprüfte Berichte können bearbeitet werden' })
+    }
 
     db.prepare(
       "UPDATE report_entries SET status=?, review_comment=?, reviewed_at=datetime('now'), reviewed_by=?, updated_at=datetime('now') WHERE id=?"
     ).run(status, comment || '', req.user.id, entry.id)
 
-    if (status === 'approved') syncLastReportDate(db, entry.azubi_id, entry.period_end)
+    recomputeLastReportDate(db, entry.azubi_id)
 
     const updated = db.prepare('SELECT * FROM report_entries WHERE id = ?').get(entry.id)
     res.json(entryWithDays(db, updated))
