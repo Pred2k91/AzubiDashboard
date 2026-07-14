@@ -13,6 +13,8 @@ const FUTURE_WEEKS = 8    // wie weit in die Zukunft gerendert wird
 const FUTURE_WEEKS_VISIBLE = 4 // wie viele davon initial sichtbar sein sollen
 const FALLBACK_WEEKS_BACK = 104 // ~2 Jahre, falls kein Azubi ein start_date hat
 const MAX_TOTAL_WEEKS = 300 // Sicherheitsgrenze (~5,7 Jahre) gegen fehlerhafte Datumswerte
+const MOBILE_WEEKS_BACK = 20 // Mobile: schmaleres rollierendes Fenster je Azubi-Karte statt der vollen Zeitachse
+const MOBILE_CELL_WIDTH = 36 // Breite je Wochen-Button (w-8 + gap) für die Scroll-Berechnung
 
 const TIMELINE_STATUS = {
   not_due:     { label: '',                mark: '',  cls: 'bg-transparent border-transparent' },
@@ -67,6 +69,7 @@ export default function ReportsTimeline({ azubis, entries, reportsStatus, onSele
   const [sortMode, setSortMode] = useState('name') // 'name' | 'issues'
   const scrollRef = useRef(null)
   const hasScrolledInitially = useRef(false)
+  const mobileRowRefs = useRef({})
 
   const todayMonday = mondayOf(new Date().toISOString().slice(0, 10))
   const rangeStart = computeRangeStart(azubis, todayMonday)
@@ -75,6 +78,9 @@ export default function ReportsTimeline({ azubis, entries, reportsStatus, onSele
   if (weeks.length > MAX_TOTAL_WEEKS) weeks = weeks.slice(-MAX_TOTAL_WEEKS)
   const monthGroups = groupWeeksByMonth(weeks)
   const yearGroups = groupMonthsByYear(monthGroups)
+
+  const todayIdx = weeks.indexOf(todayMonday)
+  const mobileWeeks = todayIdx === -1 ? weeks : weeks.slice(Math.max(0, todayIdx - MOBILE_WEEKS_BACK))
 
   const scrollToToday = (behavior = 'auto') => {
     const el = scrollRef.current
@@ -151,7 +157,7 @@ export default function ReportsTimeline({ azubis, entries, reportsStatus, onSele
     <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] space-y-3 overflow-hidden">
       <div className="flex items-center justify-between px-4 pt-4 flex-wrap gap-2">
         <h2 className="text-sm font-semibold text-white">Wochenübersicht</h2>
-        <div className="flex items-center gap-1.5">
+        <div className="hidden md:flex items-center gap-1.5">
           <button onClick={() => scrollByScreen(-1)} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
             <ChevronLeft size={14} />
           </button>
@@ -162,7 +168,8 @@ export default function ReportsTimeline({ azubis, entries, reportsStatus, onSele
         </div>
       </div>
 
-      <div ref={scrollRef} className="overflow-x-auto px-4 pb-4">
+      {/* Desktop: breite Tabelle mit sticky Info-Spalte — ab Tablet-Breite (md) */}
+      <div ref={scrollRef} className="hidden md:block overflow-x-auto px-4 pb-4">
         <table className="border-separate border-spacing-0">
           <thead>
             <tr>
@@ -291,6 +298,125 @@ export default function ReportsTimeline({ azubis, entries, reportsStatus, onSele
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile: gestapelte Karten statt breiter Tabelle mit sticky Spalte — unterhalb von md */}
+      <div className="md:hidden px-4 pb-4 space-y-1">
+        <div className="space-y-1.5 pb-3">
+          <div className="relative">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600" />
+            <input
+              className="input-field pl-7 text-xs py-1.5"
+              placeholder="Azubi suchen..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setFilterIssuesOnly(v => !v)}
+              title="Nur Azubis mit offenen Punkten"
+              className={`p-1.5 rounded border text-slate-500 hover:text-white ${filterIssuesOnly ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300' : 'border-[#2a2d4a]'}`}
+            >
+              <Filter size={12} />
+            </button>
+            <button
+              onClick={() => setSortMode(m => m === 'name' ? 'issues' : 'name')}
+              title={sortMode === 'name' ? 'Sortiert nach Name — tippen für offene Punkte' : 'Sortiert nach offenen Punkten — tippen für Name'}
+              className="p-1.5 rounded border border-[#2a2d4a] text-slate-500 hover:text-white"
+            >
+              <ArrowUpDown size={12} />
+            </button>
+            <span className="text-[11px] text-slate-600 ml-1">Karten zeigen die letzten {MOBILE_WEEKS_BACK} Wochen, seitlich wischbar</span>
+          </div>
+        </div>
+
+        {visibleAzubis.length === 0 ? (
+          <div className="text-center text-slate-600 py-6 text-sm">Keine Azubis gefunden</div>
+        ) : visibleAzubis.map(a => {
+          const counts = countsFor(a.id)
+          const ampel = ampelFor(a.id)
+          const showMail = ampel && ampel.status !== 'ok' && ampel.email && onSendMail
+          return (
+            <div key={a.id} className="border-t border-[#2a2d4a]/50 py-3 first:border-t-0">
+              <div className="flex items-start gap-2.5 mb-2.5">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold bg-purple-600/20 text-purple-300 shrink-0">
+                  {a.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-white truncate">{a.name}</div>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    {a.start_date && format(parseISO(a.start_date), 'dd.MM.yyyy')}
+                    {a.lehrjahr != null && ` (${a.lehrjahr}. AJ)`}
+                    {a.department_name && ` · ${a.department_name}`}
+                  </div>
+                  <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
+                    <span className="flex items-center gap-1 text-[11px] text-slate-400" title="In Erstellung">
+                      <Settings size={11} />{counts.draft}
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px] text-amber-400" title="Eingereicht">
+                      <ArrowRight size={11} />{counts.submitted}
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px] text-red-400" title="Abgelehnt">
+                      <RotateCcw size={11} />{counts.rejected}
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px] text-indigo-400" title="Gesamt">
+                      <FileText size={11} />{counts.total}
+                    </span>
+                    {showMail && (
+                      <span className="flex items-center gap-1 ml-auto shrink-0">
+                        <button
+                          onClick={() => onSendMail(ampel, 'reminder')}
+                          title="Erinnerungsmail öffnen"
+                          className="p-1 rounded text-slate-500 hover:text-amber-300 hover:bg-[#2a2d4a]"
+                        >
+                          <Mail size={12} />
+                        </button>
+                        <button
+                          onClick={() => onSendMail(ampel, 'escalation')}
+                          title="Eskalationsmail öffnen"
+                          className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-[#2a2d4a]"
+                        >
+                          <AlertOctagon size={12} />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div
+                ref={el => {
+                  mobileRowRefs.current[a.id] = el
+                  if (el && !el.dataset.scrolled) {
+                    el.dataset.scrolled = '1'
+                    const idx = mobileWeeks.indexOf(todayMonday)
+                    if (idx !== -1) el.scrollLeft = Math.max(0, (idx + 1) * MOBILE_CELL_WIDTH - el.clientWidth / 2)
+                  }
+                }}
+                className="overflow-x-auto -mx-1"
+              >
+                <div className="flex gap-1 px-1">
+                  {mobileWeeks.map(w => {
+                    const status = cellStatus(a.id, w)
+                    const cfg = TIMELINE_STATUS[status]
+                    const clickable = status !== 'not_due'
+                    const isToday = w === todayMonday
+                    return (
+                      <button
+                        key={w}
+                        onClick={() => clickable && onSelectWeek(a.id, a.name, w)}
+                        title={cfg.label}
+                        className={`w-8 h-8 shrink-0 rounded-md border text-sm flex items-center justify-center transition-opacity ${cfg.cls} ${isToday ? 'ring-1 ring-indigo-400' : ''} ${clickable ? 'active:opacity-70 cursor-pointer' : 'cursor-default'}`}
+                      >
+                        {cfg.mark}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       <div className="flex items-center gap-4 flex-wrap px-4 pb-4">
