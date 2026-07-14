@@ -141,7 +141,7 @@ export default function ReportEditor() {
 
           {days.some(d => !ABSENCE_TYPES.includes(d.day_type)) && (
             <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5">
-              <div className="grid grid-cols-[1fr_140px] gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-4">
                 <div>
                   <label className="label">Tätigkeiten / Berufsschulthemen der Woche</label>
                   <textarea
@@ -185,7 +185,7 @@ export default function ReportEditor() {
                 </select>
               </div>
               {!ABSENCE_TYPES.includes(d.day_type) && (
-                <div className="grid grid-cols-[1fr_140px] gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-4">
                   <div>
                     <label className="label">Tätigkeiten / Berufsschulthema</label>
                     <textarea
