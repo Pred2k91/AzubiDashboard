@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, Plus, CheckCircle, AlertTriangle, Clock, Pencil } from 'lucide-react'
+import { BookOpen, Plus, CheckCircle, AlertTriangle, Clock, Pencil, ChevronDown, ChevronUp } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { reportEntriesApi } from '../../api/client'
@@ -13,12 +13,28 @@ const STATUS_CONFIG = {
   rejected:  { label: 'Abgelehnt',     icon: AlertTriangle, cls: 'text-red-400',  bg: 'bg-red-500/10 border-red-500/20' },
 }
 
+const MAX_MISSING_WEEKS = 400 // Sicherheitsgrenze (~7,7 Jahre) gegen einen fehlerhaften start_date
+
+// Alle Wochen (Montage) von Ausbildungsbeginn bis einschließlich der aktuellen Woche.
+function weeksSince(startDate, today) {
+  if (!startDate) return []
+  const weeks = []
+  let cur = mondayOf(startDate)
+  const end = mondayOf(today)
+  while (cur <= end && weeks.length < MAX_MISSING_WEEKS) {
+    weeks.push(cur)
+    cur = addDays(cur, 7)
+  }
+  return weeks
+}
+
 export default function ReportsList() {
   const navigate = useNavigate()
   const [data, setData] = useState({ linked: true, report_period: 'week', start_date: null, entries: [] })
   const [pickDate, setPickDate] = useState(new Date().toISOString().slice(0, 10))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [openSections, setOpenSections] = useState({ missing: true, progress: true, done: false })
 
   const load = () => reportEntriesApi.getMine().then(setData).catch(() => {})
 
@@ -35,19 +51,32 @@ export default function ReportsList() {
   const pickPeriodEnd = pickPeriodStart ? addDays(pickPeriodStart, 4) : null
   const existingForPick = pickPeriodStart ? data.entries.find(e => e.period_start === pickPeriodStart) : null
 
-  const handleCreateOrOpen = async () => {
-    if (!hasValidPickDate) return
+  // Übersicht in 3 Abschnitte: fehlende Wochen (noch kein Eintrag angelegt), Berichte
+  // die noch Aktion brauchen (in Erstellung/eingereicht/abgelehnt) und fertige (freigegeben).
+  const entryByWeek = new Map(data.entries.map(e => [e.period_start, e]))
+  const missingWeeks = weeksSince(data.start_date, today).filter(w => !entryByWeek.has(w))
+  const inProgressEntries = data.entries.filter(e => e.status !== 'approved')
+  const doneEntries = data.entries.filter(e => e.status === 'approved')
+
+  const toggleSection = (key) => setOpenSections(s => ({ ...s, [key]: !s[key] }))
+
+  const createEntryFor = async (dateForWeek) => {
     setError('')
-    if (existingForPick) { navigate(`/portal/report/${existingForPick.id}`); return }
     setLoading(true)
     try {
-      const entry = await reportEntriesApi.create(pickDate)
+      const entry = await reportEntriesApi.create(dateForWeek)
       navigate(`/portal/report/${entry.id}`)
     } catch (err) {
       setError(err.response?.data?.error || 'Anlegen fehlgeschlagen')
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleCreateOrOpen = () => {
+    if (!hasValidPickDate) return
+    if (existingForPick) { navigate(`/portal/report/${existingForPick.id}`); return }
+    createEntryFor(pickDate)
   }
 
   if (!data.linked) {
@@ -98,34 +127,98 @@ export default function ReportsList() {
         {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
       </div>
 
-      <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] divide-y divide-[#2a2d4a]">
-        {data.entries.length === 0 ? (
-          <p className="text-sm text-slate-600 text-center py-10">Noch keine Berichte angelegt</p>
-        ) : data.entries.map(e => {
-          const s = STATUS_CONFIG[e.status]
-          const Icon = s.icon
-          return (
-            <button
-              key={e.id}
-              onClick={() => navigate(`/portal/report/${e.id}`)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#1e2035] transition-colors text-left"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-white">
-                  {format(parseISO(e.period_start), 'dd.MM.', { locale: de })} – {format(parseISO(e.period_end), 'dd.MM.yyyy', { locale: de })}
-                </div>
-                {e.status === 'rejected' && e.review_comment && (
-                  <div className="text-xs text-red-400 mt-0.5 truncate">Kommentar: {e.review_comment}</div>
-                )}
-              </div>
-              <span className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full border shrink-0 ${s.bg} ${s.cls}`}>
-                <Icon size={11} />
-                {s.label}
-              </span>
-            </button>
-          )
-        })}
-      </div>
+      <ReportSection
+        title="Fehlende Berichte"
+        count={missingWeeks.length}
+        open={openSections.missing}
+        onToggle={() => toggleSection('missing')}
+        emptyLabel="Keine fehlenden Berichte"
+      >
+        {missingWeeks.map(w => (
+          <button
+            key={w}
+            onClick={() => createEntryFor(w)}
+            disabled={loading}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#1e2035] transition-colors text-left"
+          >
+            <div className="flex-1 min-w-0 text-sm font-medium text-white">
+              {format(parseISO(w), 'dd.MM.', { locale: de })} – {format(parseISO(addDays(w, 4)), 'dd.MM.yyyy', { locale: de })}
+            </div>
+            <span className="flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full border shrink-0 bg-red-500/10 border-red-500/20 text-red-400">
+              <Plus size={11} />
+              Anlegen
+            </span>
+          </button>
+        ))}
+      </ReportSection>
+
+      <ReportSection
+        title="In Erstellung"
+        count={inProgressEntries.length}
+        open={openSections.progress}
+        onToggle={() => toggleSection('progress')}
+        emptyLabel="Keine Berichte in Erstellung"
+      >
+        {inProgressEntries.map(e => <EntryRow key={e.id} entry={e} onClick={() => navigate(`/portal/report/${e.id}`)} />)}
+      </ReportSection>
+
+      <ReportSection
+        title="Fertige Berichte"
+        count={doneEntries.length}
+        open={openSections.done}
+        onToggle={() => toggleSection('done')}
+        emptyLabel="Noch keine freigegebenen Berichte"
+      >
+        {doneEntries.map(e => <EntryRow key={e.id} entry={e} onClick={() => navigate(`/portal/report/${e.id}`)} />)}
+      </ReportSection>
     </div>
+  )
+}
+
+function ReportSection({ title, count, open, onToggle, emptyLabel, children }) {
+  return (
+    <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] overflow-hidden">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-white hover:bg-[#1e2035] transition-colors"
+      >
+        <span className="flex items-center gap-2">
+          {title}
+          <span className="text-xs font-medium text-slate-500 bg-[#0d0f1a] border border-[#2a2d4a] rounded-full px-2 py-0.5">{count}</span>
+        </span>
+        {open ? <ChevronUp size={16} className="text-slate-500" /> : <ChevronDown size={16} className="text-slate-500" />}
+      </button>
+      {open && (
+        <div className="divide-y divide-[#2a2d4a] border-t border-[#2a2d4a]">
+          {count === 0 ? (
+            <p className="text-sm text-slate-600 text-center py-8">{emptyLabel}</p>
+          ) : children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EntryRow({ entry, onClick }) {
+  const s = STATUS_CONFIG[entry.status]
+  const Icon = s.icon
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#1e2035] transition-colors text-left"
+    >
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-white">
+          {format(parseISO(entry.period_start), 'dd.MM.', { locale: de })} – {format(parseISO(entry.period_end), 'dd.MM.yyyy', { locale: de })}
+        </div>
+        {entry.status === 'rejected' && entry.review_comment && (
+          <div className="text-xs text-red-400 mt-0.5 truncate">Kommentar: {entry.review_comment}</div>
+        )}
+      </div>
+      <span className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full border shrink-0 ${s.bg} ${s.cls}`}>
+        <Icon size={11} />
+        {s.label}
+      </span>
+    </button>
   )
 }
