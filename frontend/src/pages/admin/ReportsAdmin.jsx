@@ -454,6 +454,14 @@ export default function ReportsAdmin() {
             ) : detailEntries.map(entry => {
               const cfg = ENTRY_STATUS_CONFIG[entry.status]
               const Icon = cfg.icon
+              // Wochenbericht: der Azubi schreibt EIN gemeinsames Feld für die ganze Woche
+              // (siehe ReportEditor.jsx), Inhalt liegt technisch nur auf einem Tag -- hier
+              // zur Anzeige wieder zusammenfassen statt 4 leere Tage zu zeigen.
+              const mergedWeek = entry.period_type === 'week' ? {
+                text: entry.days.filter(d => !ABSENCE_TYPES.includes(d.day_type)).map(d => d.activities_text).filter(Boolean).join('\n'),
+                hours: entry.days.reduce((s, d) => s + (d.hours || 0), 0),
+                absentDays: entry.days.filter(d => ABSENCE_TYPES.includes(d.day_type)),
+              } : null
               return (
                 <div key={entry.id} className="p-4 rounded-xl border border-[#2a2d4a] bg-[#0d0f1a] space-y-3">
                   <div className="flex items-center justify-between gap-3">
@@ -468,24 +476,45 @@ export default function ReportsAdmin() {
                     </span>
                   </div>
 
-                  <div className="space-y-1.5">
-                    {entry.days.map(d => (
-                      <div key={d.date} className="p-2.5 rounded-lg border border-[#2a2d4a]">
+                  {mergedWeek ? (
+                    <div className="space-y-1.5">
+                      <div className="p-2.5 rounded-lg border border-[#2a2d4a]">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-medium text-slate-300">
-                            {format(parseISO(d.date), 'EEEE, dd.MM.', { locale: de })}
-                          </span>
-                          <span className="text-xs text-slate-500">{dayTypeLabel(d.day_type)}</span>
+                          <span className="text-xs font-medium text-slate-300">Tätigkeiten der Woche</span>
+                          <span className="text-xs text-slate-500 shrink-0">{mergedWeek.hours} Std. gesamt</span>
                         </div>
-                        {!ABSENCE_TYPES.includes(d.day_type) && (
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="text-xs text-slate-400 whitespace-pre-wrap">{d.activities_text || '—'}</p>
-                            <span className="text-xs text-slate-500 shrink-0">{d.hours != null ? `${d.hours} Std.` : '—'}</span>
-                          </div>
-                        )}
+                        <p className="text-xs text-slate-400 whitespace-pre-wrap">{mergedWeek.text || '—'}</p>
                       </div>
-                    ))}
-                  </div>
+                      {mergedWeek.absentDays.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {mergedWeek.absentDays.map(d => (
+                            <span key={d.date} className="text-xs text-slate-500 px-2 py-1 rounded-full border border-[#2a2d4a]">
+                              {format(parseISO(d.date), 'EEEE', { locale: de })}: {dayTypeLabel(d.day_type)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {entry.days.map(d => (
+                        <div key={d.date} className="p-2.5 rounded-lg border border-[#2a2d4a]">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-slate-300">
+                              {format(parseISO(d.date), 'EEEE, dd.MM.', { locale: de })}
+                            </span>
+                            <span className="text-xs text-slate-500">{dayTypeLabel(d.day_type)}</span>
+                          </div>
+                          {!ABSENCE_TYPES.includes(d.day_type) && (
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-xs text-slate-400 whitespace-pre-wrap">{d.activities_text || '—'}</p>
+                              <span className="text-xs text-slate-500 shrink-0">{d.hours != null ? `${d.hours} Std.` : '—'}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {entry.status === 'rejected' && entry.review_comment && (
                     <p className="text-xs text-red-400">Kommentar: {entry.review_comment}</p>

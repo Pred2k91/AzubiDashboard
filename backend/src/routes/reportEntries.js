@@ -126,11 +126,17 @@ router.put('/me/report-entries/:id', requireAuth, (req, res) => {
 
     if (submit) {
       const freshDays = db.prepare('SELECT * FROM report_entry_days WHERE report_entry_id = ?').all(entry.id)
-      const incomplete = freshDays.some(d =>
-        !ABSENCE_TYPES.includes(d.day_type) && (!d.activities_text?.trim() || d.hours == null)
-      )
+      // Wochenbericht: EIN gemeinsames Eingabefeld für die ganze Woche (siehe ReportEditor.jsx),
+      // dessen Inhalt nur in einem einzelnen Tag ("Träger-Tag") gespeichert wird -- daher
+      // Vollständigkeit auf Wochenebene prüfen statt pro Tag. Tagesbericht: unverändert pro Tag.
+      const incomplete = entry.period_type === 'week'
+        ? (() => {
+            const workingDays = freshDays.filter(d => !ABSENCE_TYPES.includes(d.day_type))
+            return workingDays.length > 0 && !workingDays.some(d => d.activities_text?.trim() && d.hours != null)
+          })()
+        : freshDays.some(d => !ABSENCE_TYPES.includes(d.day_type) && (!d.activities_text?.trim() || d.hours == null))
       if (incomplete) {
-        return res.status(400).json({ error: 'Bitte alle Tage ausfüllen oder als Abwesenheit markieren, bevor du einreichst.' })
+        return res.status(400).json({ error: 'Bitte die Tätigkeiten eintragen oder alle Tage als Abwesenheit markieren, bevor du einreichst.' })
       }
       db.prepare("UPDATE report_entries SET status='submitted', submitted_at=datetime('now'), updated_at=datetime('now') WHERE id=?").run(entry.id)
       recomputeLastReportDate(db, azubi.id)
