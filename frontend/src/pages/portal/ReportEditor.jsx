@@ -142,7 +142,7 @@ export default function ReportEditor() {
           {days.some(d => !ABSENCE_TYPES.includes(d.day_type)) && (
             <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5">
               <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-4">
-                <div>
+                <div className="order-2 sm:order-1">
                   <label className="label">Tätigkeiten / Berufsschulthemen der Woche</label>
                   <textarea
                     className="input-field text-base leading-relaxed"
@@ -153,7 +153,7 @@ export default function ReportEditor() {
                     placeholder="Stichwortartig, eine Zeile je Tätigkeit..."
                   />
                 </div>
-                <div>
+                <div className="order-1 sm:order-2">
                   <label className="label">Stunden (gesamt)</label>
                   <input
                     type="number" step="0.5" min="0" max="60"
@@ -186,7 +186,7 @@ export default function ReportEditor() {
               </div>
               {!ABSENCE_TYPES.includes(d.day_type) && (
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-4">
-                  <div>
+                  <div className="order-2 sm:order-1">
                     <label className="label">Tätigkeiten / Berufsschulthema</label>
                     <textarea
                       className="input-field text-base leading-relaxed"
@@ -197,7 +197,7 @@ export default function ReportEditor() {
                       placeholder="Stichwortartig..."
                     />
                   </div>
-                  <div>
+                  <div className="order-1 sm:order-2">
                     <label className="label">Stunden</label>
                     <input
                       type="number" step="0.5" min="0" max="24"
