@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Pencil, KeyRound, Camera, Phone, Smartphone, Mail, MapPin } from 'lucide-react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
+import { ArrowLeft, Pencil, KeyRound, Camera, Phone, Smartphone, Mail, MapPin, Trash2 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { usersApi, locationsApi, azubisApi, departmentsApi } from '../../api/client'
+import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/ui/Modal'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 
 const EMPTY_FORM = {
   role: 'azubi', azubi_id: '', active: true,
@@ -20,6 +22,8 @@ const EMPTY_FORM = {
 
 export default function UserProfileAdmin() {
   const { id } = useParams()
+  const navigate = useNavigate()
+  const { user: currentUser } = useAuth()
   const [user, setUser] = useState(null)
   const [azubis, setAzubis] = useState([])
   const [locations, setLocations] = useState([])
@@ -29,6 +33,7 @@ export default function UserProfileAdmin() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [revealPassword, setRevealPassword] = useState(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   const load = () => Promise.all([usersApi.getOne(id), locationsApi.getAll(), azubisApi.getAll(), departmentsApi.getAll()])
     .then(([u, locs, azs, depts]) => { setUser(u); setLocations(locs); setAzubis(azs); setDepartments(depts) })
@@ -131,6 +136,11 @@ export default function UserProfileAdmin() {
     setRevealPassword(res.generated_password)
   }
 
+  const handleDelete = async () => {
+    await usersApi.delete(id)
+    navigate('/admin/users')
+  }
+
   if (!user) {
     return <div className="p-6 text-slate-500 text-sm">{error || 'Lädt...'}</div>
   }
@@ -200,6 +210,12 @@ export default function UserProfileAdmin() {
             <KeyRound size={14} />
             Passwort zurücksetzen
           </button>
+          {user.id !== currentUser?.id && (
+            <button className="btn-secondary w-full justify-center hover:text-red-400 hover:border-red-500/30" onClick={() => setDeleteOpen(true)}>
+              <Trash2 size={14} />
+              Konto löschen
+            </button>
+          )}
         </div>
 
         <div className="flex-1 min-w-0 grid md:grid-cols-2 gap-4 items-start">
@@ -479,6 +495,14 @@ export default function UserProfileAdmin() {
           </div>
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={handleDelete}
+        title="Konto löschen"
+        message={`Konto "${user.email}" wirklich unwiderruflich löschen?${linkedAzubi ? ' Der verknüpfte Azubi-Datensatz bleibt erhalten, verliert aber die Kontoverknüpfung.' : ''}`}
+      />
     </div>
   )
 }

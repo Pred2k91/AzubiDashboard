@@ -1,19 +1,23 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, KeyRound, Users as UsersIcon, ShieldCheck, Ban, CheckCircle2 } from 'lucide-react'
+import { Plus, KeyRound, Users as UsersIcon, ShieldCheck, Ban, CheckCircle2, Trash2 } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { usersApi, azubisApi } from '../../api/client'
+import { useAuth } from '../../contexts/AuthContext'
 
 const EMPTY = { email: '', role: 'azubi', azubi_id: '', send_email: false }
 
 export default function UsersAdmin() {
   const navigate = useNavigate()
+  const { user: currentUser } = useAuth()
   const [users, setUsers] = useState([])
   const [azubis, setAzubis] = useState([])
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [loading, setLoading] = useState(false)
   const [revealPassword, setRevealPassword] = useState(null)
+  const [deleteUser, setDeleteUser] = useState(null)
 
   const load = async () => {
     const [u, a] = await Promise.all([usersApi.getAll(), azubisApi.getAll()]).catch(() => [[], []])
@@ -47,6 +51,12 @@ export default function UsersAdmin() {
   const handleResetPassword = async (u) => {
     const res = await usersApi.resetPassword(u.id)
     setRevealPassword({ email: u.email, password: res.generated_password })
+  }
+
+  const handleDelete = async () => {
+    if (!deleteUser) return
+    await usersApi.delete(deleteUser.id)
+    await load()
   }
 
   return (
@@ -105,6 +115,11 @@ export default function UsersAdmin() {
                     <button onClick={(e) => { e.stopPropagation(); handleToggleActive(u) }} title={u.active ? 'Deaktivieren' : 'Aktivieren'} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
                       {u.active ? <Ban size={13} /> : <ShieldCheck size={13} />}
                     </button>
+                    {u.id !== currentUser?.id && (
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteUser(u) }} title="Konto löschen" className="p-1.5 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10">
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -160,6 +175,14 @@ export default function UsersAdmin() {
           </div>
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={!!deleteUser}
+        onClose={() => setDeleteUser(null)}
+        onConfirm={handleDelete}
+        title="Konto löschen"
+        message={deleteUser ? `Konto "${deleteUser.email}" wirklich unwiderruflich löschen? ${deleteUser.azubi_name ? 'Der verknüpfte Azubi-Datensatz bleibt erhalten, verliert aber die Kontoverknüpfung.' : ''}` : ''}
+      />
     </div>
   )
 }

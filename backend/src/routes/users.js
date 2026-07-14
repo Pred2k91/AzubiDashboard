@@ -163,11 +163,18 @@ router.post('/:id/reset-password', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+// Kontoentfernung ist ein eigener, unumkehrbarer Schritt -- Deaktivieren (PUT /:id) bleibt
+// die reversible Standardaktion. Der verknüpfte Azubi-Datensatz bleibt erhalten, das Konto
+// verschwindet nur als Verknüpfung (zeigt in AzubiAdmin dann wieder "Konto anlegen").
 router.delete('/:id', (req, res) => {
   try {
+    if (parseInt(req.params.id) === req.user.id) {
+      return res.status(400).json({ error: 'Das eigene Konto kann nicht gelöscht werden' })
+    }
     const db = getDb()
-    db.prepare('UPDATE users SET active = 0 WHERE id = ?').run(req.params.id)
     db.prepare('DELETE FROM sessions WHERE user_id = ?').run(req.params.id)
+    const result = db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id)
+    if (result.changes === 0) return res.status(404).json({ error: 'Nicht gefunden' })
     res.json({ success: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
