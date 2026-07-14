@@ -101,6 +101,13 @@ export const reportsApi = {
   markBulk: (ids, date) => api.put('/reports/bulk/submit', { ids, date }).then(r => r.data),
 }
 
+export const exportApi = {
+  // Gibt bewusst die volle Axios-Response zurück (nicht nur .data), damit der
+  // Aufrufer den Dateinamen aus dem Content-Disposition-Header lesen kann.
+  reportsExcel: (params) => api.get('/export/reports.xlsx', { params, responseType: 'blob' }),
+  reportsPdf: (azubiId, params) => api.get(`/export/reports/${azubiId}/pdf`, { params, responseType: 'blob' }),
+}
+
 export const settingsApi = {
   getAll: () => api.get('/settings').then(r => r.data),
   update: (key, value) => api.put(`/settings/${key}`, { value }).then(r => r.data),

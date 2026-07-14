@@ -1,13 +1,31 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, CheckCircle, AlertTriangle, Clock, Search, Mail, AlertOctagon, ChevronDown, ChevronUp } from 'lucide-react'
+import { BookOpen, CheckCircle, AlertTriangle, Clock, Search, Mail, AlertOctagon, ChevronDown, ChevronUp, FileDown, FileSpreadsheet, FileText } from 'lucide-react'
 import { format, parseISO, getISOWeek } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { reportsApi, reportEntriesApi, azubisApi, settingsApi } from '../../api/client'
+import { reportsApi, reportEntriesApi, azubisApi, settingsApi, exportApi } from '../../api/client'
 import { buildReminderMail, buildEscalationMail, buildMailtoUrl } from '../../utils/reportMailTemplates'
 import { dayTypeLabel, ABSENCE_TYPES } from '../../utils/reportDayTypes'
 import { mondayOf } from '../../utils/reportDates'
+import { downloadBlob } from '../../utils/downloadBlob'
 import Modal from '../../components/ui/Modal'
 import ReportsTimeline from './ReportsTimeline'
+
+function filenameFromResponse(res, fallback) {
+  const cd = res.headers?.['content-disposition'] || ''
+  const match = cd.match(/filename="?([^"]+)"?/)
+  return match ? match[1] : fallback
+}
+
+async function blobErrorMessage(err, fallback) {
+  const blob = err?.response?.data
+  if (blob instanceof Blob) {
+    try {
+      const json = JSON.parse(await blob.text())
+      if (json?.error) return json.error
+    } catch { /* Antwort war kein JSON — Fallback-Meldung verwenden */ }
+  }
+  return fallback
+}
 
 const STATUS_CONFIG = {
   ok:    { label: 'Aktuell',    icon: CheckCircle,  cls: 'text-green-400',  bg: 'bg-green-500/10 border-green-500/20' },
@@ -40,6 +58,14 @@ export default function ReportsAdmin() {
   const [detailComments, setDetailComments] = useState({})
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState('')
+
+  // Export (Phase 4: Excel-Sammelexport + PDF-Ausbildungsnachweis je Azubi)
+  const [exportAzubiId, setExportAzubiId] = useState('')
+  const [exportFrom, setExportFrom] = useState('')
+  const [exportTo, setExportTo] = useState('')
+  const [exportStatus, setExportStatus] = useState('')
+  const [exportLoading, setExportLoading] = useState({ excel: false, pdf: false })
+  const [exportError, setExportError] = useState('')
 
   const today = new Date().toISOString().slice(0, 10)
   const getRowDate = (id) => rowDates[id] ?? today
@@ -95,6 +121,41 @@ export default function ReportsAdmin() {
       setDetailError(err.response?.data?.error || 'Aktion fehlgeschlagen')
     } finally {
       setDetailLoading(false)
+    }
+  }
+
+  const handleExportExcel = async () => {
+    setExportLoading(l => ({ ...l, excel: true }))
+    setExportError('')
+    try {
+      const params = {}
+      if (exportAzubiId) params.azubi_id = exportAzubiId
+      if (exportStatus) params.status = exportStatus
+      if (exportFrom) params.from = exportFrom
+      if (exportTo) params.to = exportTo
+      const res = await exportApi.reportsExcel(params)
+      downloadBlob(res.data, filenameFromResponse(res, 'berichtshefte_export.xlsx'))
+    } catch (err) {
+      setExportError(await blobErrorMessage(err, 'Excel-Export fehlgeschlagen'))
+    } finally {
+      setExportLoading(l => ({ ...l, excel: false }))
+    }
+  }
+
+  const handleExportPdf = async () => {
+    if (!exportAzubiId) return
+    setExportLoading(l => ({ ...l, pdf: true }))
+    setExportError('')
+    try {
+      const params = {}
+      if (exportFrom) params.from = exportFrom
+      if (exportTo) params.to = exportTo
+      const res = await exportApi.reportsPdf(exportAzubiId, params)
+      downloadBlob(res.data, filenameFromResponse(res, 'ausbildungsnachweis.pdf'))
+    } catch (err) {
+      setExportError(await blobErrorMessage(err, 'PDF-Export fehlgeschlagen'))
+    } finally {
+      setExportLoading(l => ({ ...l, pdf: false }))
     }
   }
 
@@ -158,6 +219,58 @@ export default function ReportsAdmin() {
         onSelectWeek={openDetail}
         onSendMail={handleSendMail}
       />
+
+      {/* Export: Excel-Sammelexport (Übersicht/Audit) + PDF-Ausbildungsnachweis je Azubi */}
+      <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <FileDown size={16} className="text-indigo-400" />
+          <h2 className="text-sm font-semibold text-white">Export</h2>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="label">Azubi</label>
+            <select className="input-field w-48" value={exportAzubiId} onChange={e => setExportAzubiId(e.target.value)}>
+              <option value="">Alle Azubis</option>
+              {azubisList.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Von</label>
+            <input type="date" className="input-field w-36" value={exportFrom} onChange={e => setExportFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Bis</label>
+            <input type="date" className="input-field w-36" value={exportTo} onChange={e => setExportTo(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Status</label>
+            <select className="input-field w-40" value={exportStatus} onChange={e => setExportStatus(e.target.value)}>
+              <option value="">Alle</option>
+              <option value="draft">In Erstellung</option>
+              <option value="submitted">Eingereicht</option>
+              <option value="approved">Freigegeben</option>
+              <option value="rejected">Abgelehnt</option>
+            </select>
+          </div>
+          <button className="btn-secondary" onClick={handleExportExcel} disabled={exportLoading.excel}>
+            <FileSpreadsheet size={14} />
+            {exportLoading.excel ? 'Erstelle...' : 'Excel-Export'}
+          </button>
+          <button
+            className="btn-secondary disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={handleExportPdf}
+            disabled={exportLoading.pdf || !exportAzubiId}
+            title={!exportAzubiId ? 'Bitte oben einen einzelnen Azubi auswählen' : 'Ausbildungsnachweis als PDF'}
+          >
+            <FileText size={14} />
+            {exportLoading.pdf ? 'Erstelle...' : 'PDF-Export'}
+          </button>
+        </div>
+        {exportError && <p className="text-sm text-red-400">{exportError}</p>}
+        <p className="text-xs text-slate-600">
+          Excel: Sammel-Export aller Einträge, optional gefiltert (Übersicht/Audit). PDF: klassischer, unterschreibbarer Ausbildungsnachweis für einen Azubi inkl. Erklärungsblock — dafür oben einen Azubi auswählen.
+        </p>
+      </div>
 
       {/* Klassische Ansicht: Ampel-Tabelle + manuelles Markieren (z.B. Papier-Ausnahme) */}
       <div className="bg-[#141625] rounded-xl border border-[#2a2d4a]">
