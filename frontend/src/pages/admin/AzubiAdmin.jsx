@@ -6,7 +6,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { azubisApi, departmentsApi } from '../../api/client'
 import { format, parseISO } from 'date-fns'
 
-const EMPTY = { name: '' }
+const EMPTY = { name: '', email: '', send_email: false }
 
 export default function AzubiAdmin() {
   const navigate = useNavigate()
@@ -20,6 +20,7 @@ export default function AzubiAdmin() {
   const [search, setSearch] = useState('')
   const [rotationAssignments, setRotationAssignments] = useState({})
   const [rotationDate, setRotationDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [revealPassword, setRevealPassword] = useState(null)
 
   const load = async () => {
     const [a, d] = await Promise.all([azubisApi.getAll(), departmentsApi.getAll()]).catch(() => [[], []])
@@ -42,9 +43,12 @@ export default function AzubiAdmin() {
     if (!form.name) return
     setLoading(true)
     try {
-      await azubisApi.create(form)
+      const created = await azubisApi.create(form)
       await load()
       setModal(false)
+      if (created.generated_password) {
+        setRevealPassword({ email: created.email, password: created.generated_password })
+      }
     } finally { setLoading(false) }
   }
 
@@ -186,21 +190,48 @@ export default function AzubiAdmin() {
         </div>
       ))}
 
-      {/* Neuer Azubi Modal — nur Name, alle weiteren Details werden über das Nutzerprofil gepflegt */}
+      {/* Neuer Azubi Modal — Name + optionale E-Mail, mit der direkt das Nutzerkonto mit angelegt wird */}
       <Modal open={modal} onClose={() => setModal(false)} title="Neuer Azubi">
         <div className="space-y-4">
           <div>
             <label className="label">Name *</label>
             <input className="input-field" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Vor- und Nachname" />
           </div>
+          <div>
+            <label className="label">E-Mail</label>
+            <input type="email" className="input-field" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="azubi@beispiel.de" />
+          </div>
+          {form.email && (
+            <label className="flex items-center gap-2 text-sm text-slate-400">
+              <input type="checkbox" className="accent-indigo-600" checked={form.send_email} onChange={e => setForm(f => ({ ...f, send_email: e.target.checked }))} />
+              Zugangsdaten per E-Mail versenden (falls Mailversand konfiguriert ist)
+            </label>
+          )}
           <p className="text-xs text-slate-600">
-            Lehrjahr, Abteilung, Ausbildungsstart, Berichtsheft-Rhythmus u.a. werden anschließend über ein verknüpftes Nutzerkonto (Nutzerverwaltung → Profil) gepflegt.
+            {form.email
+              ? 'Mit dieser E-Mail wird direkt ein Nutzerkonto angelegt und mit dem Azubi verknüpft. Lehrjahr, Abteilung, Ausbildungsstart, Berichtsheft-Rhythmus u.a. werden anschließend über das Nutzerprofil gepflegt.'
+              : 'Ohne E-Mail wird nur der Stammdatensatz angelegt — ein Nutzerkonto kann später über die Nutzerverwaltung verknüpft werden. Lehrjahr, Abteilung u.a. werden über das Nutzerprofil gepflegt.'}
           </p>
           <div className="flex justify-end gap-3 pt-2">
             <button className="btn-secondary" onClick={() => setModal(false)}>Abbrechen</button>
             <button className="btn-primary" onClick={handleSave} disabled={loading}>{loading ? 'Speichern...' : 'Anlegen'}</button>
           </div>
         </div>
+      </Modal>
+
+      <Modal open={!!revealPassword} onClose={() => setRevealPassword(null)} title="Einmalpasswort">
+        {revealPassword && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-400">
+              Bitte gib dieses Einmalpasswort an <strong className="text-white">{revealPassword.email}</strong> weiter.
+              Es wird nur jetzt einmalig angezeigt und muss beim ersten Login geändert werden.
+            </p>
+            <div className="bg-[#0d0f1a] border border-[#2a2d4a] rounded-lg px-4 py-3 text-center text-lg font-mono tracking-wider text-white">
+              {revealPassword.password}
+            </div>
+            <button className="btn-primary w-full justify-center" onClick={() => setRevealPassword(null)}>Verstanden</button>
+          </div>
+        )}
       </Modal>
 
       {/* Abteilungswechsel Modal */}

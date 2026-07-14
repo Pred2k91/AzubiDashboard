@@ -1,7 +1,14 @@
 const express = require('express')
 const router = express.Router()
+const crypto = require('crypto')
+const bcrypt = require('bcryptjs')
 const { getDb } = require('../db/init')
 const { requireRole } = require('../middleware/auth')
+const { sendMail } = require('../utils/mailer')
+
+function generatePassword() {
+  return crypto.randomBytes(9).toString('base64url')
+}
 
 // Anzahl Tage vor dem Wechseldatum, ab der die Vorschau im Dashboard erscheint
 const ROTATION_PREVIEW_DAYS = 30
@@ -215,14 +222,44 @@ router.get('/by-department', (req, res) => {
   }
 })
 
+// Azubi anlegen -- wenn eine E-Mail angegeben wird, wird im selben Schritt (eine Transaktion,
+// damit nie ein Azubi ohne zugehöriges Konto oder umgekehrt übrig bleibt) auch das verknüpfte
+// Nutzerkonto mit Einmalpasswort angelegt. Ohne E-Mail bleibt es wie zuvor ein reiner Stammdatensatz.
 router.post('/', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
-    const { name, lehrjahr, start_date, current_department_id, email, birthday, next_department_id, next_rotation_date, report_period } = req.body
+    const { name, lehrjahr, start_date, current_department_id, email, birthday, next_department_id, next_rotation_date, report_period, send_email } = req.body
     if (!name) return res.status(400).json({ error: 'name ist erforderlich' })
-    const result = db.prepare(
-      'INSERT INTO azubis (name, lehrjahr, start_date, current_department_id, email, birthday, next_department_id, next_rotation_date, report_period) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(name, lehrjahr != null ? lehrjahr : 1, start_date || null, current_department_id || null, email || '', birthday || null, next_department_id || null, next_rotation_date || null, report_period === 'day' ? 'day' : 'week')
+
+    let generatedPassword = null
+    let newUserId = null
+
+    const azubiId = db.transaction(() => {
+      const result = db.prepare(
+        'INSERT INTO azubis (name, lehrjahr, start_date, current_department_id, email, birthday, next_department_id, next_rotation_date, report_period) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(name, lehrjahr != null ? lehrjahr : 1, start_date || null, current_department_id || null, email || '', birthday || null, next_department_id || null, next_rotation_date || null, report_period === 'day' ? 'day' : 'week')
+      const id = result.lastInsertRowid
+
+      if (email) {
+        generatedPassword = generatePassword()
+        const hash = bcrypt.hashSync(generatedPassword, 10)
+        const userResult = db.prepare(
+          'INSERT INTO users (email, password_hash, role, azubi_id, must_change_password) VALUES (?, ?, ?, ?, 1)'
+        ).run(String(email).toLowerCase(), hash, 'azubi', id)
+        newUserId = userResult.lastInsertRowid
+      }
+
+      return id
+    })()
+
+    if (email && send_email) {
+      sendMail({
+        to: email,
+        subject: 'Dein Zugang zum Ausbildungsdashboard',
+        text: `Hallo ${name},\n\nfür dich wurde ein Konto im Ausbildungsdashboard angelegt.\n\nE-Mail: ${email}\nEinmalpasswort: ${generatedPassword}\n\nBitte melde dich an und ändere das Passwort bei der ersten Anmeldung.`,
+      }).catch(err => console.error('[mailer] Fehler beim Versand:', err.message))
+    }
+
     const azubi = db.prepare(`
       SELECT a.*, d.name as department_name, d.color as department_color,
              nd.name as next_department_name, nd.color as next_department_color
@@ -230,9 +267,10 @@ router.post('/', requireRole('ausbilder'), (req, res) => {
       LEFT JOIN departments d ON a.current_department_id = d.id
       LEFT JOIN departments nd ON a.next_department_id = nd.id
       WHERE a.id = ?
-    `).get(result.lastInsertRowid)
-    res.status(201).json(azubi)
+    `).get(azubiId)
+    res.status(201).json({ ...azubi, user_id: newUserId, generated_password: generatedPassword })
   } catch (err) {
+    if (err.message.includes('UNIQUE')) return res.status(400).json({ error: 'Diese E-Mail wird bereits für ein Nutzerkonto verwendet' })
     res.status(500).json({ error: err.message })
   }
 })
