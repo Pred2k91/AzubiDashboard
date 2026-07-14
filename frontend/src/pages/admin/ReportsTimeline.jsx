@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useLayoutEffect } from 'react'
 import {
   Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight,
   Settings, ArrowRight, RotateCcw, FileText,
@@ -7,8 +7,10 @@ import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { mondayOf, addDays } from '../../utils/reportDates'
 
-const WEEKS_SHOWN = 26
-const PAGE_SHIFT = 13
+const SIDEBAR_WIDTH = 256 // entspricht w-64 der ersten Spalte
+const CELL_WIDTH = 32     // Breite je Wochen-Spalte (Button + Padding)
+const MIN_WEEKS = 8
+const MAX_WEEKS = 78 // ~1,5 Jahre — Obergrenze gegen ausufernde DOM-Größe auf sehr breiten Screens
 
 const TIMELINE_STATUS = {
   not_due:     { label: '',                mark: '',  cls: 'bg-transparent border-transparent' },
@@ -52,9 +54,29 @@ export default function ReportsTimeline({ azubis, entries, onSelectWeek }) {
   const [search, setSearch] = useState('')
   const [filterIssuesOnly, setFilterIssuesOnly] = useState(false)
   const [sortMode, setSortMode] = useState('name') // 'name' | 'issues'
+  const [weeksShown, setWeeksShown] = useState(26)
+  const scrollRef = useRef(null)
 
+  // Zeigt so viele Wochen wie auf den Bildschirm passen, statt fest 26 —
+  // sonst bleibt auf breiten Monitoren ungenutzter Leerraum stehen.
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const compute = () => {
+      const horizontalPadding = 32 // px-4 links + rechts
+      const available = el.clientWidth - SIDEBAR_WIDTH - horizontalPadding
+      const count = Math.min(MAX_WEEKS, Math.max(MIN_WEEKS, Math.floor(available / CELL_WIDTH)))
+      setWeeksShown(count)
+    }
+    compute()
+    const observer = new ResizeObserver(compute)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const pageShift = Math.max(4, Math.floor(weeksShown / 2))
   const todayMonday = mondayOf(new Date().toISOString().slice(0, 10))
-  const weeks = weeksEndingAt(weekAnchor, WEEKS_SHOWN)
+  const weeks = weeksEndingAt(weekAnchor, weeksShown)
   const monthGroups = groupWeeksByMonth(weeks)
   const yearGroups = groupMonthsByYear(monthGroups)
 
@@ -108,18 +130,18 @@ export default function ReportsTimeline({ azubis, entries, onSelectWeek }) {
       <div className="flex items-center justify-between px-4 pt-4 flex-wrap gap-2">
         <h2 className="text-sm font-semibold text-white">Wochenübersicht</h2>
         <div className="flex items-center gap-1.5">
-          <button onClick={() => setWeekAnchor(addDays(weekAnchor, -7 * PAGE_SHIFT))} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
+          <button onClick={() => setWeekAnchor(addDays(weekAnchor, -7 * pageShift))} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
             <ChevronLeft size={14} />
           </button>
           <button onClick={() => setWeekAnchor(todayMonday)} className="btn-secondary text-xs py-1">Heute</button>
-          <button onClick={() => setWeekAnchor(addDays(weekAnchor, 7 * PAGE_SHIFT))} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
+          <button onClick={() => setWeekAnchor(addDays(weekAnchor, 7 * pageShift))} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
             <ChevronRight size={14} />
           </button>
         </div>
       </div>
 
-      <div className="overflow-x-auto px-4 pb-4">
-        <table className="border-separate border-spacing-0">
+      <div ref={scrollRef} className="overflow-x-auto px-4 pb-4">
+        <table className="border-separate border-spacing-0 w-full">
           <thead>
             <tr>
               <th rowSpan={2} className="sticky left-0 top-0 z-20 bg-[#141625] align-top p-1 pr-3 w-64 min-w-[16rem]">
