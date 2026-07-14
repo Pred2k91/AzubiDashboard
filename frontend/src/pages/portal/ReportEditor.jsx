@@ -90,7 +90,7 @@ export default function ReportEditor() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-3xl">
+    <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <Link to="/portal/report" className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300">
         <ArrowLeft size={13} />
         Zurück zur Übersicht
@@ -118,16 +118,16 @@ export default function ReportEditor() {
 
       {entry.period_type === 'week' ? (
         <div className="space-y-3">
-          <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-4 space-y-3">
+          <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
             <div className="text-sm font-semibold text-white">Wochentage</div>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-5 gap-3">
               {days.map(d => (
                 <div key={d.date}>
                   <label className="label truncate" title={format(parseISO(d.date), 'EEEE, dd.MM.', { locale: de })}>
                     {format(parseISO(d.date), 'EEE dd.MM.', { locale: de })}
                   </label>
                   <select
-                    className="input-field text-xs py-1.5 px-1"
+                    className="input-field text-sm py-2"
                     value={d.day_type}
                     disabled={!editable}
                     onChange={e => updateDay(d.date, 'day_type', e.target.value)}
@@ -140,13 +140,13 @@ export default function ReportEditor() {
           </div>
 
           {days.some(d => !ABSENCE_TYPES.includes(d.day_type)) && (
-            <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-4">
-              <div className="grid grid-cols-[1fr_120px] gap-3">
+            <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5">
+              <div className="grid grid-cols-[1fr_140px] gap-4">
                 <div>
                   <label className="label">Tätigkeiten / Berufsschulthemen der Woche</label>
                   <textarea
-                    className="input-field text-sm"
-                    rows={8}
+                    className="input-field text-base leading-relaxed"
+                    rows={16}
                     disabled={!editable}
                     value={weekText}
                     onChange={e => setWeekText(e.target.value)}
@@ -157,7 +157,7 @@ export default function ReportEditor() {
                   <label className="label">Stunden (gesamt)</label>
                   <input
                     type="number" step="0.5" min="0" max="60"
-                    className="input-field text-sm"
+                    className="input-field text-base"
                     disabled={!editable}
                     value={weekHours}
                     onChange={e => setWeekHours(e.target.value)}
@@ -170,13 +170,13 @@ export default function ReportEditor() {
       ) : (
         <div className="space-y-3">
           {days.map(d => (
-            <div key={d.date} className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-4 space-y-3">
+            <div key={d.date} className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-semibold text-white">
                   {format(parseISO(d.date), 'EEEE, dd.MM.yyyy', { locale: de })}
                 </span>
                 <select
-                  className="input-field w-40 text-xs py-1.5"
+                  className="input-field w-44 text-sm py-2"
                   value={d.day_type}
                   disabled={!editable}
                   onChange={e => updateDay(d.date, 'day_type', e.target.value)}
@@ -185,12 +185,12 @@ export default function ReportEditor() {
                 </select>
               </div>
               {!ABSENCE_TYPES.includes(d.day_type) && (
-                <div className="grid grid-cols-[1fr_100px] gap-3">
+                <div className="grid grid-cols-[1fr_140px] gap-4">
                   <div>
                     <label className="label">Tätigkeiten / Berufsschulthema</label>
                     <textarea
-                      className="input-field text-sm"
-                      rows={2}
+                      className="input-field text-base leading-relaxed"
+                      rows={5}
                       disabled={!editable}
                       value={d.activities_text || ''}
                       onChange={e => updateDay(d.date, 'activities_text', e.target.value)}
@@ -201,7 +201,7 @@ export default function ReportEditor() {
                     <label className="label">Stunden</label>
                     <input
                       type="number" step="0.5" min="0" max="24"
-                      className="input-field text-sm"
+                      className="input-field text-base"
                       disabled={!editable}
                       value={d.hours ?? ''}
                       onChange={e => updateDay(d.date, 'hours', e.target.value)}
