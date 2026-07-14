@@ -160,7 +160,7 @@ function drawLabeledLine(doc, x, label, value) {
   doc.moveDown(0.6)
 }
 
-function drawCoverPage(doc, azubi, trainerName, appTitle) {
+function drawCoverPage(doc, azubi, trainerName) {
   const x = PAGE_MARGIN
   doc.y = 60
   doc.font('Helvetica-Bold').fontSize(22).fillColor('#1f2937').text('AUSBILDUNGSNACHWEIS', x, doc.y, { width: CONTENT_WIDTH })
@@ -199,7 +199,6 @@ function drawCoverPage(doc, azubi, trainerName, appTitle) {
   doc.font('Helvetica-Bold').fontSize(9).fillColor('#374151').text('im Ausbildungsjahr:', x + 250, footerY)
   doc.font('Helvetica').fontSize(9).fillColor('#111827').text(String(azubi.lehrjahr ?? ''), x + 250, footerY + 13)
 
-  doc.font('Helvetica-Bold').fontSize(11).fillColor('#9ca3af').text(appTitle || 'AzubiDashboard', x, doc.page.height - 90, { width: CONTENT_WIDTH, align: 'center' })
   doc.fillColor('#000000')
 }
 
@@ -449,13 +448,6 @@ function drawDeclarationPage(doc, azubi) {
     doc.font('Helvetica').fontSize(6.5).fillColor('#6b7280').text(label, sx + 5, lineY + 3, { width: slotWidth - 20, align: 'center' })
   })
   doc.y = lineY + 30
-
-  doc.moveDown(3)
-  doc.font('Helvetica-Oblique').fontSize(7).fillColor('#888888').text(
-    'Hinweis: Layout und Wortlaut dieser Erklärung wurden anhand öffentlich zugänglicher IHK-/HWK-/BIBB-Informationen erstellt und ' +
-    'stellen keine Rechtsberatung dar. Vor dem Einsatz zur Prüfungsanmeldung bitte mit der zuständigen Kammer abgleichen.',
-    x, doc.y, { width: CONTENT_WIDTH }
-  )
   doc.fillColor('#000000')
 }
 
@@ -539,7 +531,6 @@ router.get('/reports/:azubi_id/pdf', requireRole('ausbilder'), (req, res) => {
     })
 
     const trainerName = getSetting(db, 'trainer_name')
-    const appTitle = getSetting(db, 'dashboard_title')
 
     const safeName = azubi.name
       .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
@@ -555,7 +546,7 @@ router.get('/reports/:azubi_id/pdf', requireRole('ausbilder'), (req, res) => {
     const doc = new PDFDocument({ size: 'A4', margin: PAGE_MARGIN })
     doc.pipe(res)
 
-    drawCoverPage(doc, azubi, trainerName, appTitle)
+    drawCoverPage(doc, azubi, trainerName)
 
     for (const page of pages) {
       doc.addPage()
