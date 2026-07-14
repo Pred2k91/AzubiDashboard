@@ -27,11 +27,16 @@ export default function ReportsList() {
   const today = new Date().toISOString().slice(0, 10)
   // Berichte werden immer wochenweise geöffnet -- der Rhythmus entscheidet nur, wie
   // die Woche im Editor ausgefüllt wird (pro Tag einzeln vs. ein gemeinsames Feld).
-  const pickPeriodStart = mondayOf(pickDate)
-  const pickPeriodEnd = addDays(pickPeriodStart, 4)
-  const existingForPick = data.entries.find(e => e.period_start === pickPeriodStart)
+  // <input type="date"> liefert beim Tippen zwischenzeitlich einen leeren String,
+  // solange das Datum noch unvollständig ist -- erst validieren, sonst wirft
+  // new Date('').toISOString() eine Exception und React blendet die ganze Seite aus.
+  const hasValidPickDate = /^\d{4}-\d{2}-\d{2}$/.test(pickDate)
+  const pickPeriodStart = hasValidPickDate ? mondayOf(pickDate) : null
+  const pickPeriodEnd = pickPeriodStart ? addDays(pickPeriodStart, 4) : null
+  const existingForPick = pickPeriodStart ? data.entries.find(e => e.period_start === pickPeriodStart) : null
 
   const handleCreateOrOpen = async () => {
+    if (!hasValidPickDate) return
     setError('')
     if (existingForPick) { navigate(`/portal/report/${existingForPick.id}`); return }
     setLoading(true)
@@ -80,10 +85,12 @@ export default function ReportsList() {
               onChange={e => setPickDate(e.target.value)}
             />
           </div>
-          <p className="text-xs text-slate-500 pb-2.5">
-            → Woche vom {format(parseISO(pickPeriodStart), 'dd.MM.', { locale: de })} bis {format(parseISO(pickPeriodEnd), 'dd.MM.yyyy', { locale: de })}
-          </p>
-          <button className="btn-primary" onClick={handleCreateOrOpen} disabled={loading}>
+          {pickPeriodStart && (
+            <p className="text-xs text-slate-500 pb-2.5">
+              → Woche vom {format(parseISO(pickPeriodStart), 'dd.MM.', { locale: de })} bis {format(parseISO(pickPeriodEnd), 'dd.MM.yyyy', { locale: de })}
+            </p>
+          )}
+          <button className="btn-primary" onClick={handleCreateOrOpen} disabled={loading || !hasValidPickDate}>
             <Plus size={16} />
             {existingForPick ? 'Bericht öffnen' : (loading ? 'Anlegen...' : 'Bericht anlegen')}
           </button>
