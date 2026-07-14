@@ -91,6 +91,9 @@ export default function ReportsList() {
   const missingWeeks = weeksSince(data.start_date, today).filter(w => !entryByWeek.has(w))
   const inProgressEntries = data.entries.filter(e => e.status !== 'approved')
   const doneEntries = data.entries.filter(e => e.status === 'approved')
+  // Feinere Aufschlüsselung nur für die Badges neben dem Kalender (aktuelle Werte).
+  const inBearbeitungCount = data.entries.filter(e => e.status === 'draft' || e.status === 'submitted').length
+  const rejectedCount = data.entries.filter(e => e.status === 'rejected').length
 
   const toggleSection = (key) => setOpenSections(s => ({ ...s, [key]: !s[key] }))
 
@@ -135,17 +138,25 @@ export default function ReportsList() {
         </p>
       </div>
 
-      <WeekCalendar
-        calMonth={calMonth}
-        onChangeMonth={setCalMonth}
-        onToday={() => setCalMonth(firstOfMonthStr(today))}
-        entryByWeek={entryByWeek}
-        rangeStartMonday={data.start_date ? mondayOf(data.start_date) : null}
-        todayMonday={mondayOf(today)}
-        minYear={data.start_date ? Number(data.start_date.slice(0, 4)) : Number(today.slice(0, 4)) - 3}
-        onSelectWeek={selectWeek}
-        loading={loading}
-      />
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
+        <WeekCalendar
+          calMonth={calMonth}
+          onChangeMonth={setCalMonth}
+          onToday={() => setCalMonth(firstOfMonthStr(today))}
+          entryByWeek={entryByWeek}
+          rangeStartMonday={data.start_date ? mondayOf(data.start_date) : null}
+          todayMonday={mondayOf(today)}
+          minYear={data.start_date ? Number(data.start_date.slice(0, 4)) : Number(today.slice(0, 4)) - 3}
+          onSelectWeek={selectWeek}
+          loading={loading}
+        />
+        <div className="grid grid-cols-2 gap-3 w-full lg:flex-1 lg:self-stretch">
+          <StatBadge label="Fehlend" count={missingWeeks.length} cls="text-slate-300" bg="bg-slate-500/10 border-slate-500/20" />
+          <StatBadge label="In Bearbeitung" count={inBearbeitungCount} cls="text-amber-400" bg="bg-amber-500/10 border-amber-500/20" />
+          <StatBadge label="Abgelehnt" count={rejectedCount} cls="text-red-400" bg="bg-red-500/10 border-red-500/20" />
+          <StatBadge label="Fertig" count={doneEntries.length} cls="text-green-400" bg="bg-green-500/10 border-green-500/20" />
+        </div>
+      </div>
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       <ReportSection
@@ -216,6 +227,15 @@ function ReportSection({ title, count, open, onToggle, emptyLabel, children }) {
           ) : children}
         </div>
       )}
+    </div>
+  )
+}
+
+function StatBadge({ label, count, cls, bg }) {
+  return (
+    <div className={`rounded-xl border p-4 flex flex-col items-center justify-center text-center h-full ${bg}`}>
+      <div className={`text-3xl font-bold ${cls}`}>{count}</div>
+      <div className="text-xs text-slate-500 mt-1">{label}</div>
     </div>
   )
 }
