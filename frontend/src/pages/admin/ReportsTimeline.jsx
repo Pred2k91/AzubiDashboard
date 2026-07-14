@@ -88,7 +88,7 @@ export default function ReportsTimeline({ azubis, entries, reportsStatus, onSele
     const idx = weeks.indexOf(todayMonday)
     if (idx === -1) return
     const target = SIDEBAR_WIDTH + (idx + 1) * CELL_WIDTH + FUTURE_WEEKS_VISIBLE * CELL_WIDTH - el.clientWidth
-    el.scrollTo({ left: Math.max(0, target), behavior })
+    el.scrollTo({ left: Math.round(Math.max(0, target)), behavior })
   }
 
   const scrollByScreen = (dir) => {
@@ -173,7 +173,11 @@ export default function ReportsTimeline({ azubis, entries, reportsStatus, onSele
         <table className="border-separate border-spacing-0">
           <thead>
             <tr>
-              <th rowSpan={2} className="sticky left-0 top-0 z-20 bg-[#141625] align-top p-1 pr-3 w-72 min-w-[18rem]">
+              <th
+                rowSpan={2}
+                className="sticky left-0 top-0 z-20 bg-[#141625] align-top p-1 pr-3 w-72 min-w-[18rem]"
+                style={{ boxShadow: '-4px 0 0 0 #141625' }}
+              >
                 <div className="space-y-1.5">
                   <div className="relative">
                     <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600" />
@@ -229,7 +233,10 @@ export default function ReportsTimeline({ azubis, entries, reportsStatus, onSele
               const showMail = ampel && ampel.status !== 'ok' && ampel.email && onSendMail
               return (
                 <tr key={a.id}>
-                  <td className="sticky left-0 bg-[#141625] p-2.5 pr-3 align-top border-t border-[#2a2d4a]/50">
+                  <td
+                    className="sticky left-0 bg-[#141625] p-2.5 pr-3 align-top border-t border-[#2a2d4a]/50"
+                    style={{ boxShadow: '-4px 0 0 0 #141625' }}
+                  >
                     <div className="flex items-start gap-2.5">
                       <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold bg-purple-600/20 text-purple-300 shrink-0">
                         {a.name.charAt(0).toUpperCase()}
