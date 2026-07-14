@@ -26,6 +26,8 @@ import AnnouncementsAdmin from './pages/admin/AnnouncementsAdmin'
 import ReportsAdmin from './pages/admin/ReportsAdmin'
 import SettingsPage from './pages/admin/SettingsPage'
 import UsersAdmin from './pages/admin/UsersAdmin'
+import UserProfileAdmin from './pages/admin/UserProfileAdmin'
+import LocationsAdmin from './pages/admin/LocationsAdmin'
 
 export default function App() {
   useEffect(() => {
@@ -56,6 +58,8 @@ export default function App() {
             <Route path="announcements" element={<AnnouncementsAdmin />} />
             <Route path="reports" element={<ReportsAdmin />} />
             <Route path="users" element={<UsersAdmin />} />
+            <Route path="users/:id" element={<UserProfileAdmin />} />
+            <Route path="locations" element={<LocationsAdmin />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>

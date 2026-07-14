@@ -2,11 +2,37 @@ const express = require('express')
 const router = express.Router()
 const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
+const multer = require('multer')
+const path = require('path')
+const fs = require('fs')
 const { getDb } = require('../db/init')
 const { requireRole } = require('../middleware/auth')
 const { sendMail } = require('../utils/mailer')
+const { UPLOADS_DIR } = require('./upload')
 
 router.use(requireRole('ausbilder'))
+
+const PROFILE_FIELDS = [
+  'salutation', 'first_name', 'last_name', 'birthday',
+  'phone', 'mobile_phone', 'street', 'postal_code', 'city',
+  'personnel_number', 'job_title', 'about_me', 'public_note', 'misc_note',
+]
+
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true })
+    cb(null, UPLOADS_DIR)
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase()
+    cb(null, `avatar-${req.params.id}-${Date.now()}${ext}`)
+  },
+})
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => file.mimetype.startsWith('image/') ? cb(null, true) : cb(new Error('Nur Bilddateien erlaubt')),
+})
 
 function generatePassword() {
   return crypto.randomBytes(9).toString('base64url')
@@ -23,6 +49,28 @@ router.get('/', (req, res) => {
       ORDER BY u.role ASC, u.email ASC
     `).all()
     res.json(users)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Volles Profil eines Nutzers für die Admin-Profilseite (/admin/users/:id)
+router.get('/:id', (req, res) => {
+  try {
+    const db = getDb()
+    const user = db.prepare(`
+      SELECT u.*, a.name as azubi_name, a.birthday as azubi_birthday, a.lehrjahr as azubi_lehrjahr
+      FROM users u
+      LEFT JOIN azubis a ON u.azubi_id = a.id
+      WHERE u.id = ?
+    `).get(req.params.id)
+    if (!user) return res.status(404).json({ error: 'Nicht gefunden' })
+    delete user.password_hash
+    const locations = db.prepare(`
+      SELECT l.id, l.name, l.short_code FROM locations l
+      JOIN user_locations ul ON ul.location_id = l.id
+      WHERE ul.user_id = ?
+      ORDER BY l.name ASC
+    `).all(req.params.id)
+    res.json({ ...user, locations })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
@@ -70,6 +118,38 @@ router.put('/:id', (req, res) => {
     if (!user) return res.status(404).json({ error: 'Nicht gefunden' })
     res.json(user)
   } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Profilfelder + Standort-Zuordnung -- getrennt von PUT /:id (dort nur role/azubi_id/active),
+// damit handleToggleActive in UsersAdmin.jsx weiterhin nur diese 3 Felder anfasst.
+router.put('/:id/profile', (req, res) => {
+  try {
+    const db = getDb()
+    const body = req.body
+    const setClauses = PROFILE_FIELDS.map(f => `${f}=?`).join(', ')
+    const values = PROFILE_FIELDS.map(f => (f === 'birthday' ? (body.birthday || null) : (body[f] ?? '')))
+
+    const run = db.transaction(() => {
+      db.prepare(`UPDATE users SET ${setClauses} WHERE id=?`).run(...values, req.params.id)
+      if (Array.isArray(body.location_ids)) {
+        db.prepare('DELETE FROM user_locations WHERE user_id=?').run(req.params.id)
+        const insertLoc = db.prepare('INSERT OR IGNORE INTO user_locations (user_id, location_id) VALUES (?, ?)')
+        for (const locId of body.location_ids) insertLoc.run(req.params.id, locId)
+      }
+    })
+    run()
+
+    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id)
+    if (!user) return res.status(404).json({ error: 'Nicht gefunden' })
+    res.json({ success: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+router.post('/:id/avatar', avatarUpload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Keine Datei' })
+  const url = `/uploads/${req.file.filename}`
+  getDb().prepare('UPDATE users SET avatar_url=? WHERE id=?').run(url, req.params.id)
+  res.json({ avatar_url: url })
 })
 
 router.post('/:id/reset-password', (req, res) => {

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, CalendarDays, CheckSquare, StickyNote,
   Users, Building2, Settings, ExternalLink, GraduationCap, Megaphone, BookOpen,
-  UserCog, UserCircle, LogOut, Menu, X,
+  UserCog, UserCircle, LogOut, Menu, X, Landmark,
 } from 'lucide-react'
 import { settingsApi } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
@@ -15,6 +15,7 @@ const NAV = [
   { to: '/admin/notes', label: 'Notizen', icon: StickyNote },
   { to: '/admin/azubis', label: 'Azubis', icon: Users },
   { to: '/admin/departments', label: 'Abteilungen', icon: Building2 },
+  { to: '/admin/locations', label: 'Niederlassungen', icon: Landmark },
   { to: '/admin/schools', label: 'Berufsschulen', icon: GraduationCap },
   { to: '/admin/announcements', label: 'Schwarzes Brett', icon: Megaphone },
   { to: '/admin/reports', label: 'Berichtshefte', icon: BookOpen },

@@ -191,6 +191,20 @@ function initDb() {
       UNIQUE(report_entry_id, date)
     );
 
+    CREATE TABLE IF NOT EXISTS locations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      short_code TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS user_locations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      location_id INTEGER NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+      UNIQUE(user_id, location_id)
+    );
+
     INSERT OR IGNORE INTO settings (key, value) VALUES
       ('report_warn_days', '14'),
       ('report_alert_days', '28'),
@@ -218,6 +232,25 @@ function initDb() {
 
   // Migration: alten Klartext-Admin-PIN entfernen — abgelöst durch echte Benutzerkonten
   db.prepare("DELETE FROM settings WHERE key = 'admin_pin'").run()
+
+  // Migration: Profil-/Kontaktfelder für Benutzer (Selbstauskunft + Admin-Profilseite).
+  // azubis bleibt bewusst unverändert -- name/birthday eines verknüpften Azubis bleiben
+  // dort die alleinige Quelle der Wahrheit, diese Felder gelten nur für Nutzer ohne azubi_id.
+  try { db.exec("ALTER TABLE users ADD COLUMN salutation TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN first_name TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN last_name TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN birthday TEXT") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN mobile_phone TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN street TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN postal_code TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN city TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN personnel_number TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN job_title TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN about_me TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN public_note TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN misc_note TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN avatar_url TEXT") } catch (_) {}
 
   bootstrapFirstUser(db)
 

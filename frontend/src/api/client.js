@@ -17,6 +17,13 @@ export const meApi = {
   getTeam: () => api.get('/me/team').then(r => r.data),
   getCalendar: () => api.get('/me/calendar').then(r => r.data),
   getReports: () => api.get('/me/reports').then(r => r.data),
+  getFullProfile: () => api.get('/me/profile').then(r => r.data),
+  updateFullProfile: (data) => api.put('/me/profile', data).then(r => r.data),
+  uploadAvatar: (file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post('/me/avatar', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+  },
 }
 
 export const reportEntriesApi = {
@@ -31,10 +38,24 @@ export const reportEntriesApi = {
 
 export const usersApi = {
   getAll: () => api.get('/users').then(r => r.data),
+  getOne: (id) => api.get(`/users/${id}`).then(r => r.data),
   create: (data) => api.post('/users', data).then(r => r.data),
   update: (id, data) => api.put(`/users/${id}`, data).then(r => r.data),
+  updateProfile: (id, data) => api.put(`/users/${id}/profile`, data).then(r => r.data),
+  uploadAvatar: (id, file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post(`/users/${id}/avatar`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+  },
   resetPassword: (id) => api.post(`/users/${id}/reset-password`).then(r => r.data),
   delete: (id) => api.delete(`/users/${id}`).then(r => r.data),
+}
+
+export const locationsApi = {
+  getAll: () => api.get('/locations').then(r => r.data),
+  create: (data) => api.post('/locations', data).then(r => r.data),
+  update: (id, data) => api.put(`/locations/${id}`, data).then(r => r.data),
+  delete: (id) => api.delete(`/locations/${id}`).then(r => r.data),
 }
 
 export const calendarApi = {

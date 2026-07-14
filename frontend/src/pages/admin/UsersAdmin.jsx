@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, KeyRound, Users as UsersIcon, ShieldCheck, Ban, CheckCircle2 } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import { usersApi, azubisApi } from '../../api/client'
@@ -6,6 +7,7 @@ import { usersApi, azubisApi } from '../../api/client'
 const EMPTY = { email: '', role: 'azubi', azubi_id: '', send_email: false }
 
 export default function UsersAdmin() {
+  const navigate = useNavigate()
   const [users, setUsers] = useState([])
   const [azubis, setAzubis] = useState([])
   const [modal, setModal] = useState(false)
@@ -79,7 +81,7 @@ export default function UsersAdmin() {
             {users.length === 0 ? (
               <tr><td colSpan={6} className="text-center text-slate-600 py-10">Keine Konten gefunden</td></tr>
             ) : users.map(u => (
-              <tr key={u.id}>
+              <tr key={u.id} onClick={() => navigate(`/admin/users/${u.id}`)} className="cursor-pointer hover:bg-[#1e2035]/50">
                 <td className="text-white">{u.email}</td>
                 <td>
                   <span className={`text-xs font-medium px-2 py-1 rounded-full border ${u.role === 'ausbilder' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-300' : 'bg-slate-500/10 border-slate-500/20 text-slate-400'}`}>
@@ -97,10 +99,10 @@ export default function UsersAdmin() {
                 <td className="text-xs text-slate-500">{u.last_login_at || '—'}</td>
                 <td>
                   <div className="flex items-center gap-1.5 justify-end">
-                    <button onClick={() => handleResetPassword(u)} title="Passwort zurücksetzen" className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
+                    <button onClick={(e) => { e.stopPropagation(); handleResetPassword(u) }} title="Passwort zurücksetzen" className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
                       <KeyRound size={13} />
                     </button>
-                    <button onClick={() => handleToggleActive(u)} title={u.active ? 'Deaktivieren' : 'Aktivieren'} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
+                    <button onClick={(e) => { e.stopPropagation(); handleToggleActive(u) }} title={u.active ? 'Deaktivieren' : 'Aktivieren'} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
                       {u.active ? <Ban size={13} /> : <ShieldCheck size={13} />}
                     </button>
                   </div>
