@@ -50,7 +50,7 @@ export default function PortalLayout() {
           {user && (
             <div className="px-3 py-1.5 text-xs text-slate-600 truncate">{user.email}</div>
           )}
-          <Link to="/" className="nav-item">
+          <Link to="/kiosk" className="nav-item">
             <ExternalLink size={16} />
             Kiosk-Ansicht
           </Link>

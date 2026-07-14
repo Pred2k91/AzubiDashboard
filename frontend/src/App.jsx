@@ -37,7 +37,8 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/" element={<KioskPage />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/kiosk" element={<KioskPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />

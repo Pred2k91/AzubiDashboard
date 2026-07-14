@@ -82,7 +82,7 @@ export default function AdminLayout() {
             <div className="px-3 py-1.5 text-xs text-slate-600 truncate">{user.email}</div>
           )}
           <Link
-            to="/"
+            to="/kiosk"
             className="nav-item"
           >
             <ExternalLink size={16} />
