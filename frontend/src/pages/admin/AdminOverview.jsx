@@ -1,14 +1,22 @@
 import { useState, useEffect } from 'react'
-import { CalendarDays, CheckSquare, StickyNote, Users, ArrowRight } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { CalendarDays, CheckSquare, StickyNote, Users, ArrowRight, UserPlus } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { calendarApi, todosApi, notesApi, azubisApi } from '../../api/client'
 import { format, parseISO, isAfter, startOfDay } from 'date-fns'
 import { de } from 'date-fns/locale'
+import Modal from '../../components/ui/Modal'
+
+const EMPTY_AZUBI_FORM = { name: '', email: '', send_email: false }
 
 export default function AdminOverview() {
+  const navigate = useNavigate()
   const [stats, setStats] = useState({ events: 0, todos: 0, notes: 0, azubis: 0 })
   const [upcoming, setUpcoming] = useState([])
   const [openTodos, setOpenTodos] = useState([])
+  const [newAzubiModal, setNewAzubiModal] = useState(false)
+  const [azubiForm, setAzubiForm] = useState(EMPTY_AZUBI_FORM)
+  const [azubiLoading, setAzubiLoading] = useState(false)
+  const [revealPassword, setRevealPassword] = useState(null)
 
   useEffect(() => {
     const today = format(new Date(), 'yyyy-MM-dd')
@@ -34,6 +42,25 @@ export default function AdminOverview() {
     }).catch(() => {})
   }, [])
 
+  const openNewAzubi = () => { setAzubiForm(EMPTY_AZUBI_FORM); setNewAzubiModal(true) }
+
+  const handleSaveAzubi = async () => {
+    if (!azubiForm.name || !azubiForm.email) return
+    setAzubiLoading(true)
+    try {
+      const created = await azubisApi.create(azubiForm)
+      setNewAzubiModal(false)
+      setStats(s => ({ ...s, azubis: s.azubis + 1 }))
+      setRevealPassword({ email: created.email, password: created.generated_password, userId: created.user_id })
+    } finally { setAzubiLoading(false) }
+  }
+
+  const closeRevealPassword = () => {
+    const userId = revealPassword?.userId
+    setRevealPassword(null)
+    if (userId) navigate(`/admin/users/${userId}`)
+  }
+
   const cards = [
     { label: 'Termine', value: stats.events, icon: CalendarDays, to: '/admin/calendar', color: '#6366f1' },
     { label: 'Offene Aufgaben', value: stats.todos, icon: CheckSquare, to: '/admin/todos', color: '#f59e0b' },
@@ -43,11 +70,17 @@ export default function AdminOverview() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-white">Übersicht</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          {format(new Date(), "EEEE, dd. MMMM yyyy", { locale: de })}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-white">Übersicht</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            {format(new Date(), "EEEE, dd. MMMM yyyy", { locale: de })}
+          </p>
+        </div>
+        <button className="btn-primary" onClick={openNewAzubi}>
+          <UserPlus size={16} />
+          Neuen Azubi anlegen
+        </button>
       </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
@@ -125,6 +158,49 @@ export default function AdminOverview() {
           </div>
         </div>
       </div>
+
+      <Modal open={newAzubiModal} onClose={() => setNewAzubiModal(false)} title="Neuen Azubi anlegen">
+        <div className="space-y-4">
+          <div>
+            <label className="label">Name *</label>
+            <input className="input-field" value={azubiForm.name} onChange={e => setAzubiForm(f => ({ ...f, name: e.target.value }))} placeholder="Vor- und Nachname" />
+          </div>
+          <div>
+            <label className="label">E-Mail *</label>
+            <input type="email" className="input-field" value={azubiForm.email} onChange={e => setAzubiForm(f => ({ ...f, email: e.target.value }))} placeholder="azubi@beispiel.de" />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-400">
+            <input type="checkbox" className="accent-indigo-600" checked={azubiForm.send_email} onChange={e => setAzubiForm(f => ({ ...f, send_email: e.target.checked }))} />
+            Zugangsdaten per E-Mail versenden (falls Mailversand konfiguriert ist)
+          </label>
+          <p className="text-xs text-slate-600">
+            Azubi-Datensatz und Nutzerkonto werden zusammen angelegt. Anschließend öffnet sich das Profil, um Lehrjahr, Abteilung, Ausbildungsstart u.a. einzutragen.
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <button className="btn-secondary" onClick={() => setNewAzubiModal(false)}>Abbrechen</button>
+            <button className="btn-primary" onClick={handleSaveAzubi} disabled={azubiLoading || !azubiForm.name || !azubiForm.email}>
+              {azubiLoading ? 'Speichern...' : 'Anlegen'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={!!revealPassword} onClose={closeRevealPassword} title="Einmalpasswort">
+        {revealPassword && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-400">
+              Bitte gib dieses Einmalpasswort an <strong className="text-white">{revealPassword.email}</strong> weiter.
+              Es wird nur jetzt einmalig angezeigt und muss beim ersten Login geändert werden.
+            </p>
+            <div className="bg-[#0d0f1a] border border-[#2a2d4a] rounded-lg px-4 py-3 text-center text-lg font-mono tracking-wider text-white">
+              {revealPassword.password}
+            </div>
+            <button className="btn-primary w-full justify-center" onClick={closeRevealPassword}>
+              Weiter zum Profil
+            </button>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
