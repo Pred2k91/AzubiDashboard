@@ -24,6 +24,14 @@ function addDaysStr(dateStr, n) {
   return d.toISOString().slice(0, 10)
 }
 
+function mondayOf(dateStr) {
+  const d = new Date(dateStr)
+  const day = d.getUTCDay() // 0=So .. 6=Sa
+  const diff = day === 0 ? -6 : 1 - day
+  d.setUTCDate(d.getUTCDate() + diff)
+  return d.toISOString().slice(0, 10)
+}
+
 // Standard-ISO-8601-Wochennummer (Montag als Wochenstart, Donnerstag entscheidet das Jahr)
 function isoWeek(dateStr) {
   const d = new Date(dateStr)
@@ -274,10 +282,10 @@ function drawSignatureBlock(doc, x, leftLabel, leftName, leftDate, rightLabel, r
   doc.fillColor('#000000')
 }
 
-function drawEntryPage(doc, azubi, entry, reportNumber) {
-  const x = PAGE_MARGIN
+// Gemeinsamer Kopf jeder Berichtsseite: Titelbox (Nummer/Name) + Zeitraumzeile (Ausbildungsjahr).
+// Setzt doc.y ans Ende des Kopfbereichs.
+function drawReportPageHeader(doc, x, azubi, reportNumber, periodText, lehrjahr) {
   doc.y = PAGE_MARGIN
-
   const headerTop = doc.y
   doc.rect(x, headerTop, CONTENT_WIDTH, 40).strokeColor('#cccccc').stroke()
   doc.font('Helvetica-Bold').fontSize(14).fillColor('#111827').text('Ausbildungsnachweis', x + 10, headerTop + 13)
@@ -287,12 +295,88 @@ function drawEntryPage(doc, azubi, entry, reportNumber) {
 
   const row2Top = doc.y
   doc.rect(x, row2Top, CONTENT_WIDTH, 22).strokeColor('#cccccc').stroke()
-  const periodText = entry.period_type === 'day'
-    ? `Tag vom ${fmtDate(entry.period_start)} (KW ${isoWeek(entry.period_start)})`
-    : `Woche vom ${fmtDate(entry.period_start)} bis ${fmtDate(entry.period_end)} (KW ${isoWeek(entry.period_start)})`
   doc.font('Helvetica').fontSize(9).fillColor('#111827').text(periodText, x + 10, row2Top + 6)
-  doc.text(`Ausbildungsjahr: ${entry.lehrjahr ?? azubi.lehrjahr ?? ''}`, x + 370, row2Top + 6)
+  doc.text(`Ausbildungsjahr: ${lehrjahr ?? ''}`, x + 370, row2Top + 6)
   doc.y = row2Top + 22
+  doc.fillColor('#000000')
+}
+
+function drawRejectedComments(doc, x, comments) {
+  for (const c of comments) {
+    ensureSpace(doc, 24)
+    doc.font('Helvetica-Oblique').fontSize(8).fillColor('#b91c1c').text(c, x, doc.y, { width: CONTENT_WIDTH })
+    doc.fillColor('#000000')
+    doc.moveDown(0.4)
+  }
+  if (comments.length) doc.moveDown(0.2)
+}
+
+// Wochenbericht-Rhythmus: EIN zusammengefasstes Feld für die ganze Woche, keine
+// Aufschlüsselung nach einzelnen Tagen (im Gegensatz zum Tagesbericht-Rhythmus,
+// wo jeder Tag ein eigener, separat eingereichter Bericht ist).
+function drawWeekEntryPage(doc, azubi, entry, reportNumber) {
+  const x = PAGE_MARGIN
+  const periodText = `Woche vom ${fmtDate(entry.period_start)} bis ${fmtDate(entry.period_end)} (KW ${isoWeek(entry.period_start)})`
+  drawReportPageHeader(doc, x, azubi, reportNumber, periodText, entry.lehrjahr ?? azubi.lehrjahr)
+
+  const taetW = CONTENT_WIDTH - COL_STD_W
+  const theadTop = doc.y
+  doc.rect(x, theadTop, CONTENT_WIDTH, 18).fillColor('#f3f4f6').fill()
+  doc.fillColor('#111827').font('Helvetica-Bold').fontSize(9)
+  doc.text('Tätigkeit', x + 4, theadTop + 5, { width: taetW - 8 })
+  doc.text('Stunden', x + taetW + 4, theadTop + 5, { width: COL_STD_W - 8, align: 'right' })
+  doc.y = theadTop + 18
+  doc.fillColor('#000000')
+
+  // Freie Aufzählung ohne Datums-/Tagesbezug -- Abwesenheitstage fließen nicht mit ein.
+  const activityLines = []
+  for (const d of entry.days) {
+    if (ABSENCE_TYPES.includes(d.day_type)) continue
+    for (const line of (d.activities_text || '').split('\n').map(s => s.trim()).filter(Boolean)) {
+      activityLines.push(line)
+    }
+  }
+  const bulletLines = (activityLines.length ? activityLines : ['—']).map(l => l === '—' ? l : `•  ${l}`)
+
+  let contentHeight = 0
+  doc.font('Helvetica').fontSize(8)
+  for (const line of bulletLines) contentHeight += doc.heightOfString(line, { width: taetW - 8 }) + 1
+  const rowHeight = Math.max(20, contentHeight + 8)
+  ensureSpace(doc, rowHeight + 6)
+  const y = doc.y
+  let cy = y + 4
+  for (const line of bulletLines) {
+    doc.font('Helvetica').fontSize(8).fillColor('#374151').text(line, x + 4, cy, { width: taetW - 8 })
+    cy = doc.y + 1
+  }
+  doc.y = y + rowHeight
+  doc.moveTo(x, doc.y).lineTo(x + CONTENT_WIDTH, doc.y).strokeColor('#e5e7eb').stroke()
+  doc.y += 2
+  doc.fillColor('#000000')
+
+  const totalHours = entry.days.reduce((s, d) => s + (d.hours || 0), 0)
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#111827').text(`Gesamt: ${fmtHoursMinutes(totalHours)}`, x, doc.y + 2, { width: CONTENT_WIDTH, align: 'right' })
+  doc.moveDown(1)
+
+  drawRejectedComments(doc, x, entry.status === 'rejected' && entry.review_comment ? [`Anmerkung Ausbilder: ${entry.review_comment}`] : [])
+
+  drawSignatureBlock(
+    doc, x,
+    'Digital erstellt von', azubi.name, entry.submitted_at ? fmtDate(entry.submitted_at) : '',
+    'Digital bestätigt von', (entry.status === 'approved' || entry.status === 'rejected') ? entry.reviewed_by_email : '', entry.reviewed_at ? fmtDate(entry.reviewed_at) : '',
+    'Datum, Unterschrift der/des Auszubildenden', 'Datum, Unterschrift der/des Ausbildenden'
+  )
+}
+
+// Tagesbericht-Rhythmus: eine Kalenderwoche wird auf einer Seite dargestellt, aber JEDER
+// Tag stammt aus einem eigenen, einzeln eingereichten Tages-Eintrag (bis zu 7 verschiedene
+// report_entries-Zeilen je Seite) -- daher weiterhin nach Wochentagen aufgeschlüsselt.
+function drawDayGroupPage(doc, azubi, monday, weekEntries, reportNumber) {
+  const x = PAGE_MARGIN
+  const sunday = addDaysStr(monday, 6)
+  const lehrjahr = weekEntries.find(e => e.lehrjahr != null)?.lehrjahr ?? azubi.lehrjahr
+  const periodText = `Woche vom ${fmtDate(monday)} bis ${fmtDate(sunday)} (KW ${isoWeek(monday)})`
+  drawReportPageHeader(doc, x, azubi, reportNumber, periodText, lehrjahr)
 
   const theadTop = doc.y
   doc.rect(x, theadTop, CONTENT_WIDTH, 18).fillColor('#f3f4f6').fill()
@@ -305,41 +389,37 @@ function drawEntryPage(doc, azubi, entry, reportNumber) {
   const kwTop = doc.y
   doc.rect(x, kwTop, CONTENT_WIDTH, 16).fillColor('#f9fafb').fill()
   doc.fillColor('#374151').font('Helvetica').fontSize(8).text(
-    entry.period_type === 'day'
-      ? `KW ${isoWeek(entry.period_start)}  ${fmtDate(entry.period_start)}`
-      : `KW ${isoWeek(entry.period_start)}  ${fmtDate(entry.period_start)}-${fmtDate(entry.period_end)}`,
+    `KW ${isoWeek(monday)}  ${fmtDate(monday)}-${fmtDate(sunday)}`,
     x, kwTop + 4, { width: CONTENT_WIDTH, align: 'center' }
   )
   doc.y = kwTop + 16
   doc.fillColor('#000000')
 
-  if (entry.period_type === 'day') {
-    const dayRow = entry.days[0]
-    drawWeekdayRow(doc, x, weekdayOf(entry.period_start), buildDayCellLines(dayRow, entry.department_name))
-  } else {
-    const byDate = new Map(entry.days.map(d => [d.date, d]))
-    for (let i = 0; i < 7; i++) {
-      const date = addDaysStr(entry.period_start, i)
-      drawWeekdayRow(doc, x, weekdayOf(date), buildDayCellLines(byDate.get(date), entry.department_name))
-    }
+  const byDate = new Map(weekEntries.map(e => [e.period_start, e]))
+  for (let i = 0; i < 7; i++) {
+    const date = addDaysStr(monday, i)
+    const dayEntry = byDate.get(date)
+    drawWeekdayRow(doc, x, weekdayOf(date), buildDayCellLines(dayEntry?.days[0], dayEntry?.department_name))
   }
 
-  const totalHours = entry.days.reduce((s, d) => s + (d.hours || 0), 0)
+  const totalHours = weekEntries.reduce((s, e) => s + e.days.reduce((s2, d) => s2 + (d.hours || 0), 0), 0)
   doc.font('Helvetica-Bold').fontSize(9).fillColor('#111827').text(`Gesamt: ${fmtHoursMinutes(totalHours)}`, x, doc.y + 2, { width: CONTENT_WIDTH, align: 'right' })
   doc.moveDown(1)
 
-  if (entry.status === 'rejected' && entry.review_comment) {
-    ensureSpace(doc, 24)
-    doc.font('Helvetica-Oblique').fontSize(8).fillColor('#b91c1c')
-      .text(`Anmerkung Ausbilder: ${entry.review_comment}`, x, doc.y, { width: CONTENT_WIDTH })
-    doc.fillColor('#000000')
-    doc.moveDown(0.6)
-  }
+  drawRejectedComments(
+    doc, x,
+    weekEntries.filter(e => e.status === 'rejected' && e.review_comment)
+      .map(e => `Anmerkung Ausbilder (${weekdayOf(e.period_start)}): ${e.review_comment}`)
+  )
+
+  const lastSubmitted = weekEntries.map(e => e.submitted_at).filter(Boolean).sort().pop()
+  const reviewedEntries = weekEntries.filter(e => e.reviewed_at)
+  const lastReviewed = reviewedEntries.sort((a, b) => a.reviewed_at.localeCompare(b.reviewed_at)).pop()
 
   drawSignatureBlock(
     doc, x,
-    'Digital erstellt von', azubi.name, entry.submitted_at ? fmtDate(entry.submitted_at) : '',
-    'Digital bestätigt von', (entry.status === 'approved' || entry.status === 'rejected') ? entry.reviewed_by_email : '', entry.reviewed_at ? fmtDate(entry.reviewed_at) : '',
+    'Digital erstellt von', azubi.name, lastSubmitted ? fmtDate(lastSubmitted) : '',
+    'Digital bestätigt von', lastReviewed ? lastReviewed.reviewed_by_email : '', lastReviewed ? fmtDate(lastReviewed.reviewed_at) : '',
     'Datum, Unterschrift der/des Auszubildenden', 'Datum, Unterschrift der/des Ausbildenden'
   )
 }
@@ -414,12 +494,49 @@ router.get('/reports/:azubi_id/pdf', requireRole('ausbilder'), (req, res) => {
     const dayStmt = db.prepare('SELECT * FROM report_entry_days WHERE report_entry_id = ? ORDER BY date ASC')
     for (const e of entries) e.days = dayStmt.all(e.id)
 
-    // Fortlaufende Berichtsnummer über die GESAMTE Historie des Azubis, nicht nur
-    // den exportierten Zeitraum -- entspricht "der wievielte Bericht seit Ausbildungsbeginn".
-    const allEntryIds = db.prepare(
-      'SELECT id FROM report_entries WHERE azubi_id = ? ORDER BY period_start ASC'
+    // Tagesbericht-Rhythmus: jeder Tag ist ein eigener Eintrag -- für die Seitenansicht
+    // (eine Kalenderwoche je Seite) nach Wochenmontag gruppieren. Wochenbericht-Rhythmus:
+    // jeder Eintrag ist bereits eine ganze Woche und wird 1:1 zu einer Seite.
+    const weekEntries = entries.filter(e => e.period_type === 'week')
+    const dayEntries = entries.filter(e => e.period_type === 'day')
+    const dayGroupsMap = new Map()
+    for (const e of dayEntries) {
+      const monday = mondayOf(e.period_start)
+      if (!dayGroupsMap.has(monday)) dayGroupsMap.set(monday, [])
+      dayGroupsMap.get(monday).push(e)
+    }
+
+    const pages = [
+      ...weekEntries.map(e => ({ kind: 'week', key: e.period_start, entry: e })),
+      ...[...dayGroupsMap.entries()].map(([monday, ents]) => ({ kind: 'dayGroup', key: monday, monday, entries: ents })),
+    ].sort((a, b) => a.key.localeCompare(b.key))
+
+    // Fortlaufende Berichtsnummer über die GESAMTE Historie des Azubis, nicht nur den
+    // exportierten Zeitraum -- entspricht "die wievielte Seite/Woche seit Ausbildungsbeginn".
+    // Zählt Wochenbericht-Einträge und Tagesbericht-Kalenderwochen gemeinsam chronologisch.
+    const allEntries = db.prepare(
+      'SELECT id, period_type, period_start FROM report_entries WHERE azubi_id = ?'
     ).all(azubiId)
-    const numberById = new Map(allEntryIds.map((e, idx) => [e.id, idx + 1]))
+    const allKeys = []
+    const numberForWeekEntryId = new Map()
+    const numberForDayGroupMonday = new Map()
+    const seenDayMondays = new Set()
+    for (const e of allEntries) {
+      if (e.period_type === 'week') {
+        allKeys.push({ key: e.period_start, kind: 'week', id: e.id })
+      } else {
+        const monday = mondayOf(e.period_start)
+        if (!seenDayMondays.has(monday)) {
+          seenDayMondays.add(monday)
+          allKeys.push({ key: monday, kind: 'dayGroup', monday })
+        }
+      }
+    }
+    allKeys.sort((a, b) => a.key.localeCompare(b.key))
+    allKeys.forEach((p, idx) => {
+      if (p.kind === 'week') numberForWeekEntryId.set(p.id, idx + 1)
+      else numberForDayGroupMonday.set(p.monday, idx + 1)
+    })
 
     const trainerName = getSetting(db, 'trainer_name')
     const appTitle = getSetting(db, 'dashboard_title')
@@ -428,7 +545,9 @@ router.get('/reports/:azubi_id/pdf', requireRole('ausbilder'), (req, res) => {
       .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
       .replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue')
       .replace(/[^a-zA-Z0-9]+/g, '_')
-    const filename = `Ausbildungsnachweis_${safeName}_${entries[0].period_start}_${entries[entries.length - 1].period_end}.pdf`
+    const rangeStart = entries.map(e => e.period_start).sort()[0]
+    const rangeEnd = entries.map(e => e.period_end).sort().pop()
+    const filename = `Ausbildungsnachweis_${safeName}_${rangeStart}_${rangeEnd}.pdf`
 
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
@@ -438,9 +557,13 @@ router.get('/reports/:azubi_id/pdf', requireRole('ausbilder'), (req, res) => {
 
     drawCoverPage(doc, azubi, trainerName, appTitle)
 
-    for (const entry of entries) {
+    for (const page of pages) {
       doc.addPage()
-      drawEntryPage(doc, azubi, entry, numberById.get(entry.id))
+      if (page.kind === 'week') {
+        drawWeekEntryPage(doc, azubi, page.entry, numberForWeekEntryId.get(page.entry.id))
+      } else {
+        drawDayGroupPage(doc, azubi, page.monday, page.entries, numberForDayGroupMonday.get(page.monday))
+      }
     }
 
     // Eigenständigkeitserklärung IMMER auf einer eigenen, letzten Seite -- unabhängig
