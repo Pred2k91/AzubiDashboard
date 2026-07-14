@@ -22,6 +22,10 @@ html, body {
   color: #e2e8f0;
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* Ohne dies raten Browser bei nativen Formularelementen (u.a. dem Kalender-Popup
+     von <input type="date">) anhand der dunklen Seite, wie sie einfärben sollen --
+     das kann zu falschen/unsichtbaren Farben führen (Popup wirkt komplett schwarz). */
+  color-scheme: dark;
 }
 
 /* Scrollbar */
