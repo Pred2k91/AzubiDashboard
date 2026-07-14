@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { BookOpen, CheckCircle, AlertTriangle, Clock, Calendar, Search, Mail, AlertOctagon } from 'lucide-react'
 import { format, parseISO, getISOWeek } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { reportsApi, settingsApi } from '../../api/client'
+import { reportsApi, reportEntriesApi, settingsApi } from '../../api/client'
 import { buildReminderMail, buildEscalationMail, buildMailtoUrl } from '../../utils/reportMailTemplates'
+import { dayTypeLabel, ABSENCE_TYPES } from '../../utils/reportDayTypes'
+import Modal from '../../components/ui/Modal'
 
 const STATUS_CONFIG = {
   ok:    { label: 'Aktuell',    icon: CheckCircle,  cls: 'text-green-400',  bg: 'bg-green-500/10 border-green-500/20' },
@@ -20,13 +22,21 @@ export default function ReportsAdmin() {
   const [selected, setSelected] = useState(new Set())
   const [trainerName, setTrainerName] = useState('')
   const [mailTemplates, setMailTemplates] = useState({})
+  const [pending, setPending] = useState([])
+  const [reviewEntry, setReviewEntry] = useState(null)
+  const [reviewComment, setReviewComment] = useState('')
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [reviewError, setReviewError] = useState('')
 
   const today = new Date().toISOString().slice(0, 10)
   const getRowDate = (id) => rowDates[id] ?? today
 
   const load = () => reportsApi.getStatus().then(setData).catch(() => {})
+  const loadPending = () => reportEntriesApi.getAll({ status: 'submitted' }).then(setPending).catch(() => {})
+
   useEffect(() => {
     load()
+    loadPending()
     settingsApi.getAll().then(s => {
       if (s.trainer_name) setTrainerName(s.trainer_name)
       setMailTemplates({
@@ -37,6 +47,26 @@ export default function ReportsAdmin() {
       })
     }).catch(() => {})
   }, [])
+
+  const openReview = (entry) => { setReviewEntry(entry); setReviewComment(''); setReviewError('') }
+
+  const handleReview = async (status) => {
+    if (status === 'rejected' && !reviewComment.trim()) {
+      setReviewError('Bitte einen Kommentar angeben, warum der Bericht abgelehnt wird.')
+      return
+    }
+    setReviewLoading(true)
+    setReviewError('')
+    try {
+      await reportEntriesApi.review(reviewEntry.id, status, reviewComment)
+      setReviewEntry(null)
+      await Promise.all([load(), loadPending()])
+    } catch (err) {
+      setReviewError(err.response?.data?.error || 'Aktion fehlgeschlagen')
+    } finally {
+      setReviewLoading(false)
+    }
+  }
 
   const handleSendMail = (azubi, type) => {
     if (!azubi.email) return
@@ -89,6 +119,41 @@ export default function ReportsAdmin() {
           </p>
         </div>
       </div>
+
+      {/* Eingereichte Berichte zur Prüfung */}
+      {pending.length > 0 && (
+        <div className="bg-[#141625] rounded-xl border border-amber-500/30 p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+            <Clock size={14} className="text-amber-400" />
+            Eingereichte Berichte zur Prüfung
+            <span className="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full">{pending.length}</span>
+          </h2>
+          <div className="space-y-1.5">
+            {pending.map(e => {
+              const daysWaiting = Math.floor((Date.now() - new Date(e.submitted_at)) / 86400000)
+              return (
+                <button
+                  key={e.id}
+                  onClick={() => openReview(e)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-[#2a2d4a] hover:bg-[#1e2035] transition-colors text-left"
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-white">{e.azubi_name}</span>
+                    <span className="text-xs text-slate-500 ml-2">
+                      {e.period_type === 'day'
+                        ? format(parseISO(e.period_start), 'dd.MM.yyyy', { locale: de })
+                        : `${format(parseISO(e.period_start), 'dd.MM.', { locale: de })} – ${format(parseISO(e.period_end), 'dd.MM.yyyy', { locale: de })}`}
+                    </span>
+                  </div>
+                  <span className="text-xs text-amber-400 shrink-0">
+                    seit {daysWaiting === 0 ? 'heute' : `${daysWaiting} Tagen`} wartend
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Statusübersicht */}
       <div className="grid grid-cols-3 gap-3">
@@ -242,6 +307,65 @@ export default function ReportsAdmin() {
           </tbody>
         </table>
       </div>
+
+      {/* Prüf-Modal für einen eingereichten Bericht */}
+      <Modal
+        open={!!reviewEntry}
+        onClose={() => setReviewEntry(null)}
+        title={reviewEntry ? `Bericht prüfen — ${reviewEntry.azubi_name}` : ''}
+        size="lg"
+      >
+        {reviewEntry && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-400">
+              {reviewEntry.period_type === 'day'
+                ? format(parseISO(reviewEntry.period_start), 'EEEE, dd.MM.yyyy', { locale: de })
+                : `${format(parseISO(reviewEntry.period_start), 'dd.MM.', { locale: de })} – ${format(parseISO(reviewEntry.period_end), 'dd.MM.yyyy', { locale: de })}`}
+              {' · '}{reviewEntry.lehrjahr}. Lehrjahr
+            </p>
+
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {reviewEntry.days.map(d => (
+                <div key={d.date} className="p-3 rounded-lg border border-[#2a2d4a] bg-[#0d0f1a]">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-white">
+                      {format(parseISO(d.date), 'EEEE, dd.MM.yyyy', { locale: de })}
+                    </span>
+                    <span className="text-xs text-slate-500">{dayTypeLabel(d.day_type)}</span>
+                  </div>
+                  {!ABSENCE_TYPES.includes(d.day_type) && (
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm text-slate-300 whitespace-pre-wrap">{d.activities_text || '—'}</p>
+                      <span className="text-xs text-slate-500 shrink-0">{d.hours != null ? `${d.hours} Std.` : '—'}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <label className="label">Kommentar (Pflicht bei Ablehnung)</label>
+              <textarea
+                className="input-field text-sm"
+                rows={2}
+                value={reviewComment}
+                onChange={e => setReviewComment(e.target.value)}
+              />
+            </div>
+
+            {reviewError && <p className="text-sm text-red-400">{reviewError}</p>}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button className="btn-danger" onClick={() => handleReview('rejected')} disabled={reviewLoading}>
+                Ablehnen
+              </button>
+              <button className="btn-primary" onClick={() => handleReview('approved')} disabled={reviewLoading}>
+                {reviewLoading ? '...' : 'Freigeben'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

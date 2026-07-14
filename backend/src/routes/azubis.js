@@ -217,11 +217,11 @@ router.get('/by-department', (req, res) => {
 router.post('/', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
-    const { name, lehrjahr, start_date, current_department_id, email, birthday, next_department_id, next_rotation_date } = req.body
+    const { name, lehrjahr, start_date, current_department_id, email, birthday, next_department_id, next_rotation_date, report_period } = req.body
     if (!name) return res.status(400).json({ error: 'name ist erforderlich' })
     const result = db.prepare(
-      'INSERT INTO azubis (name, lehrjahr, start_date, current_department_id, email, birthday, next_department_id, next_rotation_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(name, lehrjahr != null ? lehrjahr : 1, start_date || null, current_department_id || null, email || '', birthday || null, next_department_id || null, next_rotation_date || null)
+      'INSERT INTO azubis (name, lehrjahr, start_date, current_department_id, email, birthday, next_department_id, next_rotation_date, report_period) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(name, lehrjahr != null ? lehrjahr : 1, start_date || null, current_department_id || null, email || '', birthday || null, next_department_id || null, next_rotation_date || null, report_period === 'day' ? 'day' : 'week')
     const azubi = db.prepare(`
       SELECT a.*, d.name as department_name, d.color as department_color,
              nd.name as next_department_name, nd.color as next_department_color
@@ -239,10 +239,10 @@ router.post('/', requireRole('ausbilder'), (req, res) => {
 router.put('/:id', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
-    const { name, lehrjahr, start_date, current_department_id, email, active, birthday, next_department_id, next_rotation_date } = req.body
+    const { name, lehrjahr, start_date, current_department_id, email, active, birthday, next_department_id, next_rotation_date, report_period } = req.body
     db.prepare(
-      'UPDATE azubis SET name=?, lehrjahr=?, start_date=?, current_department_id=?, email=?, active=?, birthday=?, next_department_id=?, next_rotation_date=? WHERE id=?'
-    ).run(name, lehrjahr != null ? lehrjahr : 1, start_date || null, current_department_id || null, email || '', active !== undefined ? active : 1, birthday || null, next_department_id || null, next_rotation_date || null, req.params.id)
+      'UPDATE azubis SET name=?, lehrjahr=?, start_date=?, current_department_id=?, email=?, active=?, birthday=?, next_department_id=?, next_rotation_date=?, report_period=? WHERE id=?'
+    ).run(name, lehrjahr != null ? lehrjahr : 1, start_date || null, current_department_id || null, email || '', active !== undefined ? active : 1, birthday || null, next_department_id || null, next_rotation_date || null, report_period === 'day' ? 'day' : 'week', req.params.id)
     const azubi = db.prepare(`
       SELECT a.*, d.name as department_name, d.color as department_color,
              nd.name as next_department_name, nd.color as next_department_color

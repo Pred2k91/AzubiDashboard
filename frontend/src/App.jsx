@@ -12,6 +12,8 @@ import ChangePasswordPage from './pages/ChangePasswordPage'
 import ProfilePage from './pages/ProfilePage'
 import PortalLayout from './pages/PortalLayout'
 import PortalDashboard from './pages/portal/PortalDashboard'
+import ReportsList from './pages/portal/ReportsList'
+import ReportEditor from './pages/portal/ReportEditor'
 import AdminLayout from './pages/AdminLayout'
 import AdminOverview from './pages/admin/AdminOverview'
 import CalendarAdmin from './pages/admin/CalendarAdmin'
@@ -59,6 +61,8 @@ export default function App() {
           </Route>
           <Route path="/portal" element={<RequireRole role="azubi"><PortalLayout /></RequireRole>}>
             <Route index element={<PortalDashboard />} />
+            <Route path="report" element={<ReportsList />} />
+            <Route path="report/:id" element={<ReportEditor />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

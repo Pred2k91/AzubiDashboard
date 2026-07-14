@@ -19,6 +19,16 @@ export const meApi = {
   getReports: () => api.get('/me/reports').then(r => r.data),
 }
 
+export const reportEntriesApi = {
+  getMine: () => api.get('/me/report-entries').then(r => r.data),
+  getMineOne: (id) => api.get(`/me/report-entries/${id}`).then(r => r.data),
+  create: (date) => api.post('/me/report-entries', { date }).then(r => r.data),
+  update: (id, days, submit) => api.put(`/me/report-entries/${id}`, { days, submit }).then(r => r.data),
+  getAll: (params) => api.get('/report-entries', { params }).then(r => r.data),
+  getOne: (id) => api.get(`/report-entries/${id}`).then(r => r.data),
+  review: (id, status, comment) => api.put(`/report-entries/${id}/review`, { status, comment }).then(r => r.data),
+}
+
 export const usersApi = {
   getAll: () => api.get('/users').then(r => r.data),
   create: (data) => api.post('/users', data).then(r => r.data),

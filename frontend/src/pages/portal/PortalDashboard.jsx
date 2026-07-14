@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { Building2, ArrowRight, BookOpen, CalendarDays, CheckCircle, AlertTriangle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
@@ -84,7 +85,10 @@ export default function PortalDashboard() {
 
         {/* Berichtsheft-Status */}
         {reports && s ? (
-          <div className={`rounded-xl border p-4 flex flex-col items-center justify-center text-center ${s.bg}`}>
+          <Link
+            to="/portal/report"
+            className={`rounded-xl border p-4 flex flex-col items-center justify-center text-center transition-transform hover:scale-[1.02] ${s.bg}`}
+          >
             <span className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide ${s.cls} mb-2`}>
               <BookOpen size={12} />
               Berichtsheft
@@ -96,7 +100,7 @@ export default function PortalDashboard() {
                 ? `Zuletzt eingereicht am ${format(parseISO(reports.last_report_date), 'dd.MM.yyyy', { locale: de })}`
                 : 'Bisher nicht eingereicht'}
             </div>
-          </div>
+          </Link>
         ) : (
           <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-4 flex items-center justify-center">
             <p className="text-sm text-slate-600">Keine Daten</p>

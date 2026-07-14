@@ -5,7 +5,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { azubisApi, departmentsApi } from '../../api/client'
 import { format, parseISO } from 'date-fns'
 
-const EMPTY = { name: '', lehrjahr: 1, start_date: '', current_department_id: '', email: '', birthday: '', next_department_id: '', next_rotation_date: '' }
+const EMPTY = { name: '', lehrjahr: 1, start_date: '', current_department_id: '', email: '', birthday: '', next_department_id: '', next_rotation_date: '', report_period: 'week' }
 
 export default function AzubiAdmin() {
   const [azubis, setAzubis] = useState([])
@@ -35,6 +35,7 @@ export default function AzubiAdmin() {
       name: a.name, lehrjahr: a.lehrjahr, start_date: a.start_date || '',
       current_department_id: a.current_department_id || '', email: a.email || '', birthday: a.birthday || '',
       next_department_id: a.next_department_id || '', next_rotation_date: a.next_rotation_date || '',
+      report_period: a.report_period || 'week',
     })
     setModal(true)
   }
@@ -217,6 +218,14 @@ export default function AzubiAdmin() {
           <div>
             <label className="label">Geburtsdatum</label>
             <input type="date" className="input-field" value={form.birthday} onChange={e => setForm(f => ({ ...f, birthday: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Berichtsheft-Rhythmus</label>
+            <select className="input-field" value={form.report_period} onChange={e => setForm(f => ({ ...f, report_period: e.target.value }))}>
+              <option value="week">Wochenbericht</option>
+              <option value="day">Tagesbericht</option>
+            </select>
+            <p className="text-xs text-slate-600 mt-1">Bestimmt, ob der Azubi im Portal einen Tages- oder Wochenbericht ausfüllt (IHK/HWK: nur diese beiden Rhythmen anerkannt).</p>
           </div>
           <div className="pt-2 border-t border-[#2a2d4a]">
             <p className="text-xs text-slate-500 mb-3">

@@ -163,6 +163,34 @@ function initDb() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS report_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      azubi_id INTEGER NOT NULL REFERENCES azubis(id) ON DELETE CASCADE,
+      period_type TEXT NOT NULL,
+      period_start TEXT NOT NULL,
+      period_end TEXT NOT NULL,
+      lehrjahr INTEGER,
+      department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      submitted_at TEXT,
+      reviewed_at TEXT,
+      reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      review_comment TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(azubi_id, period_start)
+    );
+
+    CREATE TABLE IF NOT EXISTS report_entry_days (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      report_entry_id INTEGER NOT NULL REFERENCES report_entries(id) ON DELETE CASCADE,
+      date TEXT NOT NULL,
+      day_type TEXT NOT NULL DEFAULT 'betrieb',
+      activities_text TEXT DEFAULT '',
+      hours REAL,
+      UNIQUE(report_entry_id, date)
+    );
+
     INSERT OR IGNORE INTO settings (key, value) VALUES
       ('report_warn_days', '14'),
       ('report_alert_days', '28'),
@@ -184,6 +212,9 @@ function initDb() {
   // Migration: geplanter Abteilungswechsel pro Azubi (next_department_id/next_rotation_date)
   try { db.exec("ALTER TABLE azubis ADD COLUMN next_department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL") } catch (_) {}
   try { db.exec("ALTER TABLE azubis ADD COLUMN next_rotation_date TEXT") } catch (_) {}
+
+  // Migration: Berichtsheft-Führungsrhythmus pro Azubi ('day' | 'week', IHK/HWK-konform)
+  try { db.exec("ALTER TABLE azubis ADD COLUMN report_period TEXT DEFAULT 'week'") } catch (_) {}
 
   // Migration: alten Klartext-Admin-PIN entfernen — abgelöst durch echte Benutzerkonten
   db.prepare("DELETE FROM settings WHERE key = 'admin_pin'").run()
