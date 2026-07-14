@@ -4,9 +4,9 @@ const ExcelJS = require('exceljs')
 const PDFDocument = require('pdfkit')
 const { getDb } = require('../db/init')
 const { requireRole } = require('../middleware/auth')
-const { dayTypeLabel } = require('../utils/reportDayTypes')
+const { dayTypeLabel, ABSENCE_TYPES } = require('../utils/reportDayTypes')
 
-const WEEKDAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
+const WEEKDAYS_SO_SA = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
 
 function fmtDate(dateStr) {
   if (!dateStr) return ''
@@ -15,13 +15,36 @@ function fmtDate(dateStr) {
 }
 
 function weekdayOf(dateStr) {
-  return WEEKDAYS[new Date(dateStr).getUTCDay()]
+  return WEEKDAYS_SO_SA[new Date(dateStr).getUTCDay()]
 }
 
-function periodLabel(entry) {
-  return entry.period_type === 'day'
-    ? fmtDate(entry.period_start)
-    : `${fmtDate(entry.period_start)} – ${fmtDate(entry.period_end)}`
+function addDaysStr(dateStr, n) {
+  const d = new Date(dateStr)
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+// Standard-ISO-8601-Wochennummer (Montag als Wochenstart, Donnerstag entscheidet das Jahr)
+function isoWeek(dateStr) {
+  const d = new Date(dateStr)
+  const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+  const dayNr = (target.getUTCDay() + 6) % 7
+  target.setUTCDate(target.getUTCDate() - dayNr + 3)
+  const firstThursday = new Date(Date.UTC(target.getUTCFullYear(), 0, 4))
+  const diff = target - firstThursday
+  return 1 + Math.round(diff / (7 * 24 * 60 * 60 * 1000))
+}
+
+function fmtHoursMinutes(totalHours) {
+  const h = Math.floor(totalHours || 0)
+  const m = Math.round(((totalHours || 0) - h) * 60)
+  return `${h}h ${m}m`
+}
+
+function getSetting(db, key) {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key)
+  if (!row) return null
+  try { return JSON.parse(row.value) } catch { return row.value }
 }
 
 // ── Excel: Sammel-Export über mehrere Azubis/Zeiträume (Übersicht/Audit) ────
@@ -109,47 +132,251 @@ router.get('/reports.xlsx', requireRole('ausbilder'), async (req, res) => {
 })
 
 // ── PDF: klassischer, unterschreibbarer Ausbildungsnachweis je Azubi/Zeitraum ──
+// Layout angelehnt an ein gängiges Vorbild (Deckblatt + eine Seite je Bericht +
+// Eigenständigkeitserklärung als letzte, eigene Seite).
 
-const TABLE_COLS = [
-  { key: 'date', label: 'Datum', width: 60 },
-  { key: 'weekday', label: 'Tag', width: 60 },
-  { key: 'daytype', label: 'Art', width: 70 },
-  { key: 'text', label: 'Tätigkeiten / Berufsschulthema', width: 235 },
-  { key: 'hours', label: 'Std.', width: 40 },
-]
-const TABLE_WIDTH = TABLE_COLS.reduce((s, c) => s + c.width, 0)
+const PAGE_MARGIN = 50
+const CONTENT_WIDTH = 495 // A4 (595.28pt) abzüglich 2x50pt Rand, leicht abgerundet
+const COL_TAG_W = 70
+const COL_TAET_W = 350
+const COL_STD_W = CONTENT_WIDTH - COL_TAG_W - COL_TAET_W
 
 function ensureSpace(doc, needed) {
   const bottom = doc.page.height - doc.page.margins.bottom
   if (doc.y + needed > bottom) doc.addPage()
 }
 
-function drawTableHeader(doc, x) {
-  doc.font('Helvetica-Bold').fontSize(8)
-  const y = doc.y
-  let cx = x
-  for (const col of TABLE_COLS) {
-    doc.text(col.label, cx + 2, y, { width: col.width - 4 })
-    cx += col.width
-  }
-  doc.y = y + 14
-  doc.moveTo(x, doc.y).lineTo(x + TABLE_WIDTH, doc.y).strokeColor('#999999').stroke()
-  doc.y += 3
-  doc.font('Helvetica').fontSize(8)
+function drawLabeledLine(doc, x, label, value) {
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#374151').text(label, x, doc.y, { width: CONTENT_WIDTH })
+  doc.font('Helvetica').fontSize(10).fillColor('#111827').text(value || ' ', x, doc.y, { width: CONTENT_WIDTH })
+  doc.moveDown(0.6)
 }
 
-function drawTableRow(doc, x, cells) {
-  const rowHeight = Math.max(14, doc.heightOfString(cells.text || '', { width: TABLE_COLS[3].width - 4 }) + 4)
+function drawCoverPage(doc, azubi, trainerName, appTitle) {
+  const x = PAGE_MARGIN
+  doc.y = 60
+  doc.font('Helvetica-Bold').fontSize(22).fillColor('#1f2937').text('AUSBILDUNGSNACHWEIS', x, doc.y, { width: CONTENT_WIDTH })
+  doc.font('Helvetica').fontSize(12).fillColor('#4b5563').text('— Berichtsheft —', x, doc.y, { width: CONTENT_WIDTH })
+  doc.moveDown(1)
+  doc.moveTo(x, doc.y).lineTo(x + CONTENT_WIDTH, doc.y).strokeColor('#cccccc').stroke()
+  doc.moveDown(1.2)
+
+  drawLabeledLine(doc, x, 'Vorname', '')
+  drawLabeledLine(doc, x, 'Name', azubi.name)
+  drawLabeledLine(doc, x, 'Geb. am', azubi.birthday ? fmtDate(azubi.birthday) : '')
+  drawLabeledLine(doc, x, 'Straße', '')
+  drawLabeledLine(doc, x, 'Postleitzahl', '')
+  drawLabeledLine(doc, x, 'Wohnort', '')
+  drawLabeledLine(doc, x, 'Personalnummer', '')
+
+  doc.moveDown(0.3)
+  doc.moveTo(x, doc.y).lineTo(x + CONTENT_WIDTH, doc.y).strokeColor('#cccccc').stroke()
+  doc.moveDown(1)
+
+  drawLabeledLine(doc, x, 'Ausbildungsberuf ggf. mit Fachrichtung', '')
+  drawLabeledLine(doc, x, 'Ausbildungsbetrieb', '')
+  drawLabeledLine(doc, x, 'Hauptausbildungsort', '')
+  drawLabeledLine(doc, x, 'Ausbildende:r', trainerName || '')
+  drawLabeledLine(doc, x, 'Beginn der Ausbildung', azubi.start_date ? fmtDate(azubi.start_date) : '')
+  drawLabeledLine(doc, x, 'Ende der Ausbildung', '')
+
+  doc.moveDown(0.3)
+  doc.moveTo(x, doc.y).lineTo(x + CONTENT_WIDTH, doc.y).strokeColor('#cccccc').stroke()
+  doc.moveDown(1)
+
+  const footerY = doc.y
+  const today = new Date().toISOString().slice(0, 10)
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#374151').text('Erstellt am:', x, footerY)
+  doc.font('Helvetica').fontSize(9).fillColor('#111827').text(fmtDate(today), x, footerY + 13)
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#374151').text('im Ausbildungsjahr:', x + 250, footerY)
+  doc.font('Helvetica').fontSize(9).fillColor('#111827').text(String(azubi.lehrjahr ?? ''), x + 250, footerY + 13)
+
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#9ca3af').text(appTitle || 'AzubiDashboard', x, doc.page.height - 90, { width: CONTENT_WIDTH, align: 'center' })
+  doc.fillColor('#000000')
+}
+
+function buildDayCellLines(dayRow, entryDeptName) {
+  if (!dayRow) return { lines: [], hours: null }
+  if (ABSENCE_TYPES.includes(dayRow.day_type)) {
+    return { lines: [{ bold: true, text: `Anwesenheit: ${dayTypeLabel(dayRow.day_type)}` }], hours: null }
+  }
+  const lines = [{ bold: true, text: `Ausbildungsort: ${dayTypeLabel(dayRow.day_type)}` }]
+  if (entryDeptName) lines.push({ bold: true, text: `Station: ${entryDeptName}` })
+  lines.push({ bold: true, text: 'Anwesenheit: Anwesend' })
+  for (const line of (dayRow.activities_text || '').split('\n').map(s => s.trim()).filter(Boolean)) {
+    lines.push({ bold: false, text: `•  ${line}` })
+  }
+  return { lines, hours: dayRow.hours }
+}
+
+function drawWeekdayRow(doc, x, weekdayLabel, cellData) {
+  const taetX = x + COL_TAG_W
+  const stdX = x + COL_TAG_W + COL_TAET_W
+
+  let contentHeight = 0
+  for (const line of cellData.lines) {
+    doc.font(line.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8)
+    contentHeight += doc.heightOfString(line.text, { width: COL_TAET_W - 8 }) + 1
+  }
+  const rowHeight = Math.max(20, contentHeight + 8)
   ensureSpace(doc, rowHeight + 6)
   const y = doc.y
-  let cx = x
-  for (const col of TABLE_COLS) {
-    doc.text(String(cells[col.key] ?? ''), cx + 2, y, { width: col.width - 4 })
-    cx += col.width
+
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#111827').text(weekdayLabel, x + 4, y + 4, { width: COL_TAG_W - 8 })
+
+  let cy = y + 4
+  for (const line of cellData.lines) {
+    doc.font(line.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8).fillColor(line.bold ? '#111827' : '#374151')
+    doc.text(line.text, taetX + 4, cy, { width: COL_TAET_W - 8 })
+    cy = doc.y + 1
   }
+
+  if (cellData.hours != null) {
+    doc.font('Helvetica').fontSize(9).fillColor('#111827').text(String(cellData.hours), stdX, y + 4, { width: COL_STD_W - 8, align: 'right' })
+  }
+
   doc.y = y + rowHeight
-  doc.moveTo(x, doc.y).lineTo(x + TABLE_WIDTH, doc.y).strokeColor('#e2e2e2').stroke()
-  doc.y += 4
+  doc.moveTo(x, doc.y).lineTo(x + CONTENT_WIDTH, doc.y).strokeColor('#e5e7eb').stroke()
+  doc.y += 2
+  doc.fillColor('#000000')
+}
+
+function drawSignatureBlock(doc, x, leftLabel, leftName, leftDate, rightLabel, rightName, rightDate, leftCaption, rightCaption) {
+  ensureSpace(doc, 90)
+  const boxTop = doc.y
+  doc.rect(x, boxTop, CONTENT_WIDTH, 90).strokeColor('#cccccc').stroke()
+  doc.font('Helvetica').fontSize(8).fillColor('#374151')
+    .text('Hiermit bestätige ich, dass die Angaben vollständig und richtig sind.', x, boxTop + 8, { width: CONTENT_WIDTH, align: 'center' })
+
+  const colW = CONTENT_WIDTH / 2
+  const leftX = x + 16
+  const rightX = x + colW + 16
+  let ly = boxTop + 28
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#111827').text(leftLabel, leftX, ly)
+  doc.font('Helvetica-Bold').fontSize(8).text(rightLabel, rightX, ly)
+  ly += 12
+  doc.font('Helvetica').fontSize(9).fillColor('#111827').text(leftName || '—', leftX, ly)
+  doc.font('Helvetica').fontSize(9).text(rightName || '—', rightX, ly)
+  ly += 12
+  doc.font('Helvetica-Bold').fontSize(8).text('Datum', leftX, ly)
+  doc.font('Helvetica-Bold').fontSize(8).text('Datum', rightX, ly)
+  ly += 11
+  doc.font('Helvetica').fontSize(9).text(leftDate || '—', leftX, ly)
+  doc.font('Helvetica').fontSize(9).text(rightDate || '—', rightX, ly)
+  ly += 16
+  doc.moveTo(leftX, ly).lineTo(leftX + colW - 40, ly).strokeColor('#999999').stroke()
+  doc.moveTo(rightX, ly).lineTo(rightX + colW - 40, ly).strokeColor('#999999').stroke()
+  ly += 3
+  doc.font('Helvetica').fontSize(6.5).fillColor('#6b7280').text(leftCaption, leftX, ly, { width: colW - 40 })
+  doc.font('Helvetica').fontSize(6.5).text(rightCaption, rightX, ly, { width: colW - 40 })
+
+  doc.y = boxTop + 94
+  doc.fillColor('#000000')
+}
+
+function drawEntryPage(doc, azubi, entry, reportNumber) {
+  const x = PAGE_MARGIN
+  doc.y = PAGE_MARGIN
+
+  const headerTop = doc.y
+  doc.rect(x, headerTop, CONTENT_WIDTH, 40).strokeColor('#cccccc').stroke()
+  doc.font('Helvetica-Bold').fontSize(14).fillColor('#111827').text('Ausbildungsnachweis', x + 10, headerTop + 13)
+  doc.font('Helvetica').fontSize(9).fillColor('#374151').text(`Nummer: ${reportNumber}`, x + 260, headerTop + 8)
+  doc.font('Helvetica').fontSize(9).text(`Name: ${azubi.name}`, x + 260, headerTop + 22)
+  doc.y = headerTop + 40
+
+  const row2Top = doc.y
+  doc.rect(x, row2Top, CONTENT_WIDTH, 22).strokeColor('#cccccc').stroke()
+  const periodText = entry.period_type === 'day'
+    ? `Tag vom ${fmtDate(entry.period_start)} (KW ${isoWeek(entry.period_start)})`
+    : `Woche vom ${fmtDate(entry.period_start)} bis ${fmtDate(entry.period_end)} (KW ${isoWeek(entry.period_start)})`
+  doc.font('Helvetica').fontSize(9).fillColor('#111827').text(periodText, x + 10, row2Top + 6)
+  doc.text(`Ausbildungsjahr: ${entry.lehrjahr ?? azubi.lehrjahr ?? ''}`, x + 370, row2Top + 6)
+  doc.y = row2Top + 22
+
+  const theadTop = doc.y
+  doc.rect(x, theadTop, CONTENT_WIDTH, 18).fillColor('#f3f4f6').fill()
+  doc.fillColor('#111827').font('Helvetica-Bold').fontSize(9)
+  doc.text('Tag', x + 4, theadTop + 5, { width: COL_TAG_W - 8 })
+  doc.text('Tätigkeit', x + COL_TAG_W + 4, theadTop + 5, { width: COL_TAET_W - 8 })
+  doc.text('Stunden', x + COL_TAG_W + COL_TAET_W + 4, theadTop + 5, { width: COL_STD_W - 8, align: 'right' })
+  doc.y = theadTop + 18
+
+  const kwTop = doc.y
+  doc.rect(x, kwTop, CONTENT_WIDTH, 16).fillColor('#f9fafb').fill()
+  doc.fillColor('#374151').font('Helvetica').fontSize(8).text(
+    entry.period_type === 'day'
+      ? `KW ${isoWeek(entry.period_start)}  ${fmtDate(entry.period_start)}`
+      : `KW ${isoWeek(entry.period_start)}  ${fmtDate(entry.period_start)}-${fmtDate(entry.period_end)}`,
+    x, kwTop + 4, { width: CONTENT_WIDTH, align: 'center' }
+  )
+  doc.y = kwTop + 16
+  doc.fillColor('#000000')
+
+  if (entry.period_type === 'day') {
+    const dayRow = entry.days[0]
+    drawWeekdayRow(doc, x, weekdayOf(entry.period_start), buildDayCellLines(dayRow, entry.department_name))
+  } else {
+    const byDate = new Map(entry.days.map(d => [d.date, d]))
+    for (let i = 0; i < 7; i++) {
+      const date = addDaysStr(entry.period_start, i)
+      drawWeekdayRow(doc, x, weekdayOf(date), buildDayCellLines(byDate.get(date), entry.department_name))
+    }
+  }
+
+  const totalHours = entry.days.reduce((s, d) => s + (d.hours || 0), 0)
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#111827').text(`Gesamt: ${fmtHoursMinutes(totalHours)}`, x, doc.y + 2, { width: CONTENT_WIDTH, align: 'right' })
+  doc.moveDown(1)
+
+  if (entry.status === 'rejected' && entry.review_comment) {
+    ensureSpace(doc, 24)
+    doc.font('Helvetica-Oblique').fontSize(8).fillColor('#b91c1c')
+      .text(`Anmerkung Ausbilder: ${entry.review_comment}`, x, doc.y, { width: CONTENT_WIDTH })
+    doc.fillColor('#000000')
+    doc.moveDown(0.6)
+  }
+
+  drawSignatureBlock(
+    doc, x,
+    'Digital erstellt von', azubi.name, entry.submitted_at ? fmtDate(entry.submitted_at) : '',
+    'Digital bestätigt von', (entry.status === 'approved' || entry.status === 'rejected') ? entry.reviewed_by_email : '', entry.reviewed_at ? fmtDate(entry.reviewed_at) : '',
+    'Datum, Unterschrift der/des Auszubildenden', 'Datum, Unterschrift der/des Ausbildenden'
+  )
+}
+
+function drawDeclarationPage(doc, azubi) {
+  const x = PAGE_MARGIN
+  doc.y = 90
+  doc.font('Helvetica').fontSize(20).fillColor('#374151').text('Eigenständigkeitserklärung', x, doc.y, { width: CONTENT_WIDTH, align: 'center' })
+  doc.moveDown(2.5)
+
+  doc.font('Helvetica').fontSize(10).fillColor('#111827').text(
+    `Hiermit bestätigen wir, dass der/die Auszubildende ${azubi.name} die gemäß § 43 Berufsbildungsgesetz erforderlichen Ausbildungsnachweise eigenhändig, ohne fremde Hilfe und vollständig erstellt hat.`,
+    x, doc.y, { width: CONTENT_WIDTH }
+  )
+  doc.moveDown(1.2)
+  doc.text('Diese Erklärung dient der Vorlage beim zuständigen Prüfungsausschuss.', x, doc.y, { width: CONTENT_WIDTH })
+  doc.moveDown(2.5)
+  doc.moveTo(x, doc.y).lineTo(x + CONTENT_WIDTH, doc.y).strokeColor('#cccccc').stroke()
+  doc.moveDown(3)
+
+  const slots = ['Datum', 'Unterschrift Auszubildende:r', 'Datum', 'Unterschrift Ausbilder:in']
+  const slotWidth = CONTENT_WIDTH / 4
+  const lineY = doc.y
+  slots.forEach((label, i) => {
+    const sx = x + i * slotWidth
+    doc.moveTo(sx + 5, lineY).lineTo(sx + slotWidth - 15, lineY).strokeColor('#999999').stroke()
+    doc.font('Helvetica').fontSize(6.5).fillColor('#6b7280').text(label, sx + 5, lineY + 3, { width: slotWidth - 20, align: 'center' })
+  })
+  doc.y = lineY + 30
+
+  doc.moveDown(3)
+  doc.font('Helvetica-Oblique').fontSize(7).fillColor('#888888').text(
+    'Hinweis: Layout und Wortlaut dieser Erklärung wurden anhand öffentlich zugänglicher IHK-/HWK-/BIBB-Informationen erstellt und ' +
+    'stellen keine Rechtsberatung dar. Vor dem Einsatz zur Prüfungsanmeldung bitte mit der zuständigen Kammer abgleichen.',
+    x, doc.y, { width: CONTENT_WIDTH }
+  )
+  doc.fillColor('#000000')
 }
 
 router.get('/reports/:azubi_id/pdf', requireRole('ausbilder'), (req, res) => {
@@ -187,6 +414,16 @@ router.get('/reports/:azubi_id/pdf', requireRole('ausbilder'), (req, res) => {
     const dayStmt = db.prepare('SELECT * FROM report_entry_days WHERE report_entry_id = ? ORDER BY date ASC')
     for (const e of entries) e.days = dayStmt.all(e.id)
 
+    // Fortlaufende Berichtsnummer über die GESAMTE Historie des Azubis, nicht nur
+    // den exportierten Zeitraum -- entspricht "der wievielte Bericht seit Ausbildungsbeginn".
+    const allEntryIds = db.prepare(
+      'SELECT id FROM report_entries WHERE azubi_id = ? ORDER BY period_start ASC'
+    ).all(azubiId)
+    const numberById = new Map(allEntryIds.map((e, idx) => [e.id, idx + 1]))
+
+    const trainerName = getSetting(db, 'trainer_name')
+    const appTitle = getSetting(db, 'dashboard_title')
+
     const safeName = azubi.name
       .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
       .replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue')
@@ -196,78 +433,20 @@ router.get('/reports/:azubi_id/pdf', requireRole('ausbilder'), (req, res) => {
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
 
-    const doc = new PDFDocument({ size: 'A4', margin: 50 })
+    const doc = new PDFDocument({ size: 'A4', margin: PAGE_MARGIN })
     doc.pipe(res)
 
-    doc.fontSize(16).font('Helvetica-Bold').text('Ausbildungsnachweis', { align: 'center' })
-    doc.moveDown(0.3)
-    doc.fontSize(10).font('Helvetica').fillColor('#333333').text(
-      `${azubi.name}${azubi.lehrjahr != null ? ` — ${azubi.lehrjahr}. Ausbildungsjahr` : ''}${azubi.department_name ? ` — ${azubi.department_name}` : ''}`,
-      { align: 'center' }
-    )
-    doc.text(`Zeitraum: ${fmtDate(entries[0].period_start)} – ${fmtDate(entries[entries.length - 1].period_end)}`, { align: 'center' })
-    doc.moveDown(1)
-    doc.fillColor('#000000')
-
-    const startX = doc.page.margins.left
+    drawCoverPage(doc, azubi, trainerName, appTitle)
 
     for (const entry of entries) {
-      ensureSpace(doc, 60)
-      doc.font('Helvetica-Bold').fontSize(10).text(
-        `${entry.period_type === 'day' ? 'Tagesbericht' : 'Wochenbericht'} — ${periodLabel(entry)}${entry.lehrjahr != null ? ` (${entry.lehrjahr}. AJ)` : ''}${entry.department_name ? ` — ${entry.department_name}` : ''}`
-      )
-      doc.moveDown(0.3)
-      drawTableHeader(doc, startX)
-      for (const d of entry.days) {
-        drawTableRow(doc, startX, {
-          date: fmtDate(d.date),
-          weekday: weekdayOf(d.date),
-          daytype: dayTypeLabel(d.day_type),
-          text: d.activities_text || '',
-          hours: d.hours != null ? d.hours : '',
-        })
-      }
-      if (entry.status === 'rejected' && entry.review_comment) {
-        doc.font('Helvetica-Oblique').fontSize(8).fillColor('#b91c1c')
-          .text(`Anmerkung Ausbilder: ${entry.review_comment}`, startX, doc.y)
-        doc.fillColor('#000000')
-      }
-      doc.moveDown(0.8)
+      doc.addPage()
+      drawEntryPage(doc, azubi, entry, numberById.get(entry.id))
     }
 
-    // Erklärungsblock: förmliche Bestätigung für die Prüfungsanmeldung (IHK/HWK)
-    const lastSubmitted = entries.map(e => e.submitted_at).filter(Boolean).sort().pop()
-    const reviewedEntries = entries.filter(e => e.reviewed_at)
-    const lastReviewed = reviewedEntries.sort((a, b) => a.reviewed_at.localeCompare(b.reviewed_at)).pop()
-
-    ensureSpace(doc, 120)
-    doc.moveDown(0.5)
-    doc.moveTo(startX, doc.y).lineTo(startX + TABLE_WIDTH, doc.y).strokeColor('#999999').stroke()
-    doc.moveDown(0.8)
-
-    doc.font('Helvetica-Bold').fontSize(10).text('Erklärung')
-    doc.moveDown(0.3)
-    doc.font('Helvetica').fontSize(9)
-    doc.text(
-      `Ich, ${azubi.name}, bestätige, dieses Berichtsheft für den oben genannten Zeitraum eigenständig, regelmäßig und wahrheitsgemäß geführt zu haben.` +
-      (lastSubmitted ? ` Zuletzt eingereicht am ${fmtDate(lastSubmitted)}.` : '')
-    )
-    doc.moveDown(1.2)
-    doc.text('Datum, Unterschrift Auszubildende(r): ______________________________')
-    doc.moveDown(1)
-
-    doc.text(
-      `Ich${lastReviewed?.reviewed_by_email ? ` (${lastReviewed.reviewed_by_email})` : ''} bestätige die regelmäßige Kontrolle der obigen Eintragungen.` +
-      (lastReviewed ? ` Zuletzt geprüft am ${fmtDate(lastReviewed.reviewed_at)}.` : '')
-    )
-    doc.moveDown(1.2)
-    doc.text('Datum, Unterschrift Ausbildende(r): ______________________________')
-
-    doc.moveDown(1.5)
-    doc.font('Helvetica-Oblique').fontSize(7).fillColor('#888888').text(
-      'Hinweis: Layout und Wortlaut dieser Erklärung wurden anhand öffentlich zugänglicher IHK-/HWK-/BIBB-Informationen erstellt und ' +
-      'stellen keine Rechtsberatung dar. Vor dem Einsatz zur Prüfungsanmeldung bitte mit der zuständigen Kammer abgleichen.'
-    )
+    // Eigenständigkeitserklärung IMMER auf einer eigenen, letzten Seite -- unabhängig
+    // davon, wie viel Platz auf der letzten Berichtsseite noch frei war.
+    doc.addPage()
+    drawDeclarationPage(doc, azubi)
 
     doc.end()
   } catch (err) {

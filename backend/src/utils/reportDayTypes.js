@@ -7,8 +7,10 @@ const DAY_TYPE_LABELS = {
   feiertag: 'Feiertag',
 }
 
+const ABSENCE_TYPES = ['urlaub', 'krank', 'feiertag']
+
 function dayTypeLabel(value) {
   return DAY_TYPE_LABELS[value] || value
 }
 
-module.exports = { dayTypeLabel, DAY_TYPE_LABELS }
+module.exports = { dayTypeLabel, DAY_TYPE_LABELS, ABSENCE_TYPES }
