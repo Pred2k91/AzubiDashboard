@@ -162,33 +162,37 @@ export default function UserProfileAdmin() {
           </button>
         </div>
 
-        <div className="flex-1 min-w-0 grid md:grid-cols-2 gap-4">
-          <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
-            <h2 className="text-sm font-semibold text-white">Persönliche Daten</h2>
-            <FieldRow label="Anrede" value={user.azubi_id ? '' : user.salutation} />
-            <FieldRow label="Name" value={displayName} />
-            <FieldRow label="Geburtsdatum" value={displayBirthday ? format(parseISO(displayBirthday), 'dd.MM.yyyy', { locale: de }) : ''} />
+        <div className="flex-1 min-w-0 grid md:grid-cols-2 gap-4 items-start">
+          <div className="space-y-4">
+            <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
+              <h2 className="text-sm font-semibold text-white">Persönliche Daten</h2>
+              <FieldRow label="Anrede" value={user.azubi_id ? '' : user.salutation} />
+              <FieldRow label="Name" value={displayName} />
+              <FieldRow label="Geburtsdatum" value={displayBirthday ? format(parseISO(displayBirthday), 'dd.MM.yyyy', { locale: de }) : ''} />
+            </div>
+            <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
+              <h2 className="text-sm font-semibold text-white">Kontaktdaten</h2>
+              <FieldRow label="Telefon" value={user.phone} />
+              <FieldRow label="Mobiltelefon" value={user.mobile_phone} />
+              <FieldRow label="E-Mail" value={user.email} />
+              <FieldRow label="Adresse" value={user.street ? `${user.street}, ${user.postal_code} ${user.city}` : ''} />
+            </div>
           </div>
-          <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
-            <h2 className="text-sm font-semibold text-white">Kontaktdaten</h2>
-            <FieldRow label="Telefon" value={user.phone} />
-            <FieldRow label="Mobiltelefon" value={user.mobile_phone} />
-            <FieldRow label="E-Mail" value={user.email} />
-            <FieldRow label="Adresse" value={user.street ? `${user.street}, ${user.postal_code} ${user.city}` : ''} />
-          </div>
-          <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
-            <h2 className="text-sm font-semibold text-white">Interne Daten</h2>
-            <FieldRow label="User ID" value={`#${user.id}`} />
-            <FieldRow label="Personal Nr." value={user.personnel_number} />
-            <FieldRow label="Rolle" value={user.role === 'ausbilder' ? 'Ausbilder:in' : 'Azubi'} />
-            <FieldRow label="Funktion" value={user.job_title} />
-            <FieldRow label="Ausbildungsorte" value={user.locations.map(l => l.name).join(', ')} />
-          </div>
-          <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
-            <h2 className="text-sm font-semibold text-white">Weitere Informationen</h2>
-            <FieldRow label="Öffentlicher Text" value={user.public_note} />
-            <FieldRow label="Über mich" value={user.about_me} />
-            <FieldRow label="Sonstiges" value={user.misc_note} />
+          <div className="space-y-4">
+            <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
+              <h2 className="text-sm font-semibold text-white">Interne Daten</h2>
+              <FieldRow label="User ID" value={`#${user.id}`} />
+              <FieldRow label="Personal Nr." value={user.personnel_number} />
+              <FieldRow label="Rolle" value={user.role === 'ausbilder' ? 'Ausbilder:in' : 'Azubi'} />
+              <FieldRow label="Funktion" value={user.job_title} />
+              <FieldRow label="Ausbildungsorte" value={user.locations.map(l => l.name).join(', ')} />
+            </div>
+            <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
+              <h2 className="text-sm font-semibold text-white">Weitere Informationen</h2>
+              <FieldRow label="Öffentlicher Text" value={user.public_note} />
+              <FieldRow label="Über mich" value={user.about_me} />
+              <FieldRow label="Sonstiges" value={user.misc_note} />
+            </div>
           </div>
         </div>
       </div>
