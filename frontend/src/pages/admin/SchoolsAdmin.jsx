@@ -193,6 +193,7 @@ export default function SchoolsAdmin() {
               ) : blocks[school.id].length === 0 ? (
                 <div className="px-4 py-6 text-sm text-slate-600 text-center">Noch keine Blöcke für diese Schule</div>
               ) : (
+                <div className="overflow-x-auto">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -243,6 +244,7 @@ export default function SchoolsAdmin() {
                     })}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           )}

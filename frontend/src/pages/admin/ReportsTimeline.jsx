@@ -1,16 +1,18 @@
 import { useState, useRef, useLayoutEffect } from 'react'
 import {
   Search, Filter, ArrowUpDown, ChevronLeft, ChevronRight,
-  Settings, ArrowRight, RotateCcw, FileText,
+  Settings, ArrowRight, RotateCcw, FileText, Mail, AlertOctagon,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { mondayOf, addDays } from '../../utils/reportDates'
 
-const SIDEBAR_WIDTH = 256 // entspricht w-64 der ersten Spalte
-const CELL_WIDTH = 32     // Breite je Wochen-Spalte (Button + Padding)
-const MIN_WEEKS = 8
-const MAX_WEEKS = 78 // ~1,5 Jahre — Obergrenze gegen ausufernde DOM-Größe auf sehr breiten Screens
+const SIDEBAR_WIDTH = 288 // entspricht w-72 der ersten Spalte
+const CELL_WIDTH = 44     // Breite je Wochen-Spalte (Button + Padding)
+const FUTURE_WEEKS = 8    // wie weit in die Zukunft gerendert wird
+const FUTURE_WEEKS_VISIBLE = 4 // wie viele davon initial sichtbar sein sollen
+const FALLBACK_WEEKS_BACK = 104 // ~2 Jahre, falls kein Azubi ein start_date hat
+const MAX_TOTAL_WEEKS = 300 // Sicherheitsgrenze (~5,7 Jahre) gegen fehlerhafte Datumswerte
 
 const TIMELINE_STATUS = {
   not_due:     { label: '',                mark: '',  cls: 'bg-transparent border-transparent' },
@@ -21,10 +23,20 @@ const TIMELINE_STATUS = {
   rejected:    { label: 'Abgelehnt',       mark: '↩', cls: 'bg-red-500/20 border-red-500/40 text-red-300' },
 }
 
-function weeksEndingAt(endMonday, count) {
+function weeksBetween(startMonday, endMonday) {
   const weeks = []
-  for (let i = count - 1; i >= 0; i--) weeks.push(addDays(endMonday, -7 * i))
+  let cur = startMonday
+  while (cur <= endMonday) {
+    weeks.push(cur)
+    cur = addDays(cur, 7)
+  }
   return weeks
+}
+
+function computeRangeStart(azubis, todayMonday) {
+  const dates = azubis.map(a => a.start_date).filter(Boolean)
+  if (!dates.length) return addDays(todayMonday, -7 * FALLBACK_WEEKS_BACK)
+  return mondayOf(dates.reduce((min, d) => (d < min ? d : min)))
 }
 
 function groupWeeksByMonth(weeks) {
@@ -49,36 +61,44 @@ function groupMonthsByYear(monthGroups) {
   return groups
 }
 
-export default function ReportsTimeline({ azubis, entries, onSelectWeek }) {
-  const [weekAnchor, setWeekAnchor] = useState(() => mondayOf(new Date().toISOString().slice(0, 10)))
+export default function ReportsTimeline({ azubis, entries, reportsStatus, onSelectWeek, onSendMail }) {
   const [search, setSearch] = useState('')
   const [filterIssuesOnly, setFilterIssuesOnly] = useState(false)
   const [sortMode, setSortMode] = useState('name') // 'name' | 'issues'
-  const [weeksShown, setWeeksShown] = useState(26)
   const scrollRef = useRef(null)
+  const hasScrolledInitially = useRef(false)
 
-  // Zeigt so viele Wochen wie auf den Bildschirm passen, statt fest 26 —
-  // sonst bleibt auf breiten Monitoren ungenutzter Leerraum stehen.
-  useLayoutEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    const compute = () => {
-      const horizontalPadding = 32 // px-4 links + rechts
-      const available = el.clientWidth - SIDEBAR_WIDTH - horizontalPadding
-      const count = Math.min(MAX_WEEKS, Math.max(MIN_WEEKS, Math.floor(available / CELL_WIDTH)))
-      setWeeksShown(count)
-    }
-    compute()
-    const observer = new ResizeObserver(compute)
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
-
-  const pageShift = Math.max(4, Math.floor(weeksShown / 2))
   const todayMonday = mondayOf(new Date().toISOString().slice(0, 10))
-  const weeks = weeksEndingAt(weekAnchor, weeksShown)
+  const rangeStart = computeRangeStart(azubis, todayMonday)
+  const rangeEnd = addDays(todayMonday, 7 * FUTURE_WEEKS)
+  let weeks = weeksBetween(rangeStart, rangeEnd)
+  if (weeks.length > MAX_TOTAL_WEEKS) weeks = weeks.slice(-MAX_TOTAL_WEEKS)
   const monthGroups = groupWeeksByMonth(weeks)
   const yearGroups = groupMonthsByYear(monthGroups)
+
+  const scrollToToday = (behavior = 'auto') => {
+    const el = scrollRef.current
+    if (!el) return
+    const idx = weeks.indexOf(todayMonday)
+    if (idx === -1) return
+    const target = SIDEBAR_WIDTH + (idx + 1) * CELL_WIDTH + FUTURE_WEEKS_VISIBLE * CELL_WIDTH - el.clientWidth
+    el.scrollTo({ left: Math.max(0, target), behavior })
+  }
+
+  const scrollByScreen = (dir) => {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollBy({ left: dir * (el.clientWidth - SIDEBAR_WIDTH) * 0.9, behavior: 'smooth' })
+  }
+
+  // Einmalig auf "heute" springen, sobald echte Azubi-Daten geladen sind — nicht
+  // bei jedem Re-Render, sonst würde jede Aktualisierung die Scroll-Position kappen.
+  useLayoutEffect(() => {
+    if (hasScrolledInitially.current || azubis.length === 0) return
+    hasScrolledInitially.current = true
+    scrollToToday('auto')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [azubis.length])
 
   // Index einmal pro Render aufbauen statt bei jeder Zelle das gesamte Array zu filtern
   const byAzubiWeek = {}
@@ -112,6 +132,8 @@ export default function ReportsTimeline({ azubis, entries, onSelectWeek }) {
     }
   }
 
+  const ampelFor = (azubiId) => (reportsStatus || []).find(r => r.id === azubiId)
+
   let visibleAzubis = azubis.filter(a => a.name.toLowerCase().includes(search.toLowerCase()))
   if (filterIssuesOnly) {
     visibleAzubis = visibleAzubis.filter(a => {
@@ -130,21 +152,21 @@ export default function ReportsTimeline({ azubis, entries, onSelectWeek }) {
       <div className="flex items-center justify-between px-4 pt-4 flex-wrap gap-2">
         <h2 className="text-sm font-semibold text-white">Wochenübersicht</h2>
         <div className="flex items-center gap-1.5">
-          <button onClick={() => setWeekAnchor(addDays(weekAnchor, -7 * pageShift))} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
+          <button onClick={() => scrollByScreen(-1)} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
             <ChevronLeft size={14} />
           </button>
-          <button onClick={() => setWeekAnchor(todayMonday)} className="btn-secondary text-xs py-1">Heute</button>
-          <button onClick={() => setWeekAnchor(addDays(weekAnchor, 7 * pageShift))} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
+          <button onClick={() => scrollToToday('smooth')} className="btn-secondary text-xs py-1">Heute</button>
+          <button onClick={() => scrollByScreen(1)} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
             <ChevronRight size={14} />
           </button>
         </div>
       </div>
 
       <div ref={scrollRef} className="overflow-x-auto px-4 pb-4">
-        <table className="border-separate border-spacing-0 w-full">
+        <table className="border-separate border-spacing-0">
           <thead>
             <tr>
-              <th rowSpan={2} className="sticky left-0 top-0 z-20 bg-[#141625] align-top p-1 pr-3 w-64 min-w-[16rem]">
+              <th rowSpan={2} className="sticky left-0 top-0 z-20 bg-[#141625] align-top p-1 pr-3 w-72 min-w-[18rem]">
                 <div className="space-y-1.5">
                   <div className="relative">
                     <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600" />
@@ -177,7 +199,7 @@ export default function ReportsTimeline({ azubis, entries, onSelectWeek }) {
                 <th
                   key={yg.year}
                   colSpan={yg.months.reduce((s, m) => s + m.weeks.length, 0)}
-                  className="text-center text-xs text-slate-500 font-medium pb-1 border-b border-[#2a2d4a]"
+                  className="text-center text-sm text-slate-500 font-medium pb-1 border-b border-[#2a2d4a]"
                 >
                   {yg.year}
                 </th>
@@ -185,7 +207,7 @@ export default function ReportsTimeline({ azubis, entries, onSelectWeek }) {
             </tr>
             <tr>
               {monthGroups.map(mg => (
-                <th key={mg.key} colSpan={mg.weeks.length} className="text-center text-xs text-slate-400 font-medium pb-1.5 whitespace-nowrap">
+                <th key={mg.key} colSpan={mg.weeks.length} className="text-center text-xs text-slate-400 font-medium pb-2 whitespace-nowrap">
                   {mg.label}
                 </th>
               ))}
@@ -196,33 +218,53 @@ export default function ReportsTimeline({ azubis, entries, onSelectWeek }) {
               <tr><td colSpan={weeks.length + 1} className="text-center text-slate-600 py-6 text-sm">Keine Azubis gefunden</td></tr>
             ) : visibleAzubis.map(a => {
               const counts = countsFor(a.id)
+              const ampel = ampelFor(a.id)
+              const showMail = ampel && ampel.status !== 'ok' && ampel.email && onSendMail
               return (
                 <tr key={a.id}>
-                  <td className="sticky left-0 bg-[#141625] p-2 pr-3 align-top border-t border-[#2a2d4a]/50">
-                    <div className="flex items-start gap-2">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold bg-purple-600/20 text-purple-300 shrink-0">
+                  <td className="sticky left-0 bg-[#141625] p-2.5 pr-3 align-top border-t border-[#2a2d4a]/50">
+                    <div className="flex items-start gap-2.5">
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold bg-purple-600/20 text-purple-300 shrink-0">
                         {a.name.charAt(0).toUpperCase()}
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium text-white truncate">{a.name}</div>
-                        <div className="text-[10px] text-slate-500 truncate">
+                        <div className="text-[11px] text-slate-500 truncate">
                           {a.start_date && format(parseISO(a.start_date), 'dd.MM.yyyy')}
                           {a.lehrjahr != null && ` (${a.lehrjahr}. AJ)`}
                           {a.department_name && ` · ${a.department_name}`}
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="flex items-center gap-0.5 text-[10px] text-slate-400" title="In Erstellung">
-                            <Settings size={10} />{counts.draft}
+                        <div className="flex items-center gap-2.5 mt-1.5">
+                          <span className="flex items-center gap-1 text-[11px] text-slate-400" title="In Erstellung">
+                            <Settings size={11} />{counts.draft}
                           </span>
-                          <span className="flex items-center gap-0.5 text-[10px] text-amber-400" title="Eingereicht">
-                            <ArrowRight size={10} />{counts.submitted}
+                          <span className="flex items-center gap-1 text-[11px] text-amber-400" title="Eingereicht">
+                            <ArrowRight size={11} />{counts.submitted}
                           </span>
-                          <span className="flex items-center gap-0.5 text-[10px] text-red-400" title="Abgelehnt">
-                            <RotateCcw size={10} />{counts.rejected}
+                          <span className="flex items-center gap-1 text-[11px] text-red-400" title="Abgelehnt">
+                            <RotateCcw size={11} />{counts.rejected}
                           </span>
-                          <span className="flex items-center gap-0.5 text-[10px] text-indigo-400" title="Gesamt">
-                            <FileText size={10} />{counts.total}
+                          <span className="flex items-center gap-1 text-[11px] text-indigo-400" title="Gesamt">
+                            <FileText size={11} />{counts.total}
                           </span>
+                          {showMail && (
+                            <span className="flex items-center gap-1 ml-auto shrink-0">
+                              <button
+                                onClick={() => onSendMail(ampel, 'reminder')}
+                                title="Erinnerungsmail öffnen"
+                                className="p-1 rounded text-slate-500 hover:text-amber-300 hover:bg-[#2a2d4a]"
+                              >
+                                <Mail size={12} />
+                              </button>
+                              <button
+                                onClick={() => onSendMail(ampel, 'escalation')}
+                                title="Eskalationsmail öffnen"
+                                className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-[#2a2d4a]"
+                              >
+                                <AlertOctagon size={12} />
+                              </button>
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -233,11 +275,11 @@ export default function ReportsTimeline({ azubis, entries, onSelectWeek }) {
                     const clickable = status !== 'not_due'
                     const isToday = w === todayMonday
                     return (
-                      <td key={w} className={`text-center px-0.5 py-1 border-t border-[#2a2d4a]/50 ${isToday ? 'bg-indigo-500/5' : ''}`}>
+                      <td key={w} className={`text-center px-0.5 py-1.5 border-t border-[#2a2d4a]/50 ${isToday ? 'bg-indigo-500/5' : ''}`}>
                         <button
                           onClick={() => clickable && onSelectWeek(a.id, a.name, w)}
                           title={cfg.label}
-                          className={`w-7 h-7 rounded-md border text-xs flex items-center justify-center mx-auto transition-opacity ${cfg.cls} ${clickable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
+                          className={`w-9 h-9 rounded-md border text-sm flex items-center justify-center mx-auto transition-opacity ${cfg.cls} ${clickable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
                         >
                           {cfg.mark}
                         </button>

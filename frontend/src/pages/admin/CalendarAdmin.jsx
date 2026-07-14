@@ -98,6 +98,7 @@ export default function CalendarAdmin() {
           <span className="text-sm font-semibold text-white">Kommende Termine</span>
           <span className="text-xs bg-indigo-600/20 text-indigo-300 px-2 py-0.5 rounded-full">{upcoming.length}</span>
         </div>
+        <div className="overflow-x-auto">
         <table className="data-table">
           <thead>
             <tr>
@@ -139,6 +140,7 @@ export default function CalendarAdmin() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {past.length > 0 && (
@@ -146,6 +148,7 @@ export default function CalendarAdmin() {
           <div className="px-4 py-3 border-b border-[#2a2d4a]">
             <span className="text-sm font-semibold text-slate-500">Vergangene Termine</span>
           </div>
+          <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr><th>Titel</th><th>Datum</th><th></th></tr>
@@ -170,6 +173,7 @@ export default function CalendarAdmin() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

@@ -63,7 +63,7 @@ export default function UsersAdmin() {
         </button>
       </div>
 
-      <div className="bg-[#141625] rounded-xl border border-[#2a2d4a]">
+      <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] overflow-x-auto">
         <table className="data-table">
           <thead>
             <tr>

@@ -133,6 +133,7 @@ export default function AzubiAdmin() {
               {filtered.filter(a => a.lehrjahr === year).length}
             </span>
           </div>
+          <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>
@@ -178,6 +179,7 @@ export default function AzubiAdmin() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       ))}
 
