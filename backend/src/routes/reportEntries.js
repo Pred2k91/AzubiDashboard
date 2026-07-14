@@ -56,6 +56,7 @@ router.get('/me/report-entries', requireAuth, (req, res) => {
     res.json({
       linked: true,
       report_period: azubi.report_period || 'week',
+      start_date: azubi.start_date,
       entries: entries.map(e => entryWithDays(db, e)),
     })
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -78,6 +79,10 @@ router.post('/me/report-entries', requireAuth, (req, res) => {
     if (!azubi) return res.status(400).json({ error: 'Kein Azubi verknüpft' })
     const { date } = req.body
     if (!date) return res.status(400).json({ error: 'date ist erforderlich' })
+    // Berichte werden oft rückwirkend geschrieben, aber nicht für die Zukunft.
+    if (date > new Date().toISOString().slice(0, 10)) {
+      return res.status(400).json({ error: 'Berichte können nicht für die Zukunft angelegt werden' })
+    }
 
     const db = getDb()
     const periodType = azubi.report_period === 'day' ? 'day' : 'week'

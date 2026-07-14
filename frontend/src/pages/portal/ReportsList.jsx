@@ -4,7 +4,7 @@ import { BookOpen, Plus, CheckCircle, AlertTriangle, Clock, Pencil } from 'lucid
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { reportEntriesApi } from '../../api/client'
-import { mondayOf } from '../../utils/reportDates'
+import { mondayOf, addDays } from '../../utils/reportDates'
 
 const STATUS_CONFIG = {
   draft:     { label: 'In Erstellung', icon: Pencil,       cls: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20' },
@@ -15,7 +15,8 @@ const STATUS_CONFIG = {
 
 export default function ReportsList() {
   const navigate = useNavigate()
-  const [data, setData] = useState({ linked: true, report_period: 'week', entries: [] })
+  const [data, setData] = useState({ linked: true, report_period: 'week', start_date: null, entries: [] })
+  const [pickDate, setPickDate] = useState(new Date().toISOString().slice(0, 10))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -24,15 +25,17 @@ export default function ReportsList() {
   useEffect(() => { load() }, [])
 
   const today = new Date().toISOString().slice(0, 10)
-  const currentPeriodStart = data.report_period === 'day' ? today : mondayOf(today)
-  const currentEntry = data.entries.find(e => e.period_start === currentPeriodStart)
+  const isWeek = data.report_period !== 'day'
+  const pickPeriodStart = isWeek ? mondayOf(pickDate) : pickDate
+  const pickPeriodEnd = isWeek ? addDays(pickPeriodStart, 4) : pickDate
+  const existingForPick = data.entries.find(e => e.period_start === pickPeriodStart)
 
-  const handleNew = async () => {
+  const handleCreateOrOpen = async () => {
     setError('')
-    if (currentEntry) { navigate(`/portal/report/${currentEntry.id}`); return }
+    if (existingForPick) { navigate(`/portal/report/${existingForPick.id}`); return }
     setLoading(true)
     try {
-      const entry = await reportEntriesApi.create(today)
+      const entry = await reportEntriesApi.create(pickDate)
       navigate(`/portal/report/${entry.id}`)
     } catch (err) {
       setError(err.response?.data?.error || 'Anlegen fehlgeschlagen')
@@ -53,23 +56,41 @@ export default function ReportsList() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <BookOpen size={20} className="text-indigo-400" />
-            Mein Berichtsheft
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {data.report_period === 'day' ? 'Tagesbericht' : 'Wochenbericht'}
-          </p>
-        </div>
-        <button className="btn-primary" onClick={handleNew} disabled={loading}>
-          <Plus size={16} />
-          {currentEntry ? 'Aktuellen Bericht öffnen' : (loading ? 'Anlegen...' : 'Neuer Bericht')}
-        </button>
+      <div>
+        <h1 className="text-xl font-bold text-white flex items-center gap-2">
+          <BookOpen size={20} className="text-indigo-400" />
+          Mein Berichtsheft
+        </h1>
+        <p className="text-sm text-slate-500 mt-1">
+          {data.report_period === 'day' ? 'Tagesbericht' : 'Wochenbericht'}
+        </p>
       </div>
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-4">
+        <div className="flex items-end gap-3 flex-wrap">
+          <div>
+            <label className="label">{isWeek ? 'Woche auswählen' : 'Tag auswählen'}</label>
+            <input
+              type="date"
+              className="input-field w-44"
+              value={pickDate}
+              max={today}
+              min={data.start_date || undefined}
+              onChange={e => setPickDate(e.target.value)}
+            />
+          </div>
+          {isWeek && (
+            <p className="text-xs text-slate-500 pb-2.5">
+              → Woche vom {format(parseISO(pickPeriodStart), 'dd.MM.', { locale: de })} bis {format(parseISO(pickPeriodEnd), 'dd.MM.yyyy', { locale: de })}
+            </p>
+          )}
+          <button className="btn-primary" onClick={handleCreateOrOpen} disabled={loading}>
+            <Plus size={16} />
+            {existingForPick ? 'Bericht öffnen' : (loading ? 'Anlegen...' : 'Bericht anlegen')}
+          </button>
+        </div>
+        {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
+      </div>
 
       <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] divide-y divide-[#2a2d4a]">
         {data.entries.length === 0 ? (
