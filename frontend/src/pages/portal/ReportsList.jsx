@@ -25,9 +25,10 @@ export default function ReportsList() {
   useEffect(() => { load() }, [])
 
   const today = new Date().toISOString().slice(0, 10)
-  const isWeek = data.report_period !== 'day'
-  const pickPeriodStart = isWeek ? mondayOf(pickDate) : pickDate
-  const pickPeriodEnd = isWeek ? addDays(pickPeriodStart, 4) : pickDate
+  // Berichte werden immer wochenweise geöffnet -- der Rhythmus entscheidet nur, wie
+  // die Woche im Editor ausgefüllt wird (pro Tag einzeln vs. ein gemeinsames Feld).
+  const pickPeriodStart = mondayOf(pickDate)
+  const pickPeriodEnd = addDays(pickPeriodStart, 4)
   const existingForPick = data.entries.find(e => e.period_start === pickPeriodStart)
 
   const handleCreateOrOpen = async () => {
@@ -69,7 +70,7 @@ export default function ReportsList() {
       <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-4">
         <div className="flex items-end gap-3 flex-wrap">
           <div>
-            <label className="label">{isWeek ? 'Woche auswählen' : 'Tag auswählen'}</label>
+            <label className="label">Woche auswählen</label>
             <input
               type="date"
               className="input-field w-44"
@@ -79,11 +80,9 @@ export default function ReportsList() {
               onChange={e => setPickDate(e.target.value)}
             />
           </div>
-          {isWeek && (
-            <p className="text-xs text-slate-500 pb-2.5">
-              → Woche vom {format(parseISO(pickPeriodStart), 'dd.MM.', { locale: de })} bis {format(parseISO(pickPeriodEnd), 'dd.MM.yyyy', { locale: de })}
-            </p>
-          )}
+          <p className="text-xs text-slate-500 pb-2.5">
+            → Woche vom {format(parseISO(pickPeriodStart), 'dd.MM.', { locale: de })} bis {format(parseISO(pickPeriodEnd), 'dd.MM.yyyy', { locale: de })}
+          </p>
           <button className="btn-primary" onClick={handleCreateOrOpen} disabled={loading}>
             <Plus size={16} />
             {existingForPick ? 'Bericht öffnen' : (loading ? 'Anlegen...' : 'Bericht anlegen')}
@@ -106,9 +105,7 @@ export default function ReportsList() {
             >
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-white">
-                  {e.period_type === 'day'
-                    ? format(parseISO(e.period_start), 'EEEE, dd.MM.yyyy', { locale: de })
-                    : `${format(parseISO(e.period_start), 'dd.MM.', { locale: de })} – ${format(parseISO(e.period_end), 'dd.MM.yyyy', { locale: de })}`}
+                  {format(parseISO(e.period_start), 'dd.MM.', { locale: de })} – {format(parseISO(e.period_end), 'dd.MM.yyyy', { locale: de })}
                 </div>
                 {e.status === 'rejected' && e.review_comment && (
                   <div className="text-xs text-red-400 mt-0.5 truncate">Kommentar: {e.review_comment}</div>

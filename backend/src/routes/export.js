@@ -24,14 +24,6 @@ function addDaysStr(dateStr, n) {
   return d.toISOString().slice(0, 10)
 }
 
-function mondayOf(dateStr) {
-  const d = new Date(dateStr)
-  const day = d.getUTCDay() // 0=So .. 6=Sa
-  const diff = day === 0 ? -6 : 1 - day
-  d.setUTCDate(d.getUTCDate() + diff)
-  return d.toISOString().slice(0, 10)
-}
-
 // Standard-ISO-8601-Wochennummer (Montag als Wochenstart, Donnerstag entscheidet das Jahr)
 function isoWeek(dateStr) {
   const d = new Date(dateStr)
@@ -367,15 +359,13 @@ function drawWeekEntryPage(doc, azubi, entry, reportNumber) {
   )
 }
 
-// Tagesbericht-Rhythmus: eine Kalenderwoche wird auf einer Seite dargestellt, aber JEDER
-// Tag stammt aus einem eigenen, einzeln eingereichten Tages-Eintrag (bis zu 7 verschiedene
-// report_entries-Zeilen je Seite) -- daher weiterhin nach Wochentagen aufgeschlüsselt.
-function drawDayGroupPage(doc, azubi, monday, weekEntries, reportNumber) {
+// Tagesbericht-Rhythmus: dieselbe Woche wie beim Wochenbericht, aber JEDER Tag wird
+// einzeln mit eigenen Tätigkeiten/Stunden ausgefüllt (kein zusammengefasstes Feld) --
+// beide Rhythmen erzeugen genau einen Eintrag je Woche, nur die Darstellung unterscheidet sich.
+function drawDayEntryPage(doc, azubi, entry, reportNumber) {
   const x = PAGE_MARGIN
-  const sunday = addDaysStr(monday, 6)
-  const lehrjahr = weekEntries.find(e => e.lehrjahr != null)?.lehrjahr ?? azubi.lehrjahr
-  const periodText = `Woche vom ${fmtDate(monday)} bis ${fmtDate(sunday)} (KW ${isoWeek(monday)})`
-  drawReportPageHeader(doc, x, azubi, reportNumber, periodText, lehrjahr)
+  const periodText = `Woche vom ${fmtDate(entry.period_start)} bis ${fmtDate(entry.period_end)} (KW ${isoWeek(entry.period_start)})`
+  drawReportPageHeader(doc, x, azubi, reportNumber, periodText, entry.lehrjahr ?? azubi.lehrjahr)
 
   const theadTop = doc.y
   doc.rect(x, theadTop, CONTENT_WIDTH, 18).fillColor('#f3f4f6').fill()
@@ -388,37 +378,28 @@ function drawDayGroupPage(doc, azubi, monday, weekEntries, reportNumber) {
   const kwTop = doc.y
   doc.rect(x, kwTop, CONTENT_WIDTH, 16).fillColor('#f9fafb').fill()
   doc.fillColor('#374151').font('Helvetica').fontSize(8).text(
-    `KW ${isoWeek(monday)}  ${fmtDate(monday)}-${fmtDate(sunday)}`,
+    `KW ${isoWeek(entry.period_start)}  ${fmtDate(entry.period_start)}-${fmtDate(entry.period_end)}`,
     x, kwTop + 4, { width: CONTENT_WIDTH, align: 'center' }
   )
   doc.y = kwTop + 16
   doc.fillColor('#000000')
 
-  const byDate = new Map(weekEntries.map(e => [e.period_start, e]))
+  const byDate = new Map(entry.days.map(d => [d.date, d]))
   for (let i = 0; i < 7; i++) {
-    const date = addDaysStr(monday, i)
-    const dayEntry = byDate.get(date)
-    drawWeekdayRow(doc, x, weekdayOf(date), buildDayCellLines(dayEntry?.days[0], dayEntry?.department_name))
+    const date = addDaysStr(entry.period_start, i)
+    drawWeekdayRow(doc, x, weekdayOf(date), buildDayCellLines(byDate.get(date), entry.department_name))
   }
 
-  const totalHours = weekEntries.reduce((s, e) => s + e.days.reduce((s2, d) => s2 + (d.hours || 0), 0), 0)
+  const totalHours = entry.days.reduce((s, d) => s + (d.hours || 0), 0)
   doc.font('Helvetica-Bold').fontSize(9).fillColor('#111827').text(`Gesamt: ${fmtHoursMinutes(totalHours)}`, x, doc.y + 2, { width: CONTENT_WIDTH, align: 'right' })
   doc.moveDown(1)
 
-  drawRejectedComments(
-    doc, x,
-    weekEntries.filter(e => e.status === 'rejected' && e.review_comment)
-      .map(e => `Anmerkung Ausbilder (${weekdayOf(e.period_start)}): ${e.review_comment}`)
-  )
-
-  const lastSubmitted = weekEntries.map(e => e.submitted_at).filter(Boolean).sort().pop()
-  const reviewedEntries = weekEntries.filter(e => e.reviewed_at)
-  const lastReviewed = reviewedEntries.sort((a, b) => a.reviewed_at.localeCompare(b.reviewed_at)).pop()
+  drawRejectedComments(doc, x, entry.status === 'rejected' && entry.review_comment ? [`Anmerkung Ausbilder: ${entry.review_comment}`] : [])
 
   drawSignatureBlock(
     doc, x,
-    'Digital erstellt von', azubi.name, lastSubmitted ? fmtDate(lastSubmitted) : '',
-    'Digital bestätigt von', lastReviewed ? lastReviewed.reviewed_by_email : '', lastReviewed ? fmtDate(lastReviewed.reviewed_at) : '',
+    'Digital erstellt von', azubi.name, entry.submitted_at ? fmtDate(entry.submitted_at) : '',
+    'Digital bestätigt von', (entry.status === 'approved' || entry.status === 'rejected') ? entry.reviewed_by_email : '', entry.reviewed_at ? fmtDate(entry.reviewed_at) : '',
     'Datum, Unterschrift der/des Auszubildenden', 'Datum, Unterschrift der/des Ausbildenden'
   )
 }
@@ -486,49 +467,16 @@ router.get('/reports/:azubi_id/pdf', requireRole('ausbilder'), (req, res) => {
     const dayStmt = db.prepare('SELECT * FROM report_entry_days WHERE report_entry_id = ? ORDER BY date ASC')
     for (const e of entries) e.days = dayStmt.all(e.id)
 
-    // Tagesbericht-Rhythmus: jeder Tag ist ein eigener Eintrag -- für die Seitenansicht
-    // (eine Kalenderwoche je Seite) nach Wochenmontag gruppieren. Wochenbericht-Rhythmus:
-    // jeder Eintrag ist bereits eine ganze Woche und wird 1:1 zu einer Seite.
-    const weekEntries = entries.filter(e => e.period_type === 'week')
-    const dayEntries = entries.filter(e => e.period_type === 'day')
-    const dayGroupsMap = new Map()
-    for (const e of dayEntries) {
-      const monday = mondayOf(e.period_start)
-      if (!dayGroupsMap.has(monday)) dayGroupsMap.set(monday, [])
-      dayGroupsMap.get(monday).push(e)
-    }
-
-    const pages = [
-      ...weekEntries.map(e => ({ kind: 'week', key: e.period_start, entry: e })),
-      ...[...dayGroupsMap.entries()].map(([monday, ents]) => ({ kind: 'dayGroup', key: monday, monday, entries: ents })),
-    ].sort((a, b) => a.key.localeCompare(b.key))
+    // Beide Rhythmen erzeugen genau einen Eintrag je Woche -- der Rhythmus entscheidet
+    // nur, ob die Woche als eine Seite pro Tag (Tagesbericht) oder als ein zusammen-
+    // gefasstes Feld (Wochenbericht) dargestellt wird, nicht wie viele Seiten es gibt.
 
     // Fortlaufende Berichtsnummer über die GESAMTE Historie des Azubis, nicht nur den
-    // exportierten Zeitraum -- entspricht "die wievielte Seite/Woche seit Ausbildungsbeginn".
-    // Zählt Wochenbericht-Einträge und Tagesbericht-Kalenderwochen gemeinsam chronologisch.
-    const allEntries = db.prepare(
-      'SELECT id, period_type, period_start FROM report_entries WHERE azubi_id = ?'
+    // exportierten Zeitraum -- entspricht "die wievielte Woche seit Ausbildungsbeginn".
+    const allEntryIds = db.prepare(
+      'SELECT id FROM report_entries WHERE azubi_id = ? ORDER BY period_start ASC'
     ).all(azubiId)
-    const allKeys = []
-    const numberForWeekEntryId = new Map()
-    const numberForDayGroupMonday = new Map()
-    const seenDayMondays = new Set()
-    for (const e of allEntries) {
-      if (e.period_type === 'week') {
-        allKeys.push({ key: e.period_start, kind: 'week', id: e.id })
-      } else {
-        const monday = mondayOf(e.period_start)
-        if (!seenDayMondays.has(monday)) {
-          seenDayMondays.add(monday)
-          allKeys.push({ key: monday, kind: 'dayGroup', monday })
-        }
-      }
-    }
-    allKeys.sort((a, b) => a.key.localeCompare(b.key))
-    allKeys.forEach((p, idx) => {
-      if (p.kind === 'week') numberForWeekEntryId.set(p.id, idx + 1)
-      else numberForDayGroupMonday.set(p.monday, idx + 1)
-    })
+    const numberById = new Map(allEntryIds.map((e, idx) => [e.id, idx + 1]))
 
     const trainerName = getSetting(db, 'trainer_name')
 
@@ -548,12 +496,12 @@ router.get('/reports/:azubi_id/pdf', requireRole('ausbilder'), (req, res) => {
 
     drawCoverPage(doc, azubi, trainerName)
 
-    for (const page of pages) {
+    for (const entry of entries) {
       doc.addPage()
-      if (page.kind === 'week') {
-        drawWeekEntryPage(doc, azubi, page.entry, numberForWeekEntryId.get(page.entry.id))
+      if (entry.period_type === 'week') {
+        drawWeekEntryPage(doc, azubi, entry, numberById.get(entry.id))
       } else {
-        drawDayGroupPage(doc, azubi, page.monday, page.entries, numberForDayGroupMonday.get(page.monday))
+        drawDayEntryPage(doc, azubi, entry, numberById.get(entry.id))
       }
     }
 

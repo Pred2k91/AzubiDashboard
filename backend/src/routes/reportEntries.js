@@ -86,8 +86,12 @@ router.post('/me/report-entries', requireAuth, (req, res) => {
 
     const db = getDb()
     const periodType = azubi.report_period === 'day' ? 'day' : 'week'
-    const periodStart = periodType === 'week' ? mondayOf(date) : date
-    const dayCount = periodType === 'week' ? 5 : 1
+    // Berichte werden immer wochenweise geöffnet/eingereicht -- der Rhythmus
+    // (Tages- vs. Wochenbericht) entscheidet nur, WIE die Woche im Editor/Export
+    // ausgefüllt bzw. dargestellt wird (pro Tag einzeln vs. ein gemeinsames Feld),
+    // nicht WELCHER Zeitraum angelegt wird.
+    const periodStart = mondayOf(date)
+    const dayCount = 5
     const periodEnd = addDays(periodStart, dayCount - 1)
 
     const entryId = db.transaction(() => {

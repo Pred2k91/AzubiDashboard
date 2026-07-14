@@ -98,9 +98,7 @@ export default function ReportEditor() {
 
       <div>
         <h1 className="text-xl font-bold text-white">
-          {entry.period_type === 'day'
-            ? format(parseISO(entry.period_start), 'EEEE, dd.MM.yyyy', { locale: de })
-            : `${format(parseISO(entry.period_start), 'dd.MM.', { locale: de })} – ${format(parseISO(entry.period_end), 'dd.MM.yyyy', { locale: de })}`}
+          {format(parseISO(entry.period_start), 'dd.MM.', { locale: de })} – {format(parseISO(entry.period_end), 'dd.MM.yyyy', { locale: de })}
         </h1>
         <p className="text-sm text-slate-500 mt-1">{entry.lehrjahr}. Lehrjahr</p>
       </div>

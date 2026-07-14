@@ -466,9 +466,7 @@ export default function ReportsAdmin() {
                 <div key={entry.id} className="p-4 rounded-xl border border-[#2a2d4a] bg-[#0d0f1a] space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-medium text-white">
-                      {entry.period_type === 'day'
-                        ? format(parseISO(entry.period_start), 'EEEE, dd.MM.yyyy', { locale: de })
-                        : `${format(parseISO(entry.period_start), 'dd.MM.', { locale: de })} – ${format(parseISO(entry.period_end), 'dd.MM.yyyy', { locale: de })}`}
+                      {format(parseISO(entry.period_start), 'dd.MM.', { locale: de })} – {format(parseISO(entry.period_end), 'dd.MM.yyyy', { locale: de })}
                     </span>
                     <span className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full border shrink-0 ${cfg.bg} ${cfg.cls}`}>
                       <Icon size={11} />
