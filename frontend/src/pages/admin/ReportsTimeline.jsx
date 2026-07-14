@@ -7,7 +7,6 @@ import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { mondayOf, addDays } from '../../utils/reportDates'
 
-const SIDEBAR_WIDTH = 288 // entspricht w-72 der ersten Spalte
 const CELL_WIDTH = 44     // Breite je Wochen-Spalte (Button + Padding)
 const FUTURE_WEEKS = 8    // wie weit in die Zukunft gerendert wird
 const FUTURE_WEEKS_VISIBLE = 4 // wie viele davon initial sichtbar sein sollen
@@ -15,6 +14,13 @@ const FALLBACK_WEEKS_BACK = 104 // ~2 Jahre, falls kein Azubi ein start_date hat
 const MAX_TOTAL_WEEKS = 300 // Sicherheitsgrenze (~5,7 Jahre) gegen fehlerhafte Datumswerte
 const MOBILE_WEEKS_BACK = 20 // Mobile: schmaleres rollierendes Fenster je Azubi-Karte statt der vollen Zeitachse
 const MOBILE_CELL_WIDTH = 36 // Breite je Wochen-Button (w-8 + gap) für die Scroll-Berechnung
+// Desktop: Info-Spalte links und Wochen-Tabelle rechts sind bewusst zwei getrennte,
+// nicht mit position:sticky verbundene Bereiche (siehe unten) — daher feste, exakt
+// abgestimmte Zeilenhöhen statt automatischer Tabellen-Zeilensynchronisation.
+const HEADER_ROW1_H = 28
+const HEADER_ROW2_H = 28
+const HEADER_TOTAL_H = HEADER_ROW1_H + HEADER_ROW2_H
+const BODY_ROW_H = 84
 
 const TIMELINE_STATUS = {
   not_due:     { label: '',                mark: '',  cls: 'bg-transparent border-transparent' },
@@ -87,14 +93,14 @@ export default function ReportsTimeline({ azubis, entries, reportsStatus, onSele
     if (!el) return
     const idx = weeks.indexOf(todayMonday)
     if (idx === -1) return
-    const target = SIDEBAR_WIDTH + (idx + 1) * CELL_WIDTH + FUTURE_WEEKS_VISIBLE * CELL_WIDTH - el.clientWidth
+    const target = (idx + 1) * CELL_WIDTH + FUTURE_WEEKS_VISIBLE * CELL_WIDTH - el.clientWidth
     el.scrollTo({ left: Math.round(Math.max(0, target)), behavior })
   }
 
   const scrollByScreen = (dir) => {
     const el = scrollRef.current
     if (!el) return
-    el.scrollBy({ left: dir * (el.clientWidth - SIDEBAR_WIDTH) * 0.9, behavior: 'smooth' })
+    el.scrollBy({ left: dir * el.clientWidth * 0.9, behavior: 'smooth' })
   }
 
   // Einmalig auf "heute" springen, sobald echte Azubi-Daten geladen sind — nicht
@@ -168,128 +174,136 @@ export default function ReportsTimeline({ azubis, entries, reportsStatus, onSele
         </div>
       </div>
 
-      {/* Desktop: breite Tabelle mit sticky Info-Spalte — ab Tablet-Breite (md) */}
-      <div ref={scrollRef} className="hidden md:block overflow-x-auto px-4 pb-4">
-        <table className="border-separate border-spacing-0">
-          <thead>
-            <tr>
-              <th
-                rowSpan={2}
-                className="sticky left-0 top-0 z-20 bg-[#141625] align-top p-1 pr-3 w-72 min-w-[18rem]"
-                style={{ boxShadow: '-4px 0 0 0 #141625' }}
+      {/*
+        Desktop: Info-Spalte links ist eine eigene, NICHT scrollende Spalte — kein
+        position:sticky. Ein sticky erster Tabellenspalte zeigte in der Praxis einen
+        von Zoomstufe/Browser abhängigen Sub-Pixel-Versatz gegenüber den Wochenzellen
+        (sichtbare Lücke zum Rahmen). Stattdessen: zwei unabhängige Bereiche mit exakt
+        gleichen, fest definierten Zeilenhöhen (HEADER_*_H / BODY_ROW_H), sodass beide
+        Seiten immer bündig sind — unabhängig von Sticky-Rundungsfehlern.
+      */}
+      <div className="hidden md:flex px-4 pb-4">
+        <div className="w-72 min-w-[18rem] shrink-0 border-r border-[#2a2d4a]">
+          <div style={{ height: HEADER_TOTAL_H }} className="flex flex-col justify-center gap-1.5 p-1 pr-3">
+            <div className="relative">
+              <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600" />
+              <input
+                className="input-field pl-7 text-xs py-1.5"
+                placeholder="Azubi suchen..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setFilterIssuesOnly(v => !v)}
+                title="Nur Azubis mit offenen Punkten"
+                className={`p-1.5 rounded border text-slate-500 hover:text-white ${filterIssuesOnly ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300' : 'border-[#2a2d4a]'}`}
               >
-                <div className="space-y-1.5">
-                  <div className="relative">
-                    <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600" />
-                    <input
-                      className="input-field pl-7 text-xs py-1.5"
-                      placeholder="Azubi suchen..."
-                      value={search}
-                      onChange={e => setSearch(e.target.value)}
-                    />
+                <Filter size={12} />
+              </button>
+              <button
+                onClick={() => setSortMode(m => m === 'name' ? 'issues' : 'name')}
+                title={sortMode === 'name' ? 'Sortiert nach Name — klicken für offene Punkte' : 'Sortiert nach offenen Punkten — klicken für Name'}
+                className="p-1.5 rounded border border-[#2a2d4a] text-slate-500 hover:text-white"
+              >
+                <ArrowUpDown size={12} />
+              </button>
+            </div>
+          </div>
+
+          {visibleAzubis.length === 0 ? (
+            <div style={{ height: BODY_ROW_H }} className="flex items-center justify-center text-center text-slate-600 text-sm border-t border-[#2a2d4a]/50">
+              Keine Azubis gefunden
+            </div>
+          ) : visibleAzubis.map(a => {
+            const counts = countsFor(a.id)
+            const ampel = ampelFor(a.id)
+            const showMail = ampel && ampel.status !== 'ok' && ampel.email && onSendMail
+            return (
+              <div key={a.id} style={{ height: BODY_ROW_H }} className="flex items-start gap-2.5 p-2.5 pr-3 border-t border-[#2a2d4a]/50">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold bg-purple-600/20 text-purple-300 shrink-0">
+                  {a.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-white truncate">{a.name}</div>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    {a.start_date && format(parseISO(a.start_date), 'dd.MM.yyyy')}
+                    {a.lehrjahr != null && ` (${a.lehrjahr}. AJ)`}
+                    {a.department_name && ` · ${a.department_name}`}
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setFilterIssuesOnly(v => !v)}
-                      title="Nur Azubis mit offenen Punkten"
-                      className={`p-1.5 rounded border text-slate-500 hover:text-white ${filterIssuesOnly ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300' : 'border-[#2a2d4a]'}`}
-                    >
-                      <Filter size={12} />
-                    </button>
-                    <button
-                      onClick={() => setSortMode(m => m === 'name' ? 'issues' : 'name')}
-                      title={sortMode === 'name' ? 'Sortiert nach Name — klicken für offene Punkte' : 'Sortiert nach offenen Punkten — klicken für Name'}
-                      className="p-1.5 rounded border border-[#2a2d4a] text-slate-500 hover:text-white"
-                    >
-                      <ArrowUpDown size={12} />
-                    </button>
+                  <div className="flex items-center gap-2.5 mt-1.5">
+                    <span className="flex items-center gap-1 text-[11px] text-slate-400" title="In Erstellung">
+                      <Settings size={11} />{counts.draft}
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px] text-amber-400" title="Eingereicht">
+                      <ArrowRight size={11} />{counts.submitted}
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px] text-red-400" title="Abgelehnt">
+                      <RotateCcw size={11} />{counts.rejected}
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px] text-indigo-400" title="Gesamt">
+                      <FileText size={11} />{counts.total}
+                    </span>
+                    {showMail && (
+                      <span className="flex items-center gap-1 ml-auto shrink-0">
+                        <button
+                          onClick={() => onSendMail(ampel, 'reminder')}
+                          title="Erinnerungsmail öffnen"
+                          className="p-1 rounded text-slate-500 hover:text-amber-300 hover:bg-[#2a2d4a]"
+                        >
+                          <Mail size={12} />
+                        </button>
+                        <button
+                          onClick={() => onSendMail(ampel, 'escalation')}
+                          title="Eskalationsmail öffnen"
+                          className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-[#2a2d4a]"
+                        >
+                          <AlertOctagon size={12} />
+                        </button>
+                      </span>
+                    )}
                   </div>
                 </div>
-              </th>
-              {yearGroups.map(yg => (
-                <th
-                  key={yg.year}
-                  colSpan={yg.months.reduce((s, m) => s + m.weeks.length, 0)}
-                  className="text-center text-sm text-slate-500 font-medium pb-1 border-b border-[#2a2d4a]"
-                >
-                  {yg.year}
-                </th>
-              ))}
-            </tr>
-            <tr>
-              {monthGroups.map(mg => (
-                <th key={mg.key} colSpan={mg.weeks.length} className="text-center text-xs text-slate-400 font-medium pb-2 whitespace-nowrap">
-                  {mg.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {visibleAzubis.length === 0 ? (
-              <tr><td colSpan={weeks.length + 1} className="text-center text-slate-600 py-6 text-sm">Keine Azubis gefunden</td></tr>
-            ) : visibleAzubis.map(a => {
-              const counts = countsFor(a.id)
-              const ampel = ampelFor(a.id)
-              const showMail = ampel && ampel.status !== 'ok' && ampel.email && onSendMail
-              return (
-                <tr key={a.id}>
-                  <td
-                    className="sticky left-0 bg-[#141625] p-2.5 pr-3 align-top border-t border-[#2a2d4a]/50"
-                    style={{ boxShadow: '-4px 0 0 0 #141625' }}
+              </div>
+            )
+          })}
+        </div>
+
+        <div ref={scrollRef} className="overflow-x-auto flex-1 min-w-0">
+          <table className="border-separate border-spacing-0 w-full">
+            <thead>
+              <tr style={{ height: HEADER_ROW1_H }}>
+                {yearGroups.map(yg => (
+                  <th
+                    key={yg.year}
+                    colSpan={yg.months.reduce((s, m) => s + m.weeks.length, 0)}
+                    className="text-center text-sm text-slate-500 font-medium border-b border-[#2a2d4a]"
                   >
-                    <div className="flex items-start gap-2.5">
-                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold bg-purple-600/20 text-purple-300 shrink-0">
-                        {a.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-white truncate">{a.name}</div>
-                        <div className="text-[11px] text-slate-500 truncate">
-                          {a.start_date && format(parseISO(a.start_date), 'dd.MM.yyyy')}
-                          {a.lehrjahr != null && ` (${a.lehrjahr}. AJ)`}
-                          {a.department_name && ` · ${a.department_name}`}
-                        </div>
-                        <div className="flex items-center gap-2.5 mt-1.5">
-                          <span className="flex items-center gap-1 text-[11px] text-slate-400" title="In Erstellung">
-                            <Settings size={11} />{counts.draft}
-                          </span>
-                          <span className="flex items-center gap-1 text-[11px] text-amber-400" title="Eingereicht">
-                            <ArrowRight size={11} />{counts.submitted}
-                          </span>
-                          <span className="flex items-center gap-1 text-[11px] text-red-400" title="Abgelehnt">
-                            <RotateCcw size={11} />{counts.rejected}
-                          </span>
-                          <span className="flex items-center gap-1 text-[11px] text-indigo-400" title="Gesamt">
-                            <FileText size={11} />{counts.total}
-                          </span>
-                          {showMail && (
-                            <span className="flex items-center gap-1 ml-auto shrink-0">
-                              <button
-                                onClick={() => onSendMail(ampel, 'reminder')}
-                                title="Erinnerungsmail öffnen"
-                                className="p-1 rounded text-slate-500 hover:text-amber-300 hover:bg-[#2a2d4a]"
-                              >
-                                <Mail size={12} />
-                              </button>
-                              <button
-                                onClick={() => onSendMail(ampel, 'escalation')}
-                                title="Eskalationsmail öffnen"
-                                className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-[#2a2d4a]"
-                              >
-                                <AlertOctagon size={12} />
-                              </button>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
+                    {yg.year}
+                  </th>
+                ))}
+              </tr>
+              <tr style={{ height: HEADER_ROW2_H }}>
+                {monthGroups.map(mg => (
+                  <th key={mg.key} colSpan={mg.weeks.length} className="text-center text-xs text-slate-400 font-medium whitespace-nowrap">
+                    {mg.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleAzubis.length === 0 ? (
+                <tr style={{ height: BODY_ROW_H }}><td colSpan={weeks.length} className="border-t border-[#2a2d4a]/50" /></tr>
+              ) : visibleAzubis.map(a => (
+                <tr key={a.id} style={{ height: BODY_ROW_H }}>
                   {weeks.map(w => {
                     const status = cellStatus(a.id, w)
                     const cfg = TIMELINE_STATUS[status]
                     const clickable = status !== 'not_due'
                     const isToday = w === todayMonday
                     return (
-                      <td key={w} className={`text-center px-0.5 py-1.5 border-t border-[#2a2d4a]/50 ${isToday ? 'bg-indigo-500/5' : ''}`}>
+                      <td key={w} className={`text-center px-0.5 border-t border-[#2a2d4a]/50 ${isToday ? 'bg-indigo-500/5' : ''}`}>
                         <button
                           onClick={() => clickable && onSelectWeek(a.id, a.name, w)}
                           title={cfg.label}
@@ -301,10 +315,10 @@ export default function ReportsTimeline({ azubis, entries, reportsStatus, onSele
                     )
                   })}
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Mobile: gestapelte Karten statt breiter Tabelle mit sticky Spalte — unterhalb von md */}
