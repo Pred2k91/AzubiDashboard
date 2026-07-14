@@ -137,12 +137,12 @@ export default function ReportsList() {
 
       <WeekCalendar
         calMonth={calMonth}
-        onPrevMonth={() => setCalMonth(m => addMonthsStr(m, -1))}
-        onNextMonth={() => setCalMonth(m => addMonthsStr(m, 1))}
+        onChangeMonth={setCalMonth}
         onToday={() => setCalMonth(firstOfMonthStr(today))}
         entryByWeek={entryByWeek}
         rangeStartMonday={data.start_date ? mondayOf(data.start_date) : null}
         todayMonday={mondayOf(today)}
+        minYear={data.start_date ? Number(data.start_date.slice(0, 4)) : Number(today.slice(0, 4)) - 3}
         onSelectWeek={selectWeek}
         loading={loading}
       />
@@ -245,31 +245,51 @@ function EntryRow({ entry, onClick }) {
 }
 
 const WEEKDAY_HEADERS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+const MONTH_NAMES = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
 
-function WeekCalendar({ calMonth, onPrevMonth, onNextMonth, onToday, entryByWeek, rangeStartMonday, todayMonday, onSelectWeek, loading }) {
+function WeekCalendar({ calMonth, onChangeMonth, onToday, entryByWeek, rangeStartMonday, todayMonday, minYear, onSelectWeek, loading }) {
   const weekRows = buildCalendarWeeks(calMonth)
   const monthKey = calMonth.slice(0, 7)
   const todayStr = new Date().toISOString().slice(0, 10)
+  const calYear = Number(calMonth.slice(0, 4))
+  const calMonthNum = Number(calMonth.slice(5, 7))
+  const maxYear = Number(todayStr.slice(0, 4))
+  const yearOptions = []
+  for (let y = Math.min(minYear, maxYear); y <= maxYear; y++) yearOptions.push(y)
+
+  const jumpTo = (year, monthNum) => onChangeMonth(`${year}-${String(monthNum).padStart(2, '0')}-01`)
 
   return (
-    <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-white">Woche auswählen</h2>
-        <div className="flex items-center gap-1.5">
-          <button onClick={onPrevMonth} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
-            <ChevronLeft size={14} />
-          </button>
-          <span className="text-sm text-slate-300 w-32 text-center capitalize">
-            {format(parseISO(calMonth), 'MMMM yyyy', { locale: de })}
-          </span>
-          <button onClick={onNextMonth} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
-            <ChevronRight size={14} />
-          </button>
-          <button onClick={onToday} className="btn-secondary text-xs py-1 ml-1">Heute</button>
-        </div>
+    <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-3 max-w-md space-y-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-white shrink-0">Woche auswählen</h2>
+        <button onClick={onToday} className="btn-secondary text-xs py-1 px-2">Heute</button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-slate-500">
+      <div className="flex items-center gap-1">
+        <button onClick={() => onChangeMonth(addMonthsStr(calMonth, -1))} className="p-1 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a] shrink-0">
+          <ChevronLeft size={14} />
+        </button>
+        <select
+          className="input-field text-xs py-1 flex-1"
+          value={calMonthNum}
+          onChange={e => jumpTo(calYear, Number(e.target.value))}
+        >
+          {MONTH_NAMES.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
+        </select>
+        <select
+          className="input-field text-xs py-1 w-20"
+          value={calYear}
+          onChange={e => jumpTo(Number(e.target.value), calMonthNum)}
+        >
+          {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <button onClick={() => onChangeMonth(addMonthsStr(calMonth, 1))} className="p-1 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a] shrink-0">
+          <ChevronRight size={14} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-slate-500">
         {WEEKDAY_HEADERS.map(d => <div key={d}>{d}</div>)}
       </div>
 
@@ -289,7 +309,7 @@ function WeekCalendar({ calMonth, onPrevMonth, onNextMonth, onToday, entryByWeek
                     disabled={!clickable}
                     onClick={() => onSelectWeek(weekMonday)}
                     title={style.label}
-                    className={`aspect-square rounded-md border text-xs flex items-center justify-center transition-opacity ${style.cls} ${!inMonth ? 'opacity-30' : ''} ${isToday ? 'ring-1 ring-indigo-400' : ''} ${clickable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
+                    className={`aspect-square rounded border text-[11px] flex items-center justify-center transition-opacity ${style.cls} ${!inMonth ? 'opacity-30' : ''} ${isToday ? 'ring-1 ring-indigo-400' : ''} ${clickable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
                   >
                     {Number(date.slice(8, 10))}
                   </button>
@@ -300,10 +320,10 @@ function WeekCalendar({ calMonth, onPrevMonth, onNextMonth, onToday, entryByWeek
         })}
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-[#2a2d4a] text-xs text-slate-500">
+      <div className="flex items-center gap-2.5 flex-wrap pt-2 border-t border-[#2a2d4a] text-[11px] text-slate-500">
         {['missing', 'draft', 'submitted', 'approved', 'rejected'].map(key => (
-          <span key={key} className="flex items-center gap-1.5">
-            <span className={`w-3.5 h-3.5 rounded border ${CAL_STATUS_STYLE[key].cls}`} />
+          <span key={key} className="flex items-center gap-1">
+            <span className={`w-3 h-3 rounded border ${CAL_STATUS_STYLE[key].cls}`} />
             {CAL_STATUS_STYLE[key].label}
           </span>
         ))}
