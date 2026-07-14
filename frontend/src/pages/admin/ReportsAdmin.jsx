@@ -1,16 +1,40 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, CheckCircle, AlertTriangle, Clock, Calendar, Search, Mail, AlertOctagon } from 'lucide-react'
+import { BookOpen, CheckCircle, AlertTriangle, Clock, Calendar, Search, Mail, AlertOctagon, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format, parseISO, getISOWeek } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { reportsApi, reportEntriesApi, settingsApi } from '../../api/client'
+import { reportsApi, reportEntriesApi, azubisApi, settingsApi } from '../../api/client'
 import { buildReminderMail, buildEscalationMail, buildMailtoUrl } from '../../utils/reportMailTemplates'
 import { dayTypeLabel, ABSENCE_TYPES } from '../../utils/reportDayTypes'
+import { mondayOf, addDays } from '../../utils/reportDates'
 import Modal from '../../components/ui/Modal'
 
 const STATUS_CONFIG = {
   ok:    { label: 'Aktuell',    icon: CheckCircle,  cls: 'text-green-400',  bg: 'bg-green-500/10 border-green-500/20' },
   warn:  { label: 'Überfällig', icon: AlertTriangle, cls: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
   alert: { label: 'Kritisch',   icon: AlertTriangle, cls: 'text-red-400',   bg: 'bg-red-500/10 border-red-500/20' },
+}
+
+const ENTRY_STATUS_CONFIG = {
+  draft:     { label: 'In Erstellung', icon: Clock,        cls: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20' },
+  submitted: { label: 'Eingereicht',   icon: Clock,        cls: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
+  approved:  { label: 'Freigegeben',   icon: CheckCircle,  cls: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
+  rejected:  { label: 'Abgelehnt',     icon: AlertTriangle, cls: 'text-red-400',  bg: 'bg-red-500/10 border-red-500/20' },
+}
+
+const MATRIX_STATUS = {
+  not_started: { label: 'Nicht begonnen', mark: '',  cls: 'bg-[#1e2035] border-[#2a2d4a] text-slate-700' },
+  draft:       { label: 'In Erstellung',  mark: '…', cls: 'bg-slate-500/20 border-slate-500/40 text-slate-300' },
+  submitted:   { label: 'Eingereicht',    mark: '●', cls: 'bg-amber-500/20 border-amber-500/40 text-amber-300' },
+  approved:    { label: 'Freigegeben',    mark: '✓', cls: 'bg-green-500/20 border-green-500/40 text-green-300' },
+  rejected:    { label: 'Abgelehnt',      mark: '!', cls: 'bg-red-500/20 border-red-500/40 text-red-300' },
+}
+
+const WEEKS_SHOWN = 6
+
+function weeksEndingAt(endMonday, count) {
+  const weeks = []
+  for (let i = count - 1; i >= 0; i--) weeks.push(addDays(endMonday, -7 * i))
+  return weeks
 }
 
 export default function ReportsAdmin() {
@@ -23,16 +47,32 @@ export default function ReportsAdmin() {
   const [trainerName, setTrainerName] = useState('')
   const [mailTemplates, setMailTemplates] = useState({})
   const [pending, setPending] = useState([])
-  const [reviewEntry, setReviewEntry] = useState(null)
-  const [reviewComment, setReviewComment] = useState('')
-  const [reviewLoading, setReviewLoading] = useState(false)
-  const [reviewError, setReviewError] = useState('')
+
+  // Wochenübersicht (Azubi × Woche)
+  const [weekAnchor, setWeekAnchor] = useState(() => mondayOf(new Date().toISOString().slice(0, 10)))
+  const [azubisList, setAzubisList] = useState([])
+  const [entriesInRange, setEntriesInRange] = useState([])
+  const [detail, setDetail] = useState(null) // { azubiId, azubiName, weekMonday }
+  const [detailComments, setDetailComments] = useState({})
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState('')
 
   const today = new Date().toISOString().slice(0, 10)
   const getRowDate = (id) => rowDates[id] ?? today
+  const weeks = weeksEndingAt(weekAnchor, WEEKS_SHOWN)
 
   const load = () => reportsApi.getStatus().then(setData).catch(() => {})
   const loadPending = () => reportEntriesApi.getAll({ status: 'submitted' }).then(setPending).catch(() => {})
+  const loadMatrix = (anchor) => {
+    const ws = weeksEndingAt(anchor, WEEKS_SHOWN)
+    return Promise.all([
+      azubisApi.getAll(),
+      reportEntriesApi.getAll({ from: ws[0], to: addDays(ws[ws.length - 1], 6) }),
+    ]).then(([azubis, entries]) => {
+      setAzubisList(azubis)
+      setEntriesInRange(entries)
+    }).catch(() => {})
+  }
 
   useEffect(() => {
     load()
@@ -48,23 +88,45 @@ export default function ReportsAdmin() {
     }).catch(() => {})
   }, [])
 
-  const openReview = (entry) => { setReviewEntry(entry); setReviewComment(''); setReviewError('') }
+  useEffect(() => { loadMatrix(weekAnchor) }, [weekAnchor])
 
-  const handleReview = async (status) => {
-    if (status === 'rejected' && !reviewComment.trim()) {
-      setReviewError('Bitte einen Kommentar angeben, warum der Bericht abgelehnt wird.')
+  const entriesFor = (azubiId, weekMonday) =>
+    entriesInRange.filter(e => e.azubi_id === azubiId && mondayOf(e.period_start) === weekMonday)
+
+  const cellStatus = (azubiId, weekMonday) => {
+    const entries = entriesFor(azubiId, weekMonday)
+    if (!entries.length) return 'not_started'
+    if (entries.some(e => e.status === 'rejected')) return 'rejected'
+    if (entries.some(e => e.status === 'draft')) return 'draft'
+    if (entries.some(e => e.status === 'submitted')) return 'submitted'
+    return 'approved'
+  }
+
+  const openDetail = (azubiId, azubiName, weekMonday) => {
+    setDetail({ azubiId, azubiName, weekMonday })
+    setDetailComments({})
+    setDetailError('')
+  }
+
+  const detailEntries = detail
+    ? entriesFor(detail.azubiId, detail.weekMonday).sort((a, b) => a.period_start.localeCompare(b.period_start))
+    : []
+
+  const handleEntryReview = async (entry, status) => {
+    const comment = detailComments[entry.id] || ''
+    if (status === 'rejected' && !comment.trim()) {
+      setDetailError('Bitte einen Kommentar angeben, warum der Bericht abgelehnt wird.')
       return
     }
-    setReviewLoading(true)
-    setReviewError('')
+    setDetailLoading(true)
+    setDetailError('')
     try {
-      await reportEntriesApi.review(reviewEntry.id, status, reviewComment)
-      setReviewEntry(null)
-      await Promise.all([load(), loadPending()])
+      await reportEntriesApi.review(entry.id, status, comment)
+      await Promise.all([load(), loadPending(), loadMatrix(weekAnchor)])
     } catch (err) {
-      setReviewError(err.response?.data?.error || 'Aktion fehlgeschlagen')
+      setDetailError(err.response?.data?.error || 'Aktion fehlgeschlagen')
     } finally {
-      setReviewLoading(false)
+      setDetailLoading(false)
     }
   }
 
@@ -120,6 +182,79 @@ export default function ReportsAdmin() {
         </div>
       </div>
 
+      {/* Wochenübersicht: Azubi × Woche */}
+      <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-4 space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+            <Calendar size={14} className="text-indigo-400" />
+            Wochenübersicht
+          </h2>
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => setWeekAnchor(addDays(weekAnchor, -7 * WEEKS_SHOWN))} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
+              <ChevronLeft size={14} />
+            </button>
+            <button onClick={() => setWeekAnchor(mondayOf(new Date().toISOString().slice(0, 10)))} className="btn-secondary text-xs py-1">
+              Heute
+            </button>
+            <button onClick={() => setWeekAnchor(addDays(weekAnchor, 7 * WEEKS_SHOWN))} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]">
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-separate border-spacing-y-1">
+            <thead>
+              <tr>
+                <th className="text-left text-xs text-slate-500 font-medium pb-1 pr-3 sticky left-0 bg-[#141625]">Azubi</th>
+                {weeks.map(w => (
+                  <th
+                    key={w}
+                    className="text-center text-xs text-slate-500 font-medium pb-1 px-1 whitespace-nowrap"
+                    title={`${format(parseISO(w), 'dd.MM.yyyy')} – ${format(parseISO(addDays(w, 4)), 'dd.MM.yyyy')}`}
+                  >
+                    KW {getISOWeek(parseISO(w))}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {azubisList.length === 0 ? (
+                <tr><td colSpan={weeks.length + 1} className="text-center text-slate-600 py-6 text-sm">Keine Azubis gefunden</td></tr>
+              ) : azubisList.map(a => (
+                <tr key={a.id}>
+                  <td className="text-sm text-white pr-3 sticky left-0 bg-[#141625] whitespace-nowrap">{a.name}</td>
+                  {weeks.map(w => {
+                    const status = cellStatus(a.id, w)
+                    const cfg = MATRIX_STATUS[status]
+                    return (
+                      <td key={w} className="text-center px-1">
+                        <button
+                          onClick={() => status !== 'not_started' && openDetail(a.id, a.name, w)}
+                          title={cfg.label}
+                          className={`w-8 h-8 rounded-lg border text-xs font-bold flex items-center justify-center mx-auto transition-opacity ${cfg.cls} ${status !== 'not_started' ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
+                        >
+                          {cfg.mark}
+                        </button>
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex items-center gap-4 flex-wrap pt-1">
+          {Object.values(MATRIX_STATUS).map(cfg => (
+            <span key={cfg.label} className="flex items-center gap-1.5 text-xs text-slate-500">
+              <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center text-[9px] ${cfg.cls}`}>{cfg.mark}</span>
+              {cfg.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
       {/* Eingereichte Berichte zur Prüfung */}
       {pending.length > 0 && (
         <div className="bg-[#141625] rounded-xl border border-amber-500/30 p-4 space-y-3">
@@ -134,7 +269,7 @@ export default function ReportsAdmin() {
               return (
                 <button
                   key={e.id}
-                  onClick={() => openReview(e)}
+                  onClick={() => openDetail(e.azubi_id, e.azubi_name, mondayOf(e.period_start))}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-[#2a2d4a] hover:bg-[#1e2035] transition-colors text-left"
                 >
                   <div className="flex-1 min-w-0">
@@ -308,61 +443,80 @@ export default function ReportsAdmin() {
         </table>
       </div>
 
-      {/* Prüf-Modal für einen eingereichten Bericht */}
+      {/* Detail-/Prüf-Modal für eine Azubi-Woche (auch aus der Wochenübersicht erreichbar) */}
       <Modal
-        open={!!reviewEntry}
-        onClose={() => setReviewEntry(null)}
-        title={reviewEntry ? `Bericht prüfen — ${reviewEntry.azubi_name}` : ''}
+        open={!!detail}
+        onClose={() => setDetail(null)}
+        title={detail ? `${detail.azubiName} — Woche ab ${format(parseISO(detail.weekMonday), 'dd.MM.yyyy', { locale: de })}` : ''}
         size="lg"
       >
-        {reviewEntry && (
+        {detail && (
           <div className="space-y-4">
-            <p className="text-sm text-slate-400">
-              {reviewEntry.period_type === 'day'
-                ? format(parseISO(reviewEntry.period_start), 'EEEE, dd.MM.yyyy', { locale: de })
-                : `${format(parseISO(reviewEntry.period_start), 'dd.MM.', { locale: de })} – ${format(parseISO(reviewEntry.period_end), 'dd.MM.yyyy', { locale: de })}`}
-              {' · '}{reviewEntry.lehrjahr}. Lehrjahr
-            </p>
-
-            <div className="space-y-2 max-h-80 overflow-y-auto">
-              {reviewEntry.days.map(d => (
-                <div key={d.date} className="p-3 rounded-lg border border-[#2a2d4a] bg-[#0d0f1a]">
-                  <div className="flex items-center justify-between mb-1">
+            {detailEntries.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-6">Für diese Woche wurde noch kein Bericht angelegt.</p>
+            ) : detailEntries.map(entry => {
+              const cfg = ENTRY_STATUS_CONFIG[entry.status]
+              const Icon = cfg.icon
+              return (
+                <div key={entry.id} className="p-4 rounded-xl border border-[#2a2d4a] bg-[#0d0f1a] space-y-3">
+                  <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-medium text-white">
-                      {format(parseISO(d.date), 'EEEE, dd.MM.yyyy', { locale: de })}
+                      {entry.period_type === 'day'
+                        ? format(parseISO(entry.period_start), 'EEEE, dd.MM.yyyy', { locale: de })
+                        : `${format(parseISO(entry.period_start), 'dd.MM.', { locale: de })} – ${format(parseISO(entry.period_end), 'dd.MM.yyyy', { locale: de })}`}
                     </span>
-                    <span className="text-xs text-slate-500">{dayTypeLabel(d.day_type)}</span>
+                    <span className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full border shrink-0 ${cfg.bg} ${cfg.cls}`}>
+                      <Icon size={11} />
+                      {cfg.label}
+                    </span>
                   </div>
-                  {!ABSENCE_TYPES.includes(d.day_type) && (
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm text-slate-300 whitespace-pre-wrap">{d.activities_text || '—'}</p>
-                      <span className="text-xs text-slate-500 shrink-0">{d.hours != null ? `${d.hours} Std.` : '—'}</span>
+
+                  <div className="space-y-1.5">
+                    {entry.days.map(d => (
+                      <div key={d.date} className="p-2.5 rounded-lg border border-[#2a2d4a]">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium text-slate-300">
+                            {format(parseISO(d.date), 'EEEE, dd.MM.', { locale: de })}
+                          </span>
+                          <span className="text-xs text-slate-500">{dayTypeLabel(d.day_type)}</span>
+                        </div>
+                        {!ABSENCE_TYPES.includes(d.day_type) && (
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs text-slate-400 whitespace-pre-wrap">{d.activities_text || '—'}</p>
+                            <span className="text-xs text-slate-500 shrink-0">{d.hours != null ? `${d.hours} Std.` : '—'}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {entry.status === 'rejected' && entry.review_comment && (
+                    <p className="text-xs text-red-400">Kommentar: {entry.review_comment}</p>
+                  )}
+
+                  {entry.status === 'submitted' && (
+                    <div className="space-y-2 pt-2 border-t border-[#2a2d4a]">
+                      <textarea
+                        className="input-field text-xs"
+                        rows={2}
+                        placeholder="Kommentar (Pflicht bei Ablehnung)"
+                        value={detailComments[entry.id] || ''}
+                        onChange={e => setDetailComments(c => ({ ...c, [entry.id]: e.target.value }))}
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button className="btn-danger text-xs" onClick={() => handleEntryReview(entry, 'rejected')} disabled={detailLoading}>
+                          Ablehnen
+                        </button>
+                        <button className="btn-primary text-xs" onClick={() => handleEntryReview(entry, 'approved')} disabled={detailLoading}>
+                          {detailLoading ? '...' : 'Freigeben'}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
-
-            <div>
-              <label className="label">Kommentar (Pflicht bei Ablehnung)</label>
-              <textarea
-                className="input-field text-sm"
-                rows={2}
-                value={reviewComment}
-                onChange={e => setReviewComment(e.target.value)}
-              />
-            </div>
-
-            {reviewError && <p className="text-sm text-red-400">{reviewError}</p>}
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button className="btn-danger" onClick={() => handleReview('rejected')} disabled={reviewLoading}>
-                Ablehnen
-              </button>
-              <button className="btn-primary" onClick={() => handleReview('approved')} disabled={reviewLoading}>
-                {reviewLoading ? '...' : 'Freigeben'}
-              </button>
-            </div>
+              )
+            })}
+            {detailError && <p className="text-sm text-red-400">{detailError}</p>}
           </div>
         )}
       </Modal>

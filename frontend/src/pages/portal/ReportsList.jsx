@@ -4,22 +4,13 @@ import { BookOpen, Plus, CheckCircle, AlertTriangle, Clock, Pencil } from 'lucid
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { reportEntriesApi } from '../../api/client'
+import { mondayOf } from '../../utils/reportDates'
 
 const STATUS_CONFIG = {
-  draft:     { label: 'Entwurf',     icon: Pencil,       cls: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20' },
-  submitted: { label: 'Eingereicht', icon: Clock,        cls: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
-  approved:  { label: 'Freigegeben', icon: CheckCircle,  cls: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
-  rejected:  { label: 'Abgelehnt',   icon: AlertTriangle, cls: 'text-red-400',  bg: 'bg-red-500/10 border-red-500/20' },
-}
-
-// Client-seitig nur zur Anzeige/Vorauswahl — die Berechnung des tatsächlichen
-// Zeitraums erfolgt maßgeblich serverseitig beim Anlegen.
-function mondayOf(dateStr) {
-  const d = new Date(dateStr)
-  const day = d.getUTCDay()
-  const diff = day === 0 ? -6 : 1 - day
-  d.setUTCDate(d.getUTCDate() + diff)
-  return d.toISOString().slice(0, 10)
+  draft:     { label: 'In Erstellung', icon: Pencil,       cls: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20' },
+  submitted: { label: 'Eingereicht',   icon: Clock,        cls: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
+  approved:  { label: 'Freigegeben',   icon: CheckCircle,  cls: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
+  rejected:  { label: 'Abgelehnt',     icon: AlertTriangle, cls: 'text-red-400',  bg: 'bg-red-500/10 border-red-500/20' },
 }
 
 export default function ReportsList() {
