@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, Users, RotateCcw, Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Trash2, Users, RotateCcw, Search, ExternalLink, UserPlus } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { azubisApi, departmentsApi } from '../../api/client'
 import { format, parseISO } from 'date-fns'
 
-const EMPTY = { name: '', lehrjahr: 1, start_date: '', current_department_id: '', email: '', birthday: '', next_department_id: '', next_rotation_date: '', report_period: 'week' }
+const EMPTY = { name: '' }
 
 export default function AzubiAdmin() {
+  const navigate = useNavigate()
   const [azubis, setAzubis] = useState([])
   const [departments, setDepartments] = useState([])
   const [modal, setModal] = useState(false)
   const [rotationModal, setRotationModal] = useState(false)
-  const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(EMPTY)
   const [deleteId, setDeleteId] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -28,17 +29,7 @@ export default function AzubiAdmin() {
 
   useEffect(() => { load() }, [])
 
-  const openNew = () => { setEditing(null); setForm(EMPTY); setModal(true) }
-  const openEdit = (a) => {
-    setEditing(a)
-    setForm({
-      name: a.name, lehrjahr: a.lehrjahr, start_date: a.start_date || '',
-      current_department_id: a.current_department_id || '', email: a.email || '', birthday: a.birthday || '',
-      next_department_id: a.next_department_id || '', next_rotation_date: a.next_rotation_date || '',
-      report_period: a.report_period || 'week',
-    })
-    setModal(true)
-  }
+  const openNew = () => { setForm(EMPTY); setModal(true) }
 
   const openRotation = () => {
     const init = {}
@@ -51,15 +42,7 @@ export default function AzubiAdmin() {
     if (!form.name) return
     setLoading(true)
     try {
-      const data = {
-        ...form,
-        current_department_id: form.current_department_id || null,
-        start_date: form.start_date || null,
-        next_department_id: form.next_department_id || null,
-        next_rotation_date: form.next_rotation_date || null,
-      }
-      if (editing) await azubisApi.update(editing.id, data)
-      else await azubisApi.create(data)
+      await azubisApi.create(form)
       await load()
       setModal(false)
     } finally { setLoading(false) }
@@ -93,7 +76,9 @@ export default function AzubiAdmin() {
             <Users size={20} className="text-purple-400" />
             Azubis
           </h1>
-          <p className="text-sm text-slate-500 mt-1">{azubis.length} aktive Azubis</p>
+          <p className="text-sm text-slate-500 mt-1">
+            {azubis.length} aktive Azubis — Details werden über das jeweilige Nutzerprofil gepflegt
+          </p>
         </div>
         <div className="flex gap-2">
           <button className="btn-secondary" onClick={openRotation}>
@@ -170,8 +155,26 @@ export default function AzubiAdmin() {
                   </td>
                   <td className="text-sm text-slate-400">{a.email || <span className="text-slate-700">—</span>}</td>
                   <td>
-                    <div className="flex gap-1 justify-end">
-                      <button onClick={() => openEdit(a)} className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-[#2a2d4a]"><Pencil size={13} /></button>
+                    <div className="flex gap-1 justify-end items-center">
+                      {a.user_id ? (
+                        <button
+                          onClick={() => navigate(`/admin/users/${a.user_id}`)}
+                          title="Profil öffnen (Lehrjahr, Abteilung, Berichtsheft-Rhythmus etc. bearbeiten)"
+                          className="btn-secondary text-xs py-1 px-2"
+                        >
+                          <ExternalLink size={12} />
+                          Profil
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => navigate('/admin/users')}
+                          title="Erst ein Nutzerkonto anlegen/verknüpfen, um Details zu bearbeiten"
+                          className="btn-secondary text-xs py-1 px-2"
+                        >
+                          <UserPlus size={12} />
+                          Konto anlegen
+                        </button>
+                      )}
                       <button onClick={() => setDeleteId(a.id)} className="p-1.5 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10"><Trash2 size={13} /></button>
                     </div>
                   </td>
@@ -183,73 +186,19 @@ export default function AzubiAdmin() {
         </div>
       ))}
 
-      {/* Azubi Modal */}
-      <Modal open={modal} onClose={() => setModal(false)} title={editing ? 'Azubi bearbeiten' : 'Neuer Azubi'}>
+      {/* Neuer Azubi Modal — nur Name, alle weiteren Details werden über das Nutzerprofil gepflegt */}
+      <Modal open={modal} onClose={() => setModal(false)} title="Neuer Azubi">
         <div className="space-y-4">
           <div>
             <label className="label">Name *</label>
             <input className="input-field" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Vor- und Nachname" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Lehrjahr</label>
-              <select className="input-field" value={form.lehrjahr} onChange={e => setForm(f => ({ ...f, lehrjahr: parseInt(e.target.value) }))}>
-                <option value={0}>0. Lehrjahr (startet noch)</option>
-                <option value={1}>1. Lehrjahr</option>
-                <option value={2}>2. Lehrjahr</option>
-                <option value={3}>3. Lehrjahr</option>
-                <option value={4}>4. Lehrjahr</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Ausbildungsstart</label>
-              <input type="date" className="input-field" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} />
-            </div>
-          </div>
-          <div>
-            <label className="label">Abteilung</label>
-            <select className="input-field" value={form.current_department_id} onChange={e => setForm(f => ({ ...f, current_department_id: e.target.value }))}>
-              <option value="">— Nicht zugewiesen —</option>
-              {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label">E-Mail</label>
-            <input type="email" className="input-field" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="azubi@firma.de" />
-          </div>
-          <div>
-            <label className="label">Geburtsdatum</label>
-            <input type="date" className="input-field" value={form.birthday} onChange={e => setForm(f => ({ ...f, birthday: e.target.value }))} />
-          </div>
-          <div>
-            <label className="label">Berichtsheft-Rhythmus</label>
-            <select className="input-field" value={form.report_period} onChange={e => setForm(f => ({ ...f, report_period: e.target.value }))}>
-              <option value="week">Wochenbericht</option>
-              <option value="day">Tagesbericht</option>
-            </select>
-            <p className="text-xs text-slate-600 mt-1">Bestimmt, ob der Azubi im Portal einen Tages- oder Wochenbericht ausfüllt (IHK/HWK: nur diese beiden Rhythmen anerkannt).</p>
-          </div>
-          <div className="pt-2 border-t border-[#2a2d4a]">
-            <p className="text-xs text-slate-500 mb-3">
-              Geplanter Abteilungswechsel — erscheint 30 Tage vorher als Vorschau im Dashboard und wird am Stichtag automatisch übernommen.
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">Nächste Abteilung</label>
-                <select className="input-field" value={form.next_department_id} onChange={e => setForm(f => ({ ...f, next_department_id: e.target.value }))}>
-                  <option value="">— Keine —</option>
-                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Nächster Abteilungswechsel</label>
-                <input type="date" className="input-field" value={form.next_rotation_date} onChange={e => setForm(f => ({ ...f, next_rotation_date: e.target.value }))} />
-              </div>
-            </div>
-          </div>
+          <p className="text-xs text-slate-600">
+            Lehrjahr, Abteilung, Ausbildungsstart, Berichtsheft-Rhythmus u.a. werden anschließend über ein verknüpftes Nutzerkonto (Nutzerverwaltung → Profil) gepflegt.
+          </p>
           <div className="flex justify-end gap-3 pt-2">
             <button className="btn-secondary" onClick={() => setModal(false)}>Abbrechen</button>
-            <button className="btn-primary" onClick={handleSave} disabled={loading}>{loading ? 'Speichern...' : 'Speichern'}</button>
+            <button className="btn-primary" onClick={handleSave} disabled={loading}>{loading ? 'Speichern...' : 'Anlegen'}</button>
           </div>
         </div>
       </Modal>

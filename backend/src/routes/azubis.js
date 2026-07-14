@@ -68,7 +68,8 @@ router.get('/', requireRole('ausbilder'), (req, res) => {
     syncNextRotation(db)
     const azubis = db.prepare(`
       SELECT a.*, d.name as department_name, d.color as department_color, d.location as department_location,
-             nd.name as next_department_name, nd.color as next_department_color
+             nd.name as next_department_name, nd.color as next_department_color,
+             (SELECT id FROM users WHERE azubi_id = a.id LIMIT 1) as user_id
       FROM azubis a
       LEFT JOIN departments d ON a.current_department_id = d.id
       LEFT JOIN departments nd ON a.next_department_id = nd.id

@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Pencil, KeyRound, Camera, Phone, Smartphone, Mail, MapPin } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { usersApi, locationsApi, azubisApi } from '../../api/client'
+import { usersApi, locationsApi, azubisApi, departmentsApi } from '../../api/client'
 import Modal from '../../components/ui/Modal'
 
 const EMPTY_FORM = {
@@ -12,6 +12,10 @@ const EMPTY_FORM = {
   phone: '', mobile_phone: '', street: '', postal_code: '', city: '',
   personnel_number: '', job_title: '', about_me: '', public_note: '', misc_note: '',
   location_ids: [],
+  // Azubi-Stammdaten -- werden nur gespeichert/angezeigt, wenn ein Azubi verknüpft ist.
+  azubi_name: '', azubi_lehrjahr: 1, azubi_start_date: '', azubi_department_id: '',
+  azubi_email: '', azubi_birthday: '', azubi_next_department_id: '', azubi_next_rotation_date: '',
+  azubi_report_period: 'week',
 }
 
 export default function UserProfileAdmin() {
@@ -19,17 +23,37 @@ export default function UserProfileAdmin() {
   const [user, setUser] = useState(null)
   const [azubis, setAzubis] = useState([])
   const [locations, setLocations] = useState([])
+  const [departments, setDepartments] = useState([])
   const [editOpen, setEditOpen] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [revealPassword, setRevealPassword] = useState(null)
 
-  const load = () => Promise.all([usersApi.getOne(id), locationsApi.getAll(), azubisApi.getAll()])
-    .then(([u, locs, azs]) => { setUser(u); setLocations(locs); setAzubis(azs) })
+  const load = () => Promise.all([usersApi.getOne(id), locationsApi.getAll(), azubisApi.getAll(), departmentsApi.getAll()])
+    .then(([u, locs, azs, depts]) => { setUser(u); setLocations(locs); setAzubis(azs); setDepartments(depts) })
     .catch(() => setError('Profil konnte nicht geladen werden'))
 
   useEffect(() => { load() }, [id])
+
+  // Füllt die Azubi-Stammdaten-Felder aus dem gewählten Azubi (beim Öffnen des
+  // Formulars oder wenn im Formular ein anderer verknüpfter Azubi ausgewählt wird).
+  const azubiFieldsFrom = (azubiId) => {
+    const a = azubis.find(x => String(x.id) === String(azubiId))
+    if (!a) {
+      return {
+        azubi_name: '', azubi_lehrjahr: 1, azubi_start_date: '', azubi_department_id: '',
+        azubi_email: '', azubi_birthday: '', azubi_next_department_id: '', azubi_next_rotation_date: '',
+        azubi_report_period: 'week',
+      }
+    }
+    return {
+      azubi_name: a.name, azubi_lehrjahr: a.lehrjahr, azubi_start_date: a.start_date || '',
+      azubi_department_id: a.current_department_id || '', azubi_email: a.email || '', azubi_birthday: a.birthday || '',
+      azubi_next_department_id: a.next_department_id || '', azubi_next_rotation_date: a.next_rotation_date || '',
+      azubi_report_period: a.report_period || 'week',
+    }
+  }
 
   const openEdit = () => {
     setForm({
@@ -41,9 +65,14 @@ export default function UserProfileAdmin() {
       personnel_number: user.personnel_number || '', job_title: user.job_title || '',
       about_me: user.about_me || '', public_note: user.public_note || '', misc_note: user.misc_note || '',
       location_ids: user.locations.map(l => l.id),
+      ...azubiFieldsFrom(user.azubi_id),
     })
     setError('')
     setEditOpen(true)
+  }
+
+  const selectAzubi = (azubiId) => {
+    setForm(f => ({ ...f, azubi_id: azubiId, ...azubiFieldsFrom(azubiId) }))
   }
 
   const toggleLocation = (locId) => {
@@ -57,7 +86,7 @@ export default function UserProfileAdmin() {
     setLoading(true)
     setError('')
     try {
-      await Promise.all([
+      const calls = [
         usersApi.update(id, { role: form.role, azubi_id: form.azubi_id || null, active: form.active }),
         usersApi.updateProfile(id, {
           salutation: form.salutation, first_name: form.first_name, last_name: form.last_name, birthday: form.birthday || null,
@@ -66,7 +95,17 @@ export default function UserProfileAdmin() {
           about_me: form.about_me, public_note: form.public_note, misc_note: form.misc_note,
           location_ids: form.location_ids,
         }),
-      ])
+      ]
+      if (form.azubi_id) {
+        calls.push(azubisApi.update(form.azubi_id, {
+          name: form.azubi_name, lehrjahr: form.azubi_lehrjahr, start_date: form.azubi_start_date || null,
+          current_department_id: form.azubi_department_id || null, email: form.azubi_email,
+          birthday: form.azubi_birthday || null,
+          next_department_id: form.azubi_next_department_id || null, next_rotation_date: form.azubi_next_rotation_date || null,
+          report_period: form.azubi_report_period,
+        }))
+      }
+      await Promise.all(calls)
       await load()
       setEditOpen(false)
     } catch (err) {
@@ -98,6 +137,7 @@ export default function UserProfileAdmin() {
 
   const displayName = user.azubi_id ? user.azubi_name : (`${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email)
   const displayBirthday = user.azubi_id ? user.azubi_birthday : user.birthday
+  const linkedAzubi = user.azubi_id ? azubis.find(a => a.id === user.azubi_id) : null
 
   return (
     <div className="p-6">
@@ -166,7 +206,7 @@ export default function UserProfileAdmin() {
           <div className="space-y-4">
             <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
               <h2 className="text-sm font-semibold text-white">Persönliche Daten</h2>
-              <FieldRow label="Anrede" value={user.azubi_id ? '' : user.salutation} />
+              <FieldRow label="Anrede" value={user.salutation} />
               <FieldRow label="Name" value={displayName} />
               <FieldRow label="Geburtsdatum" value={displayBirthday ? format(parseISO(displayBirthday), 'dd.MM.yyyy', { locale: de }) : ''} />
             </div>
@@ -177,6 +217,21 @@ export default function UserProfileAdmin() {
               <FieldRow label="E-Mail" value={user.email} />
               <FieldRow label="Adresse" value={user.street ? `${user.street}, ${user.postal_code} ${user.city}` : ''} />
             </div>
+            {linkedAzubi && (
+              <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
+                <h2 className="text-sm font-semibold text-white">Ausbildungsdaten</h2>
+                <FieldRow label="Lehrjahr" value={`${linkedAzubi.lehrjahr}. Lehrjahr`} />
+                <FieldRow label="Ausbildungsstart" value={linkedAzubi.start_date ? format(parseISO(linkedAzubi.start_date), 'dd.MM.yyyy', { locale: de }) : ''} />
+                <FieldRow label="Abteilung" value={linkedAzubi.department_name} />
+                <FieldRow label="Berichtsheft-Rhythmus" value={linkedAzubi.report_period === 'day' ? 'Tagesbericht' : 'Wochenbericht'} />
+                {linkedAzubi.next_department_name && (
+                  <FieldRow
+                    label="Geplanter Wechsel"
+                    value={`${linkedAzubi.next_department_name}${linkedAzubi.next_rotation_date ? ` ab ${format(parseISO(linkedAzubi.next_rotation_date), 'dd.MM.yyyy', { locale: de })}` : ''}`}
+                  />
+                )}
+              </div>
+            )}
           </div>
           <div className="space-y-4">
             <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
@@ -212,7 +267,7 @@ export default function UserProfileAdmin() {
             {form.role === 'azubi' && (
               <div className="col-span-2">
                 <label className="label">Verknüpfter Azubi</label>
-                <select className="input-field" value={form.azubi_id} onChange={e => setForm(f => ({ ...f, azubi_id: e.target.value }))}>
+                <select className="input-field" value={form.azubi_id} onChange={e => selectAzubi(e.target.value)}>
                   <option value="">— Keiner —</option>
                   {azubis.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
@@ -226,41 +281,112 @@ export default function UserProfileAdmin() {
 
           <div className="border-t border-[#2a2d4a] pt-4 space-y-3">
             <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Persönliche Daten</h3>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="label">Anrede</label>
-                <select className="input-field" value={form.salutation} onChange={e => setForm(f => ({ ...f, salutation: e.target.value }))}>
-                  <option value="">—</option>
-                  <option value="Herr">Herr</option>
-                  <option value="Frau">Frau</option>
-                </select>
+            {form.azubi_id ? (
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="label">Anrede</label>
+                  <select className="input-field" value={form.salutation} onChange={e => setForm(f => ({ ...f, salutation: e.target.value }))}>
+                    <option value="">—</option>
+                    <option value="Herr">Herr</option>
+                    <option value="Frau">Frau</option>
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="label">Name</label>
+                  <input className="input-field" value={form.azubi_name} onChange={e => setForm(f => ({ ...f, azubi_name: e.target.value }))} />
+                </div>
               </div>
-              <div>
-                <label className="label">Vorname</label>
-                <input
-                  className="input-field" disabled={!!form.azubi_id}
-                  value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))}
-                />
+            ) : (
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="label">Anrede</label>
+                  <select className="input-field" value={form.salutation} onChange={e => setForm(f => ({ ...f, salutation: e.target.value }))}>
+                    <option value="">—</option>
+                    <option value="Herr">Herr</option>
+                    <option value="Frau">Frau</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Vorname</label>
+                  <input className="input-field" value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Nachname</label>
+                  <input className="input-field" value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))} />
+                </div>
               </div>
-              <div>
-                <label className="label">Nachname</label>
-                <input
-                  className="input-field" disabled={!!form.azubi_id}
-                  value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))}
-                />
-              </div>
-            </div>
-            {!!form.azubi_id && (
-              <p className="text-xs text-slate-600">Name/Geburtstag dieses Kontos werden über die Azubi-Stammdaten verwaltet (Azubis-Seite).</p>
             )}
             <div>
               <label className="label">Geburtsdatum</label>
-              <input
-                type="date" className="input-field max-w-[200px]" disabled={!!form.azubi_id}
-                value={form.birthday || ''} onChange={e => setForm(f => ({ ...f, birthday: e.target.value }))}
-              />
+              {form.azubi_id ? (
+                <input
+                  type="date" className="input-field max-w-[200px]"
+                  value={form.azubi_birthday || ''} onChange={e => setForm(f => ({ ...f, azubi_birthday: e.target.value }))}
+                />
+              ) : (
+                <input
+                  type="date" className="input-field max-w-[200px]"
+                  value={form.birthday || ''} onChange={e => setForm(f => ({ ...f, birthday: e.target.value }))}
+                />
+              )}
             </div>
           </div>
+
+          {form.role === 'azubi' && form.azubi_id && (
+            <div className="border-t border-[#2a2d4a] pt-4 space-y-3">
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Azubi-Stammdaten</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Lehrjahr</label>
+                  <select className="input-field" value={form.azubi_lehrjahr} onChange={e => setForm(f => ({ ...f, azubi_lehrjahr: parseInt(e.target.value) }))}>
+                    <option value={0}>0. Lehrjahr (startet noch)</option>
+                    <option value={1}>1. Lehrjahr</option>
+                    <option value={2}>2. Lehrjahr</option>
+                    <option value={3}>3. Lehrjahr</option>
+                    <option value={4}>4. Lehrjahr</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Ausbildungsstart</label>
+                  <input type="date" className="input-field" value={form.azubi_start_date} onChange={e => setForm(f => ({ ...f, azubi_start_date: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="label">Abteilung</label>
+                <select className="input-field" value={form.azubi_department_id} onChange={e => setForm(f => ({ ...f, azubi_department_id: e.target.value }))}>
+                  <option value="">— Nicht zugewiesen —</option>
+                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">E-Mail (Azubi-Stammdaten, z.B. für Erinnerungsmails)</label>
+                <input type="email" className="input-field" value={form.azubi_email} onChange={e => setForm(f => ({ ...f, azubi_email: e.target.value }))} placeholder="azubi@firma.de" />
+              </div>
+              <div>
+                <label className="label">Berichtsheft-Rhythmus</label>
+                <select className="input-field" value={form.azubi_report_period} onChange={e => setForm(f => ({ ...f, azubi_report_period: e.target.value }))}>
+                  <option value="week">Wochenbericht</option>
+                  <option value="day">Tagesbericht</option>
+                </select>
+              </div>
+              <div className="pt-1">
+                <p className="text-xs text-slate-500 mb-2">Geplanter Abteilungswechsel — erscheint 30 Tage vorher als Vorschau im Dashboard und wird am Stichtag automatisch übernommen.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Nächste Abteilung</label>
+                    <select className="input-field" value={form.azubi_next_department_id} onChange={e => setForm(f => ({ ...f, azubi_next_department_id: e.target.value }))}>
+                      <option value="">— Keine —</option>
+                      {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Nächster Abteilungswechsel</label>
+                    <input type="date" className="input-field" value={form.azubi_next_rotation_date} onChange={e => setForm(f => ({ ...f, azubi_next_rotation_date: e.target.value }))} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="border-t border-[#2a2d4a] pt-4 space-y-3">
             <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Kontaktdaten</h3>
