@@ -1,21 +1,37 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Zap, Pencil, Users } from 'lucide-react'
+import { Plus, Trash2, Zap, Pencil, Users, Info } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { workflowsApi, notificationGroupsApi, usersApi, permissionRolesApi } from '../../api/client'
 import { CATEGORIES, TRIGGERS, ACTIONS, TRIGGER_VARS, defaultConfig } from '../../workflowCatalog'
 
-function VariableReference({ vars }) {
+function VariablePopover({ vars }) {
+  const [open, setOpen] = useState(false)
   if (!vars || vars.length === 0) return null
   return (
-    <div className="shrink-0 sm:w-56 bg-[#0d0f1a] border border-[#2a2d4a] rounded-lg p-2.5 space-y-1.5">
-      <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Verfügbare Platzhalter</div>
-      {vars.map(v => (
-        <div key={v.key}>
-          <code className="text-indigo-300 text-xs">{`{{${v.key}}}`}</code>
-          <div className="text-xs text-slate-500 leading-snug">{v.label}</div>
-        </div>
-      ))}
+    <div className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        title="Verfügbare Platzhalter anzeigen"
+        className={`p-0.5 rounded transition-colors ${open ? 'text-indigo-300' : 'text-slate-500 hover:text-indigo-300'}`}
+      >
+        <Info size={13} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute z-20 left-0 top-full mt-1.5 w-64 bg-[#1b1e33] border border-[#2a2d4a] rounded-lg p-3 shadow-xl space-y-1.5">
+            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Verfügbare Platzhalter</div>
+            {vars.map(v => (
+              <div key={v.key}>
+                <code className="text-indigo-300 text-xs">{`{{${v.key}}}`}</code>
+                <div className="text-xs text-slate-500 leading-snug">{v.label}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -106,17 +122,13 @@ function FieldInput({ field, value, onChange, ctx }) {
     )
   }
   if (field.type === 'textarea') {
-    const textarea = (
-      <div className="flex-1 min-w-0">
-        <label className="label">{field.label}</label>
-        <textarea className="input-field resize-none" rows={4} value={value || ''} onChange={e => onChange(e.target.value)} />
-      </div>
-    )
-    if (!field.showVariables) return textarea
     return (
-      <div className="flex flex-col sm:flex-row gap-3">
-        {textarea}
-        <VariableReference vars={ctx.vars} />
+      <div>
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <label className="label !mb-0">{field.label}</label>
+          {field.showVariables && <VariablePopover vars={ctx.vars} />}
+        </div>
+        <textarea className="input-field resize-none" rows={4} value={value || ''} onChange={e => onChange(e.target.value)} />
       </div>
     )
   }
@@ -140,17 +152,13 @@ function FieldInput({ field, value, onChange, ctx }) {
       </div>
     )
   }
-  const input = (
-    <div className="flex-1 min-w-0">
-      <label className="label">{field.label}</label>
-      <input className="input-field" value={value || ''} onChange={e => onChange(e.target.value)} />
-    </div>
-  )
-  if (!field.showVariables) return input
   return (
-    <div className="flex flex-col sm:flex-row gap-3">
-      {input}
-      <VariableReference vars={ctx.vars} />
+    <div>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <label className="label !mb-0">{field.label}</label>
+        {field.showVariables && <VariablePopover vars={ctx.vars} />}
+      </div>
+      <input className="input-field" value={value || ''} onChange={e => onChange(e.target.value)} />
     </div>
   )
 }
