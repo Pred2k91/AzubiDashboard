@@ -153,6 +153,25 @@ export const notificationGroupsApi = {
   delete: (id) => api.delete(`/notification-groups/${id}`).then(r => r.data),
 }
 
+export const feedbackTemplatesApi = {
+  getAll: () => api.get('/feedback-templates').then(r => r.data),
+  update: (kind, data) => api.put(`/feedback-templates/${kind}`, data).then(r => r.data),
+}
+
+export const feedbackApi = {
+  // Admin-/Ausbilder-Übersicht
+  getAll: (params) => api.get('/feedback', { params }).then(r => r.data),
+  getOne: (id) => api.get(`/feedback/${id}`).then(r => r.data),
+  resend: (id) => api.post(`/feedback/${id}/resend`).then(r => r.data),
+  // Azubi-Selbstbedienung
+  getMine: () => api.get('/feedback/mine/list').then(r => r.data),
+  getMineOne: (id) => api.get(`/feedback/mine/${id}`).then(r => r.data),
+  submitMine: (id, answers) => api.put(`/feedback/mine/${id}`, { answers }).then(r => r.data),
+  // Öffentlicher Magic-Link, kein Login
+  getPublic: (token) => api.get(`/feedback/public/${token}`).then(r => r.data),
+  submitPublic: (token, answers) => api.post(`/feedback/public/${token}`, { answers }).then(r => r.data),
+}
+
 export const pushApi = {
   getVapidPublicKey: () => api.get('/push/vapid-public-key').then(r => r.data),
   subscribe: (subscription) => api.post('/push/subscribe', subscription).then(r => r.data),

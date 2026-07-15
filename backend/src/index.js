@@ -26,6 +26,8 @@ const exportRoutes = require('./routes/export')
 const workflowsRoutes = require('./routes/workflows')
 const notificationGroupsRoutes = require('./routes/notificationGroups')
 const pushRoutes = require('./routes/push')
+const feedbackTemplatesRoutes = require('./routes/feedbackTemplates')
+const feedbackRoutes = require('./routes/feedback')
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -60,6 +62,8 @@ app.use('/api/reports', reportsRoutes)
 app.use('/api/export', exportRoutes)
 app.use('/api/workflows', workflowsRoutes)
 app.use('/api/notification-groups', notificationGroupsRoutes)
+app.use('/api/feedback-templates', feedbackTemplatesRoutes)
+app.use('/api/feedback', feedbackRoutes)
 app.use('/api/push', pushRoutes)
 
 app.get('/api/health', (req, res) => {

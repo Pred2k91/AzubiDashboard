@@ -22,6 +22,7 @@ const CATEGORIES = [
   { key: 'rotation', label: 'Abteilungswechsel' },
   { key: 'todo', label: 'Aufgaben' },
   { key: 'event', label: 'Termin' },
+  { key: 'feedback', label: 'Feedback' },
 ]
 
 const TRIGGERS = [
@@ -115,6 +116,23 @@ const TRIGGERS = [
     category: 'event',
     label: 'Termin abgesagt',
     description: 'Feuert sofort, sobald ein Termin gelöscht wird. Bei Terminen mit verknüpften Azubis feuert es pro Azubi.',
+    fields: [],
+  },
+  {
+    type: 'feedback_pending',
+    category: 'feedback',
+    label: 'Feedback steht noch aus',
+    description: 'Feuert pro noch nicht ausgefülltem Azubi-Feedbackbogen (Azubi bewertet Team), der mindestens so viele Tage aussteht. Team->Azubi-Bewertungen laufen über den Ansprechpartner der Abteilung, nicht über einen Systemnutzer, und sind hier nicht enthalten.',
+    fields: [
+      { key: 'min_days', label: 'Tage seit Anlegen (mindestens)', type: 'number', default: 3, min: 1 },
+      REPEAT_FIELD,
+    ],
+  },
+  {
+    type: 'feedback_submitted',
+    category: 'feedback',
+    label: 'Feedback wurde abgegeben',
+    description: 'Feuert sofort, sobald ein Azubi- oder Team-Feedbackbogen abgeschickt wurde.',
     fields: [],
   },
 ]

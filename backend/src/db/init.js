@@ -59,6 +59,41 @@ function initDb() {
       color TEXT DEFAULT '#6366f1',
       description TEXT DEFAULT '',
       location TEXT DEFAULT '',
+      contact_name TEXT DEFAULT '',
+      contact_email TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Genau eine Zeile pro kind ('azubi_to_team' | 'team_to_azubi') -- der Nutzer bearbeitet
+    -- die Fragen "des" Azubi->Team- bzw. Team->Azubi-Bogens direkt, keine Bogen-Bibliothek
+    -- mit mehreren benannten Varianten. questions: JSON [{id, type: 'rating'|'text', label}].
+    CREATE TABLE IF NOT EXISTS feedback_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      questions TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Eine konkrete Bewertung: entweder ein Azubi bewertet ein Team (kind='azubi_to_team',
+    -- ganz normal über den eingeloggten Azubi-Account) oder ein Team bewertet einen Azubi
+    -- (kind='team_to_azubi', über einen Magic-Link an die Abteilungs-Kontakt-E-Mail, da
+    -- Abteilungsleiter keinen Systemzugang haben -- access_token/gültig bis abgeschickt).
+    -- questions_snapshot friert die Fragen zum Anlegezeitpunkt ein, damit spätere
+    -- Bogen-Änderungen bereits laufende/abgeschlossene Bewertungen nicht verändern.
+    CREATE TABLE IF NOT EXISTS feedback_instances (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind TEXT NOT NULL,
+      template_id INTEGER REFERENCES feedback_templates(id) ON DELETE SET NULL,
+      azubi_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+      rotation_id INTEGER REFERENCES rotations(id) ON DELETE SET NULL,
+      questions_snapshot TEXT NOT NULL,
+      answers TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      access_token TEXT UNIQUE,
+      submitted_at TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -278,6 +313,26 @@ function initDb() {
 
   // Migration: lehrjahre-Spalte hinzufügen falls nicht vorhanden
   try { db.exec("ALTER TABLE school_blocks ADD COLUMN lehrjahre TEXT DEFAULT '[]'") } catch (_) {}
+
+  // Migration: Ansprechpartner pro Abteilung (für die Team->Azubi-Feedback-Einladung per Mail)
+  try { db.exec("ALTER TABLE departments ADD COLUMN contact_name TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE departments ADD COLUMN contact_email TEXT DEFAULT ''") } catch (_) {}
+
+  // Feedback-Bögen: genau eine Zeile pro kind, mit sinnvollen Startfragen, falls noch keine da sind.
+  db.prepare(`
+    INSERT OR IGNORE INTO feedback_templates (kind, name, questions) VALUES (?, ?, ?)
+  `).run('azubi_to_team', 'Azubi bewertet Team', JSON.stringify([
+    { id: 'q1', type: 'rating', label: 'Wie bewertest du die fachliche Anleitung in dieser Abteilung?' },
+    { id: 'q2', type: 'rating', label: 'Wie bewertest du das Arbeitsklima im Team?' },
+    { id: 'q3', type: 'text', label: 'Was lief besonders gut oder könnte verbessert werden?' },
+  ]))
+  db.prepare(`
+    INSERT OR IGNORE INTO feedback_templates (kind, name, questions) VALUES (?, ?, ?)
+  `).run('team_to_azubi', 'Team bewertet Azubi', JSON.stringify([
+    { id: 'q1', type: 'rating', label: 'Wie bewertet ihr die fachliche Leistung des Azubis?' },
+    { id: 'q2', type: 'rating', label: 'Wie bewertet ihr Engagement und Zuverlässigkeit?' },
+    { id: 'q3', type: 'text', label: 'Zusätzliche Anmerkungen' },
+  ]))
 
   // Migration: Ankündigungen können optional beim Anlegen per Push/E-Mail versendet
   // werden, wahlweise auf bestimmte Niederlassungen eingeschränkt.

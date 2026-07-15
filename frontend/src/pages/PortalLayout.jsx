@@ -1,10 +1,11 @@
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, BookOpen, UserCircle, LogOut, ExternalLink } from 'lucide-react'
+import { LayoutDashboard, BookOpen, UserCircle, LogOut, ExternalLink, MessageSquareText } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 const NAV = [
   { to: '/portal', label: 'Übersicht', icon: LayoutDashboard, end: true },
   { to: '/portal/report', label: 'Berichtsheft', icon: BookOpen },
+  { to: '/portal/feedback', label: 'Feedback', icon: MessageSquareText },
   { to: '/portal/profile', label: 'Mein Profil', icon: UserCircle },
 ]
 

@@ -16,11 +16,11 @@ router.get('/', (req, res) => {
 router.post('/', requirePermission('departments.manage'), (req, res) => {
   try {
     const db = getDb()
-    const { name, color, description, location } = req.body
+    const { name, color, description, location, contact_name, contact_email } = req.body
     if (!name) return res.status(400).json({ error: 'name ist erforderlich' })
     const result = db.prepare(
-      'INSERT INTO departments (name, color, description, location) VALUES (?, ?, ?, ?)'
-    ).run(name, color || '#6366f1', description || '', location || '')
+      'INSERT INTO departments (name, color, description, location, contact_name, contact_email) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(name, color || '#6366f1', description || '', location || '', contact_name || '', contact_email || '')
     const dept = db.prepare('SELECT * FROM departments WHERE id = ?').get(result.lastInsertRowid)
     res.status(201).json(dept)
   } catch (err) {
@@ -34,10 +34,10 @@ router.post('/', requirePermission('departments.manage'), (req, res) => {
 router.put('/:id', requirePermission('departments.manage'), (req, res) => {
   try {
     const db = getDb()
-    const { name, color, description, location } = req.body
+    const { name, color, description, location, contact_name, contact_email } = req.body
     db.prepare(
-      'UPDATE departments SET name=?, color=?, description=?, location=? WHERE id=?'
-    ).run(name, color || '#6366f1', description || '', location || '', req.params.id)
+      'UPDATE departments SET name=?, color=?, description=?, location=?, contact_name=?, contact_email=? WHERE id=?'
+    ).run(name, color || '#6366f1', description || '', location || '', contact_name || '', contact_email || '', req.params.id)
     const dept = db.prepare('SELECT * FROM departments WHERE id = ?').get(req.params.id)
     if (!dept) return res.status(404).json({ error: 'Nicht gefunden' })
     res.json(dept)

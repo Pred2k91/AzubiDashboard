@@ -15,7 +15,7 @@ const COLORS = [
   // Neutral
   '#ffffff', '#e2e8f0', '#94a3b8', '#64748b', '#334155',
 ]
-const EMPTY = { name: '', color: '#6366f1', description: '', location: '' }
+const EMPTY = { name: '', color: '#6366f1', description: '', location: '', contact_name: '', contact_email: '' }
 
 export default function DepartmentsAdmin() {
   const [departments, setDepartments] = useState([])
@@ -45,7 +45,10 @@ export default function DepartmentsAdmin() {
   const openNew = () => { setEditing(null); setForm(EMPTY); setError(''); setModal(true) }
   const openEdit = (d) => {
     setEditing(d)
-    setForm({ name: d.name, color: d.color || '#6366f1', description: d.description || '', location: d.location || '' })
+    setForm({
+      name: d.name, color: d.color || '#6366f1', description: d.description || '', location: d.location || '',
+      contact_name: d.contact_name || '', contact_email: d.contact_email || '',
+    })
     setError('')
     setModal(true)
   }
@@ -137,6 +140,19 @@ export default function DepartmentsAdmin() {
           <div>
             <label className="label">Beschreibung</label>
             <textarea className="input-field resize-none" rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Optional..." />
+          </div>
+          <div className="border-t border-[#2a2d4a] pt-4 grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="label">Ansprechpartner (für Feedback-Einladungen)</label>
+            </div>
+            <div>
+              <label className="label">Name</label>
+              <input className="input-field" value={form.contact_name} onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))} placeholder="z.B. Max Mustermann" />
+            </div>
+            <div>
+              <label className="label">E-Mail</label>
+              <input type="email" className="input-field" value={form.contact_email} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} placeholder="max@firma.example" />
+            </div>
           </div>
           <div>
             <label className="label">Farbe</label>

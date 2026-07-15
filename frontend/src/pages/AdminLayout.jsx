@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, CalendarDays, CheckSquare, StickyNote,
   Users, Building2, Settings, ExternalLink, GraduationCap, Megaphone, BookOpen,
-  UserCog, UserCircle, LogOut, Menu, X, Landmark, ShieldCheck, Zap,
+  UserCog, UserCircle, LogOut, Menu, X, Landmark, ShieldCheck, Zap, MessageSquareText,
 } from 'lucide-react'
 import { settingsApi } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
@@ -24,6 +24,7 @@ const NAV_GROUPS = [
       { to: '/admin/reports', label: 'Berichtshefte', icon: BookOpen, permission: 'reports.review' },
       { to: '/admin/departments', label: 'Abteilungen', icon: Building2, permission: 'departments.manage' },
       { to: '/admin/schools', label: 'Berufsschulen', icon: GraduationCap, permission: 'schools.manage' },
+      { to: '/admin/feedback', label: 'Feedback', icon: MessageSquareText, permission: 'feedback.manage' },
     ],
   },
   {

@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
 const { requireRole, requirePermission, scopeLocationIds, idsClause } = require('../middleware/auth')
+const { createDepartureFeedback } = require('../utils/feedback')
 
 // Anzahl Tage vor dem Wechseldatum, ab der die Vorschau im Dashboard erscheint
 const ROTATION_PREVIEW_DAYS = 30
@@ -41,7 +42,7 @@ function syncLehrjahre(db) {
 function syncNextRotation(db) {
   const today = new Date().toISOString().slice(0, 10)
   const pending = db.prepare(
-    "SELECT id, next_department_id, next_rotation_date FROM users WHERE role = 'azubi' AND active = 1 AND next_rotation_date IS NOT NULL AND next_rotation_date <= ?"
+    "SELECT id, current_department_id, next_department_id, next_rotation_date FROM users WHERE role = 'azubi' AND active = 1 AND next_rotation_date IS NOT NULL AND next_rotation_date <= ?"
   ).all(today)
   if (pending.length === 0) return
   const update = db.prepare(
@@ -58,6 +59,13 @@ function syncNextRotation(db) {
     }
   })
   run()
+  // Feedback-Einladungen für die VERLASSENE Abteilung -- außerhalb der Transaktion, da sie
+  // selbst Zeilen einfügt/liest und ein E-Mail-Versand (nicht rückrollbar) auslöst.
+  for (const a of pending) {
+    try { createDepartureFeedback(db, a.id, a.current_department_id) } catch (err) {
+      console.error('[feedback] Fehler beim Anlegen der Feedback-Einladung:', err.message)
+    }
+  }
 }
 
 // Get all azubis with department info -- Azubi-Erstellung/-Bearbeitung/-Löschung läuft

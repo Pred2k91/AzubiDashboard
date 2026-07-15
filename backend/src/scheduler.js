@@ -266,15 +266,40 @@ async function pollEventUpcoming(db, workflow) {
   }
 }
 
+// Nur kind='azubi_to_team' -- der Azubi ist ein echter Systemnutzer, der erinnert werden
+// kann. Team->Azubi-Bewertungen laufen über den Abteilungs-Ansprechpartner per Magic-Link
+// (kein Systemnutzer, siehe utils/feedback.js), dafür gibt es hier bewusst keine Erinnerung.
+async function pollFeedbackPending(db, workflow) {
+  const minDays = Number(workflow.trigger_config.min_days) || 1
+  const repeatEvery = workflow.trigger_config.repeat_every_days
+  const rows = db.prepare(`
+    SELECT fi.id, fi.created_at, fi.azubi_id, a.name as azubi_name, a.email as azubi_email, d.name as dept_name
+    FROM feedback_instances fi
+    JOIN users a ON a.id = fi.azubi_id
+    JOIN departments d ON d.id = fi.department_id
+    WHERE fi.kind = 'azubi_to_team' AND fi.status = 'pending' AND a.active = 1
+  `).all()
+
+  for (const row of rows) {
+    const days = daysSince(row.created_at)
+    if (days < minDays) continue
+    const triggerKey = recurringKey(`pending:${row.created_at}`, days, repeatEvery)
+    const azubi = { id: row.azubi_id, name: row.azubi_name, email: row.azubi_email }
+    const vars = { name: azubi.name, title: row.dept_name, days, days_overdue: days }
+    await fireIfNew(db, workflow, `feedback:${row.id}`, triggerKey, azubi, vars)
+  }
+}
+
 const POLLERS = {
   report_overdue: pollReportOverdue,
   rotation_upcoming: pollRotationUpcoming,
   report_pending_review: pollReportPendingReview,
   todo_overdue: pollTodoOverdue,
   event_upcoming: pollEventUpcoming,
+  feedback_pending: pollFeedbackPending,
   // report_submitted / report_rejected / report_approved / todo_assigned / event_created /
-  // event_cancelled sind Sofort-Auslöser -- siehe fireEventWorkflows(), aufgerufen direkt
-  // aus den jeweiligen Routen.
+  // event_cancelled / feedback_submitted sind Sofort-Auslöser -- siehe fireEventWorkflows(),
+  // aufgerufen direkt aus den jeweiligen Routen.
 }
 
 // Einmal beim Start und danach stündlich aufgerufen (siehe index.js). Wertet alle aktiven

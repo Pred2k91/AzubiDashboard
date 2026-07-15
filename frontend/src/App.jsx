@@ -10,11 +10,14 @@ import LoginPage from './pages/LoginPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
+import PublicFeedbackForm from './pages/PublicFeedbackForm'
 import ProfilePage from './pages/ProfilePage'
 import PortalLayout from './pages/PortalLayout'
 import PortalDashboard from './pages/portal/PortalDashboard'
 import ReportsList from './pages/portal/ReportsList'
 import ReportEditor from './pages/portal/ReportEditor'
+import FeedbackList from './pages/portal/FeedbackList'
+import FeedbackForm from './pages/portal/FeedbackForm'
 import AdminLayout from './pages/AdminLayout'
 import AdminOverview from './pages/admin/AdminOverview'
 import CalendarAdmin from './pages/admin/CalendarAdmin'
@@ -31,6 +34,7 @@ import UserProfileAdmin from './pages/admin/UserProfileAdmin'
 import LocationsAdmin from './pages/admin/LocationsAdmin'
 import RolesAdmin from './pages/admin/RolesAdmin'
 import WorkflowsAdmin from './pages/admin/WorkflowsAdmin'
+import FeedbackAdmin from './pages/admin/FeedbackAdmin'
 
 export default function App() {
   useEffect(() => {
@@ -54,6 +58,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/feedback/:token" element={<PublicFeedbackForm />} />
           <Route path="/change-password" element={<RequireRole><ChangePasswordPage /></RequireRole>} />
           <Route path="/admin" element={<RequireRole role="ausbilder"><AdminLayout /></RequireRole>}>
             <Route index element={<AdminOverview />} />
@@ -70,6 +75,7 @@ export default function App() {
             <Route path="locations" element={<RequirePermission permission="locations.manage"><LocationsAdmin /></RequirePermission>} />
             <Route path="roles" element={<RequirePermission superAdminOnly><RolesAdmin /></RequirePermission>} />
             <Route path="workflows" element={<RequirePermission permission="workflows.manage"><WorkflowsAdmin /></RequirePermission>} />
+            <Route path="feedback" element={<RequirePermission permission="feedback.manage"><FeedbackAdmin /></RequirePermission>} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="settings" element={<RequirePermission permission="settings.manage"><SettingsPage /></RequirePermission>} />
           </Route>
@@ -77,6 +83,8 @@ export default function App() {
             <Route index element={<PortalDashboard />} />
             <Route path="report" element={<ReportsList />} />
             <Route path="report/:id" element={<ReportEditor />} />
+            <Route path="feedback" element={<FeedbackList />} />
+            <Route path="feedback/:id" element={<FeedbackForm />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

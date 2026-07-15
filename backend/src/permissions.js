@@ -18,6 +18,7 @@ const PERMISSIONS = [
   { key: 'settings.manage', label: 'Einstellungen ändern' },
   { key: 'productivity.manage', label: 'Aufgaben & Notizen pflegen' },
   { key: 'workflows.manage', label: 'Workflows pflegen' },
+  { key: 'feedback.manage', label: 'Feedbackbögen pflegen & Auswertungen einsehen' },
 ]
 
 const PERMISSION_KEYS = PERMISSIONS.map(p => p.key)
