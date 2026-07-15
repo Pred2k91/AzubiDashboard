@@ -77,7 +77,7 @@ export default function UsersAdmin() {
           <thead>
             <tr>
               <th>E-Mail</th>
-              <th>Rolle</th>
+              <th>Kontotyp</th>
               <th>Status</th>
               <th>Letzter Login</th>
               <th></th>
@@ -130,7 +130,7 @@ export default function UsersAdmin() {
             <input type="email" className="input-field" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
           </div>
           <div>
-            <label className="label">Rolle</label>
+            <label className="label">Kontotyp</label>
             <select className="input-field" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
               <option value="azubi">Azubi</option>
               <option value="ausbilder">Ausbilder</option>

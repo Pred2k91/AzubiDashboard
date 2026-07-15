@@ -236,7 +236,7 @@ export default function UserProfileAdmin() {
               <h2 className="text-sm font-semibold text-white">Interne Daten</h2>
               <FieldRow label="User ID" value={`#${user.id}`} />
               <FieldRow label="Personal Nr." value={user.personnel_number} />
-              <FieldRow label="Rolle" value={user.role === 'ausbilder' ? 'Ausbilder:in' : 'Azubi'} />
+              <FieldRow label="Kontotyp" value={user.role === 'ausbilder' ? 'Ausbilder:in' : 'Azubi'} />
               {user.role === 'ausbilder' && (
                 <FieldRow label="Berechtigungsrolle" value={roles.find(r => r.id === user.permission_role_id)?.name || 'Keine (keine Berechtigungen)'} />
               )}
@@ -259,7 +259,7 @@ export default function UserProfileAdmin() {
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="label">Rolle</label>
+              <label className="label">Kontotyp</label>
               <select className="input-field" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
                 <option value="azubi">Azubi</option>
                 <option value="ausbilder">Ausbilder</option>
