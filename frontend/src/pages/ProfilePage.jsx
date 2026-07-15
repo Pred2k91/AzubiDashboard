@@ -42,6 +42,8 @@ export default function ProfilePage() {
   const [pushSubscribed, setPushSubscribed] = useState(false)
   const [pushLoading, setPushLoading] = useState(false)
   const [pushError, setPushError] = useState('')
+  const [pushTestLoading, setPushTestLoading] = useState(false)
+  const [pushTestResult, setPushTestResult] = useState('')
 
   const loadProfile = () => meApi.getFullProfile().then(p => {
     setProfile(p)
@@ -99,6 +101,19 @@ export default function ProfilePage() {
       setPushError(err.message || 'Fehler beim Aktivieren der Benachrichtigungen')
     } finally {
       setPushLoading(false)
+    }
+  }
+
+  const handlePushTest = async () => {
+    setPushTestResult('')
+    setPushTestLoading(true)
+    try {
+      await pushApi.sendTest()
+      setPushTestResult('Test-Benachrichtigung gesendet — sollte gleich ankommen.')
+    } catch (err) {
+      setPushTestResult(err.response?.data?.error || 'Test fehlgeschlagen')
+    } finally {
+      setPushTestLoading(false)
     }
   }
 
@@ -337,9 +352,17 @@ export default function ProfilePage() {
                   Erhalte Benachrichtigungen auf diesem Gerät (z.B. bei überfälligem Berichtsheft). Auf dem iPhone zuerst über "Teilen" → "Zum Home-Bildschirm" hinzufügen, sonst funktioniert das nicht.
                 </p>
                 {pushError && <p className="text-sm text-red-400">{pushError}</p>}
-                <button type="button" onClick={handlePushToggle} disabled={pushLoading} className={pushSubscribed ? 'btn-secondary' : 'btn-primary'}>
-                  {pushLoading ? '...' : pushSubscribed ? 'Benachrichtigungen deaktivieren' : 'Benachrichtigungen aktivieren'}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={handlePushToggle} disabled={pushLoading} className={pushSubscribed ? 'btn-secondary' : 'btn-primary'}>
+                    {pushLoading ? '...' : pushSubscribed ? 'Benachrichtigungen deaktivieren' : 'Benachrichtigungen aktivieren'}
+                  </button>
+                  {pushSubscribed && (
+                    <button type="button" onClick={handlePushTest} disabled={pushTestLoading} className="btn-secondary">
+                      {pushTestLoading ? '...' : 'Test-Push senden'}
+                    </button>
+                  )}
+                </div>
+                {pushTestResult && <p className="text-sm text-slate-400">{pushTestResult}</p>}
               </div>
             )}
 

@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
 const { requireAuth } = require('../middleware/auth')
+const { sendPushToUsers, isConfigured } = require('../utils/webpush')
 
 // Öffentlich -- der Public Key ist per Definition nicht geheim, das Frontend braucht ihn
 // vor dem Abonnieren einer Push-Subscription.
@@ -22,6 +23,26 @@ router.post('/subscribe', requireAuth, (req, res) => {
       ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id, p256dh=excluded.p256dh, auth=excluded.auth
     `).run(req.user.id, endpoint, keys.p256dh, keys.auth)
     res.json({ success: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Schickt eine Test-Benachrichtigung an die eigenen (des angemeldeten Nutzers) Subscriptions --
+// zum Prüfen, ob die Zustellung Ende-zu-Ende funktioniert, ohne auf einen echten Workflow warten zu müssen.
+router.post('/test', requireAuth, async (req, res) => {
+  try {
+    if (!isConfigured()) {
+      return res.status(400).json({ error: 'Push ist serverseitig noch nicht eingerichtet (VAPID-Schlüssel fehlen).' })
+    }
+    const db = getDb()
+    const hasSub = db.prepare('SELECT 1 FROM push_subscriptions WHERE user_id = ?').get(req.user.id)
+    if (!hasSub) {
+      return res.status(400).json({ error: 'Kein aktiviertes Gerät gefunden. Erst Benachrichtigungen aktivieren.' })
+    }
+    const result = await sendPushToUsers([req.user.id], {
+      title: 'Test-Benachrichtigung',
+      body: 'Push-Benachrichtigungen funktionieren auf diesem Gerät.',
+    })
+    res.json({ success: true, sent: result.sent })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
