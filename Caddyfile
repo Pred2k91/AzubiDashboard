@@ -22,6 +22,10 @@
 #      4. docker compose --profile tls up -d --build
 #      Kein Zertifikatswarnung mehr, echtes von allen Geräten akzeptiertes Zertifikat.
 
+{
+	debug
+}
+
 {$SITE_DOMAIN:localhost} {
 	tls {$TLS_MODE:-internal}
 	reverse_proxy frontend:80
