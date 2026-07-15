@@ -3,7 +3,7 @@ import { Plus, Pencil, Trash2, CheckSquare, Circle, Clock, CheckCircle2 } from '
 import { format, parseISO } from 'date-fns'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
-import { todosApi } from '../../api/client'
+import { todosApi, azubisApi } from '../../api/client'
 
 const PRIORITY = {
   high: { label: 'Hoch', cls: 'bg-red-500/10 text-red-400 border-red-500/20' },
@@ -17,10 +17,11 @@ const STATUS = {
   done: { label: 'Erledigt', icon: CheckCircle2, cls: 'text-green-400' },
 }
 
-const EMPTY = { title: '', description: '', priority: 'medium', status: 'open', due_date: '' }
+const EMPTY = { title: '', description: '', priority: 'medium', status: 'open', due_date: '', assigned_to: '' }
 
 export default function TodosAdmin() {
   const [todos, setTodos] = useState([])
+  const [azubis, setAzubis] = useState([])
   const [filter, setFilter] = useState('all')
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -30,12 +31,17 @@ export default function TodosAdmin() {
   const [error, setError] = useState('')
 
   const load = () => todosApi.getAll().then(setTodos).catch(() => {})
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    azubisApi.getAll().then(setAzubis).catch(() => {})
+  }, [])
+
+  const azubiName = (id) => azubis.find(a => a.id === id)?.name || ''
 
   const openNew = () => { setEditing(null); setForm(EMPTY); setError(''); setModal(true) }
   const openEdit = (t) => {
     setEditing(t)
-    setForm({ title: t.title, description: t.description || '', priority: t.priority, status: t.status, due_date: t.due_date || '' })
+    setForm({ title: t.title, description: t.description || '', priority: t.priority, status: t.status, due_date: t.due_date || '', assigned_to: t.assigned_to || '' })
     setError('')
     setModal(true)
   }
@@ -45,8 +51,9 @@ export default function TodosAdmin() {
     setLoading(true)
     setError('')
     try {
-      if (editing) await todosApi.update(editing.id, { ...form, due_date: form.due_date || null })
-      else await todosApi.create({ ...form, due_date: form.due_date || null })
+      const payload = { ...form, due_date: form.due_date || null, assigned_to: form.assigned_to || null }
+      if (editing) await todosApi.update(editing.id, payload)
+      else await todosApi.create(payload)
       await load()
       setModal(false)
     } catch (err) {
@@ -107,12 +114,13 @@ export default function TodosAdmin() {
               <th>Aufgabe</th>
               <th>Priorität</th>
               <th>Fällig</th>
+              <th>Zugewiesen</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={5} className="text-center text-slate-600 py-10">Keine Aufgaben</td></tr>
+              <tr><td colSpan={6} className="text-center text-slate-600 py-10">Keine Aufgaben</td></tr>
             ) : filtered.map(t => {
               const S = STATUS[t.status] || STATUS.open
               const P = PRIORITY[t.priority] || PRIORITY.medium
@@ -144,6 +152,9 @@ export default function TodosAdmin() {
                   </td>
                   <td className="text-sm text-slate-400">
                     {t.due_date ? format(parseISO(t.due_date), 'dd.MM.yyyy') : <span className="text-slate-700">—</span>}
+                  </td>
+                  <td className="text-sm text-slate-400">
+                    {t.assigned_to ? azubiName(t.assigned_to) : <span className="text-slate-700">—</span>}
                   </td>
                   <td>
                     <div className="flex gap-1 justify-end">
@@ -190,6 +201,13 @@ export default function TodosAdmin() {
               <label className="label">Fälligkeitsdatum</label>
               <input type="date" className="input-field" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
             </div>
+          </div>
+          <div>
+            <label className="label">Zugewiesen an</label>
+            <select className="input-field" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value ? Number(e.target.value) : '' }))}>
+              <option value="">Niemand</option>
+              {azubis.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button className="btn-secondary" onClick={() => setModal(false)}>Abbrechen</button>

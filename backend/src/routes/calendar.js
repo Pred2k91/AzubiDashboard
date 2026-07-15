@@ -2,6 +2,21 @@ const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
 const { requirePermission } = require('../middleware/auth')
+const { fireEventWorkflows } = require('../scheduler')
+
+function notifyEventCreated(db, event, azubiIds) {
+  const vars = { title: event.title, date: event.start_datetime }
+  if (!azubiIds || azubiIds.length === 0) {
+    fireEventWorkflows('event_created', `event:${event.id}`, 'created', null, { ...vars, name: '' })
+      .catch(err => console.error('[workflows] Fehler:', err.message))
+    return
+  }
+  const rows = db.prepare(`SELECT id, name, email FROM users WHERE id IN (${azubiIds.map(() => '?').join(',')})`).all(...azubiIds)
+  for (const azubi of rows) {
+    fireEventWorkflows('event_created', `event:${event.id}:azubi:${azubi.id}`, 'created', azubi, { ...vars, name: azubi.name })
+      .catch(err => console.error('[workflows] Fehler:', err.message))
+  }
+}
 
 function attachAzubis(db, events) {
   if (!events.length) return events
@@ -60,6 +75,7 @@ router.post('/', requirePermission('calendar.manage'), (req, res) => {
     ).run(title, description || '', start_datetime, end_datetime, all_day ? 1 : 0, color || '#6366f1')
     saveAzubis(db, result.lastInsertRowid, azubi_ids)
     const event = db.prepare('SELECT * FROM calendar_events WHERE id = ?').get(result.lastInsertRowid)
+    notifyEventCreated(db, event, azubi_ids)
     res.status(201).json(attachAzubis(db, [event])[0])
   } catch (err) {
     res.status(500).json({ error: err.message })

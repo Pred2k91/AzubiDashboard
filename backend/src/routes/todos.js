@@ -2,6 +2,17 @@ const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
 const { requirePermission } = require('../middleware/auth')
+const { fireEventWorkflows } = require('../scheduler')
+
+function notifyIfAssigned(db, todo, previousAssignedTo) {
+  if (!todo.assigned_to || todo.assigned_to === previousAssignedTo) return
+  const azubi = db.prepare('SELECT id, name, email FROM users WHERE id = ?').get(todo.assigned_to)
+  if (!azubi) return
+  fireEventWorkflows(
+    'todo_assigned', `todo:${todo.id}`, `assigned:${todo.assigned_to}:${Date.now()}`, azubi,
+    { title: todo.title, name: azubi.name, date: todo.due_date }
+  ).catch(err => console.error('[workflows] Fehler:', err.message))
+}
 
 router.get('/', (req, res) => {
   try {
@@ -23,12 +34,13 @@ router.get('/', (req, res) => {
 router.post('/', requirePermission('productivity.manage'), (req, res) => {
   try {
     const db = getDb()
-    const { title, description, priority, status, due_date } = req.body
+    const { title, description, priority, status, due_date, assigned_to } = req.body
     if (!title) return res.status(400).json({ error: 'title ist erforderlich' })
     const result = db.prepare(
-      'INSERT INTO todos (title, description, priority, status, due_date) VALUES (?, ?, ?, ?, ?)'
-    ).run(title, description || '', priority || 'medium', status || 'open', due_date || null)
+      'INSERT INTO todos (title, description, priority, status, due_date, assigned_to) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(title, description || '', priority || 'medium', status || 'open', due_date || null, assigned_to || null)
     const todo = db.prepare('SELECT * FROM todos WHERE id = ?').get(result.lastInsertRowid)
+    notifyIfAssigned(db, todo, null)
     res.status(201).json(todo)
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -38,12 +50,14 @@ router.post('/', requirePermission('productivity.manage'), (req, res) => {
 router.put('/:id', requirePermission('productivity.manage'), (req, res) => {
   try {
     const db = getDb()
-    const { title, description, priority, status, due_date } = req.body
+    const existing = db.prepare('SELECT assigned_to FROM todos WHERE id = ?').get(req.params.id)
+    const { title, description, priority, status, due_date, assigned_to } = req.body
     db.prepare(
-      "UPDATE todos SET title=?, description=?, priority=?, status=?, due_date=?, updated_at=datetime('now') WHERE id=?"
-    ).run(title, description || '', priority || 'medium', status || 'open', due_date || null, req.params.id)
+      "UPDATE todos SET title=?, description=?, priority=?, status=?, due_date=?, assigned_to=?, updated_at=datetime('now') WHERE id=?"
+    ).run(title, description || '', priority || 'medium', status || 'open', due_date || null, assigned_to || null, req.params.id)
     const todo = db.prepare('SELECT * FROM todos WHERE id = ?').get(req.params.id)
     if (!todo) return res.status(404).json({ error: 'Nicht gefunden' })
+    notifyIfAssigned(db, todo, existing?.assigned_to ?? null)
     res.json(todo)
   } catch (err) {
     res.status(500).json({ error: err.message })

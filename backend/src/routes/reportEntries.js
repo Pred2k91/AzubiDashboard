@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
 const { requireAuth, requirePermission, scopeLocationIds, idsClause } = require('../middleware/auth')
+const { fireEventWorkflows } = require('../scheduler')
 
 const ABSENCE_TYPES = ['urlaub', 'krank', 'feiertag']
 
@@ -230,6 +231,14 @@ router.put('/report-entries/:id/review', requirePermission('reports.review'), (r
     recomputeLastReportDate(db, entry.azubi_id)
 
     const updated = db.prepare('SELECT * FROM report_entries WHERE id = ?').get(entry.id)
+
+    const azubi = db.prepare('SELECT id, name, email FROM users WHERE id = ?').get(entry.azubi_id)
+    const triggerType = status === 'rejected' ? 'report_rejected' : 'report_approved'
+    fireEventWorkflows(
+      triggerType, `report_entry:${entry.id}`, `${status}:${updated.reviewed_at}`, azubi,
+      { name: azubi?.name || '', comment: comment || '', date: entry.period_end }
+    ).catch(err => console.error('[workflows] Fehler:', err.message))
+
     res.json(entryWithDays(db, updated))
   } catch (err) { res.status(500).json({ error: err.message }) }
 })

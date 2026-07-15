@@ -144,7 +144,8 @@ export default function WorkflowsAdmin() {
   const summarizeTrigger = (w) => {
     const t = TRIGGERS.find(x => x.type === w.trigger_type)
     if (!t) return w.trigger_type
-    if (w.trigger_type === 'report_overdue') return `${t.label} ≥ ${w.trigger_config.min_days} Tage`
+    if (w.trigger_config?.min_days != null) return `${t.label} (≥ ${w.trigger_config.min_days} Tage)`
+    if (w.trigger_config?.days_before != null) return `${t.label} (${w.trigger_config.days_before} Tage vorher)`
     return t.label
   }
 
@@ -274,7 +275,7 @@ export default function WorkflowsAdmin() {
             <p className="text-sm text-slate-600">Noch keine Ausführung.</p>
           ) : runs.map(r => (
             <div key={r.id} className="flex items-center justify-between text-sm border-b border-[#2a2d4a]/50 py-2 last:border-0">
-              <span className="text-slate-300">{r.azubi_name}</span>
+              <span className="text-slate-300">{r.label}</span>
               <span className="text-xs text-slate-500">{r.fired_at}</span>
             </div>
           ))}

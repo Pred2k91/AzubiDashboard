@@ -38,6 +38,7 @@ function initDb() {
       priority TEXT DEFAULT 'medium',
       status TEXT DEFAULT 'open',
       due_date TEXT,
+      assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -225,13 +226,15 @@ function initDb() {
       action_config TEXT NOT NULL
     );
 
+    -- entity_key ist generisch (z.B. "azubi:5", "todo:3", "report_entry:12", "event:7"),
+    -- da Workflows inzwischen auch nicht-Azubi-bezogene Auslöser abdecken (Aufgaben, Termine).
     CREATE TABLE IF NOT EXISTS workflow_runs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       workflow_id INTEGER NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
-      azubi_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      entity_key TEXT NOT NULL,
       trigger_key TEXT NOT NULL,
       fired_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(workflow_id, azubi_id, trigger_key)
+      UNIQUE(workflow_id, entity_key, trigger_key)
     );
 
     CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -255,6 +258,33 @@ function initDb() {
 
   // Migration: lehrjahre-Spalte hinzufügen falls nicht vorhanden
   try { db.exec("ALTER TABLE school_blocks ADD COLUMN lehrjahre TEXT DEFAULT '[]'") } catch (_) {}
+
+  // Migration: Aufgaben können optional einem Azubi zugewiesen werden (Workflow-Auslöser
+  // "Aufgabe zugewiesen"/"Aufgabe überfällig" brauchen dafür einen Empfänger).
+  try { db.exec("ALTER TABLE todos ADD COLUMN assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL") } catch (_) {}
+
+  // Migration: workflow_runs von der alten azubi_id-Spalte auf einen generischen entity_key
+  // umstellen (nötig für neue, nicht-Azubi-bezogene Auslöser). Nur auf alten DBs relevant --
+  // frische Installationen bekommen das neue Schema bereits über CREATE TABLE IF NOT EXISTS oben.
+  try {
+    const workflowRunsCols = db.prepare("PRAGMA table_info(workflow_runs)").all()
+    if (workflowRunsCols.some(c => c.name === 'azubi_id')) {
+      db.exec(`
+        ALTER TABLE workflow_runs RENAME TO workflow_runs_old;
+        CREATE TABLE workflow_runs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          workflow_id INTEGER NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+          entity_key TEXT NOT NULL,
+          trigger_key TEXT NOT NULL,
+          fired_at TEXT DEFAULT (datetime('now')),
+          UNIQUE(workflow_id, entity_key, trigger_key)
+        );
+        INSERT INTO workflow_runs (id, workflow_id, entity_key, trigger_key, fired_at)
+          SELECT id, workflow_id, 'azubi:' || azubi_id, trigger_key, fired_at FROM workflow_runs_old;
+        DROP TABLE workflow_runs_old;
+      `)
+    }
+  } catch (_) {}
 
   // Migration: alten Klartext-Admin-PIN entfernen — abgelöst durch echte Benutzerkonten
   db.prepare("DELETE FROM settings WHERE key = 'admin_pin'").run()

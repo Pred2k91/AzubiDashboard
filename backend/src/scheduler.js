@@ -8,6 +8,11 @@ function daysSince(dateStr) {
   return Math.floor((Date.now() - new Date(dateStr)) / 86400000)
 }
 
+function daysUntil(dateStr) {
+  if (!dateStr) return Infinity
+  return Math.floor((new Date(dateStr) - Date.now()) / 86400000)
+}
+
 // Ausbilder, die für einen Azubi "zuständig" sind: Super Admins (sehen ohnehin alles)
 // plus Ausbilder, die mindestens eine Niederlassung mit dem Azubi teilen. Verhindert,
 // dass z.B. ein überfälliges Berichtsheft eines Köln-Azubis auch den Hamburg-Ausbilder
@@ -26,6 +31,12 @@ function getLocationScopedAusbilderIds(db, azubiId) {
   `).all(azubiId).map(r => r.id)
 }
 
+// Für Auslöser ohne (oder unabhängig von) einen Niederlassungs-Bezug, z.B. eine
+// unzugewiesene Aufgabe oder ein Termin ohne verknüpfte Azubis.
+function getAllAusbilderIds(db) {
+  return db.prepare("SELECT id FROM users WHERE role = 'ausbilder' AND active = 1").all().map(r => r.id)
+}
+
 function loadActiveWorkflows(db) {
   const workflows = db.prepare('SELECT * FROM workflows WHERE active = 1').all()
   const getActions = db.prepare('SELECT * FROM workflow_actions WHERE workflow_id = ? ORDER BY position ASC')
@@ -36,20 +47,25 @@ function loadActiveWorkflows(db) {
   }))
 }
 
+// azubi kann null sein (z.B. unzugewiesene Aufgabe, Termin ohne verknüpfte Azubis) --
+// azubi-bezogene Optionen (to_azubi, target: 'azubi') laufen dann einfach ins Leere;
+// "an alle Ausbilder" bleibt als azubi-unabhängiger Fallback verfügbar. Für target/
+// to_location_ausbilder OHNE Azubi wird ebenfalls auf "alle Ausbilder" ausgewichen,
+// da keine Niederlassung zum Scopen vorhanden ist.
 async function runAction(action, azubi, vars) {
   const db = getDb()
   if (action.action_type === 'email') {
     const cfg = action.action_config
     const recipients = new Set()
-    if (cfg.to_azubi && azubi.email) recipients.add(azubi.email)
+    if (cfg.to_azubi && azubi?.email) recipients.add(azubi.email)
     if (Array.isArray(cfg.cc)) cfg.cc.filter(Boolean).forEach(e => recipients.add(e))
-    if (cfg.to_location_ausbilder) {
-      const ids = getLocationScopedAusbilderIds(db, azubi.id)
-      if (ids.length) {
-        const rows = db.prepare(`SELECT email FROM users WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids)
-        rows.forEach(r => { if (r.email) recipients.add(r.email) })
-      }
+    const addEmailsForIds = (ids) => {
+      if (!ids.length) return
+      const rows = db.prepare(`SELECT email FROM users WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids)
+      rows.forEach(r => { if (r.email) recipients.add(r.email) })
     }
+    if (cfg.to_location_ausbilder) addEmailsForIds(azubi ? getLocationScopedAusbilderIds(db, azubi.id) : getAllAusbilderIds(db))
+    if (cfg.to_all_ausbilder) addEmailsForIds(getAllAusbilderIds(db))
     if (recipients.size === 0) return
     const [to, ...cc] = [...recipients]
     await sendMail({
@@ -59,9 +75,11 @@ async function runAction(action, azubi, vars) {
     }).catch(err => console.error('[scheduler] E-Mail-Aktion fehlgeschlagen:', err.message))
   } else if (action.action_type === 'push') {
     const cfg = action.action_config
-    const userIds = cfg.target === 'ausbilder'
-      ? getLocationScopedAusbilderIds(db, azubi.id)
-      : [azubi.id]
+    let userIds = []
+    if (cfg.target === 'all_ausbilder') userIds = getAllAusbilderIds(db)
+    else if (cfg.target === 'ausbilder') userIds = azubi ? getLocationScopedAusbilderIds(db, azubi.id) : getAllAusbilderIds(db)
+    else if (azubi) userIds = [azubi.id]
+    if (!userIds.length) return
     await sendPushToUsers(userIds, {
       title: renderTemplate(cfg.title, vars),
       body: renderTemplate(cfg.body, vars),
@@ -69,37 +87,156 @@ async function runAction(action, azubi, vars) {
   }
 }
 
+// Führt alle Aktionen eines Workflows aus, falls diese Kombination aus entity_key +
+// trigger_key noch nicht gefeuert hat (siehe Kommentar an der Tabelle in db/init.js).
+async function fireIfNew(db, workflow, entityKey, triggerKey, azubi, vars) {
+  const already = db.prepare(
+    'SELECT 1 FROM workflow_runs WHERE workflow_id = ? AND entity_key = ? AND trigger_key = ?'
+  ).get(workflow.id, entityKey, triggerKey)
+  if (already) return false
+
+  for (const action of workflow.actions) {
+    await runAction(action, azubi, vars)
+  }
+  db.prepare(
+    'INSERT OR IGNORE INTO workflow_runs (workflow_id, entity_key, trigger_key) VALUES (?, ?, ?)'
+  ).run(workflow.id, entityKey, triggerKey)
+  return true
+}
+
+// Für Sofort-Auslöser (Bericht abgelehnt/genehmigt, Aufgabe zugewiesen, Termin angelegt),
+// die direkt aus der jeweiligen Route heraus aufgerufen werden statt aus dem Scheduler-
+// Tick. Wird bewusst "fire and forget" (ohne await) aus den Routen aufgerufen, damit ein
+// langsamer Mail-/Push-Versand nie die eigentliche API-Antwort verzögert.
+async function fireEventWorkflows(triggerType, entityKey, triggerKey, azubi, vars) {
+  const db = getDb()
+  const workflows = loadActiveWorkflows(db).filter(w => w.trigger_type === triggerType)
+  for (const workflow of workflows) {
+    try {
+      await fireIfNew(db, workflow, entityKey, triggerKey, azubi, vars)
+    } catch (err) {
+      console.error(`[scheduler] Fehler bei Workflow "${workflow.name}":`, err.message)
+    }
+  }
+}
+
+async function pollReportOverdue(db, workflow) {
+  const minDays = Number(workflow.trigger_config.min_days) || 1
+  const azubis = db.prepare(
+    "SELECT id, name, email, last_report_date FROM users WHERE role = 'azubi' AND active = 1 AND lehrjahr > 0"
+  ).all()
+
+  for (const azubi of azubis) {
+    const days = daysSince(azubi.last_report_date)
+    if (days < minDays) continue
+    const triggerKey = azubi.last_report_date || 'never'
+    const vars = { name: azubi.name, days_overdue: Number.isFinite(days) ? days : 'vielen', days: Number.isFinite(days) ? days : 'vielen' }
+    await fireIfNew(db, workflow, `azubi:${azubi.id}`, triggerKey, azubi, vars)
+  }
+}
+
+async function pollRotationUpcoming(db, workflow) {
+  const daysBefore = Number(workflow.trigger_config.days_before) || 0
+  const azubis = db.prepare(`
+    SELECT a.id, a.name, a.email, a.next_rotation_date, d.name as dept_name
+    FROM users a LEFT JOIN departments d ON d.id = a.next_department_id
+    WHERE a.role = 'azubi' AND a.active = 1 AND a.next_rotation_date IS NOT NULL
+  `).all()
+
+  for (const azubi of azubis) {
+    const until = daysUntil(azubi.next_rotation_date)
+    if (until > daysBefore || until < 0) continue
+    const triggerKey = `rotation:${azubi.next_rotation_date}`
+    const vars = { name: azubi.name, days: until, days_overdue: until, date: azubi.next_rotation_date, title: azubi.dept_name || '' }
+    await fireIfNew(db, workflow, `azubi:${azubi.id}`, triggerKey, azubi, vars)
+  }
+}
+
+async function pollReportPendingReview(db, workflow) {
+  const minDays = Number(workflow.trigger_config.min_days) || 1
+  const entries = db.prepare(`
+    SELECT re.id, re.azubi_id, re.submitted_at, a.name, a.email
+    FROM report_entries re JOIN users a ON a.id = re.azubi_id
+    WHERE re.status = 'submitted' AND a.active = 1
+  `).all()
+
+  for (const entry of entries) {
+    const days = daysSince(entry.submitted_at)
+    if (days < minDays) continue
+    const triggerKey = `submitted:${entry.submitted_at}`
+    const azubi = { id: entry.azubi_id, name: entry.name, email: entry.email }
+    const vars = { name: azubi.name, days, days_overdue: days, date: entry.submitted_at }
+    await fireIfNew(db, workflow, `report_entry:${entry.id}`, triggerKey, azubi, vars)
+  }
+}
+
+async function pollTodoOverdue(db, workflow) {
+  const minDays = Number(workflow.trigger_config.min_days) || 0
+  const todos = db.prepare(`
+    SELECT t.id, t.title, t.due_date, t.assigned_to, u.name as assignee_name, u.email as assignee_email
+    FROM todos t LEFT JOIN users u ON u.id = t.assigned_to
+    WHERE t.status != 'done' AND t.due_date IS NOT NULL
+  `).all()
+
+  for (const todo of todos) {
+    const days = daysSince(todo.due_date)
+    if (days < minDays) continue
+    const triggerKey = `overdue:${todo.due_date}`
+    const azubi = todo.assigned_to ? { id: todo.assigned_to, name: todo.assignee_name, email: todo.assignee_email } : null
+    const vars = { title: todo.title, name: azubi?.name || '', days, days_overdue: days, date: todo.due_date }
+    await fireIfNew(db, workflow, `todo:${todo.id}`, triggerKey, azubi, vars)
+  }
+}
+
+async function pollEventUpcoming(db, workflow) {
+  const daysBefore = Number(workflow.trigger_config.days_before) || 0
+  const events = db.prepare('SELECT id, title, start_datetime FROM calendar_events').all()
+
+  for (const event of events) {
+    const until = daysUntil(event.start_datetime)
+    if (until > daysBefore || until < 0) continue
+    const triggerKey = `upcoming:${event.start_datetime}`
+    const azubiRows = db.prepare(`
+      SELECT u.id, u.name, u.email FROM event_azubis ea JOIN users u ON u.id = ea.azubi_id
+      WHERE ea.event_id = ? AND u.active = 1
+    `).all(event.id)
+
+    if (azubiRows.length === 0) {
+      const vars = { title: event.title, name: '', days: until, days_overdue: until, date: event.start_datetime }
+      await fireIfNew(db, workflow, `event:${event.id}`, triggerKey, null, vars)
+      continue
+    }
+    for (const azubi of azubiRows) {
+      const vars = { title: event.title, name: azubi.name, days: until, days_overdue: until, date: event.start_datetime }
+      await fireIfNew(db, workflow, `event:${event.id}:azubi:${azubi.id}`, triggerKey, azubi, vars)
+    }
+  }
+}
+
+const POLLERS = {
+  report_overdue: pollReportOverdue,
+  rotation_upcoming: pollRotationUpcoming,
+  report_pending_review: pollReportPendingReview,
+  todo_overdue: pollTodoOverdue,
+  event_upcoming: pollEventUpcoming,
+  // report_rejected / report_approved / todo_assigned / event_created sind Sofort-Auslöser
+  // -- siehe fireEventWorkflows(), aufgerufen direkt aus den jeweiligen Routen.
+}
+
 // Einmal beim Start und danach stündlich aufgerufen (siehe index.js). Wertet alle aktiven
-// Workflows gegen den aktuellen Azubi-Bestand aus und feuert Aktionen für neu eingetretene
-// Fälle. workflow_runs verhindert Mehrfach-Auslösung für denselben Datenzustand (siehe
-// Kommentar an der Tabelle in db/init.js).
+// Workflows mit einem zeitbasierten Auslöser gegen den aktuellen Datenbestand aus.
 async function runWorkflowsTick() {
   const db = getDb()
   const workflows = loadActiveWorkflows(db)
-  const insertRun = db.prepare('INSERT OR IGNORE INTO workflow_runs (workflow_id, azubi_id, trigger_key) VALUES (?, ?, ?)')
-  const hasRun = db.prepare('SELECT 1 FROM workflow_runs WHERE workflow_id = ? AND azubi_id = ? AND trigger_key = ?')
 
   for (const workflow of workflows) {
     if (!TRIGGER_TYPES.includes(workflow.trigger_type)) continue
-
-    if (workflow.trigger_type === 'report_overdue') {
-      const minDays = Number(workflow.trigger_config.min_days) || 1
-      const azubis = db.prepare(
-        "SELECT id, name, email, last_report_date FROM users WHERE role = 'azubi' AND active = 1 AND lehrjahr > 0"
-      ).all()
-
-      for (const azubi of azubis) {
-        const days = daysSince(azubi.last_report_date)
-        if (days < minDays) continue
-        const triggerKey = azubi.last_report_date || 'never'
-        if (hasRun.get(workflow.id, azubi.id, triggerKey)) continue
-
-        const vars = { name: azubi.name, days_overdue: Number.isFinite(days) ? days : 'vielen' }
-        for (const action of workflow.actions) {
-          await runAction(action, azubi, vars)
-        }
-        insertRun.run(workflow.id, azubi.id, triggerKey)
-      }
+    const poll = POLLERS[workflow.trigger_type]
+    if (!poll) continue
+    try {
+      await poll(db, workflow)
+    } catch (err) {
+      console.error(`[scheduler] Fehler bei Workflow "${workflow.name}":`, err.message)
     }
   }
 }
@@ -111,4 +248,4 @@ function startScheduler() {
   }, 60 * 60 * 1000)
 }
 
-module.exports = { runWorkflowsTick, startScheduler }
+module.exports = { runWorkflowsTick, startScheduler, fireEventWorkflows, getLocationScopedAusbilderIds }

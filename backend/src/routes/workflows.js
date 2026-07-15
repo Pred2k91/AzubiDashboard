@@ -15,6 +15,36 @@ function workflowWithActions(db, workflow) {
   }
 }
 
+// Wandelt einen entity_key (z.B. "azubi:5", "todo:3", "event:7:azubi:5") in einen
+// menschenlesbaren Verlaufs-Eintrag um -- rein für die Anzeige im Admin-UI.
+function describeEntityKey(db, entityKey) {
+  const parts = String(entityKey).split(':')
+  if (parts[0] === 'azubi') {
+    const u = db.prepare('SELECT name FROM users WHERE id = ?').get(parts[1])
+    return u?.name || `Azubi #${parts[1]}`
+  }
+  if (parts[0] === 'report_entry') {
+    const e = db.prepare(
+      'SELECT re.period_start, re.period_end, u.name FROM report_entries re JOIN users u ON u.id = re.azubi_id WHERE re.id = ?'
+    ).get(parts[1])
+    return e ? `${e.name} (${e.period_start} – ${e.period_end})` : `Bericht #${parts[1]}`
+  }
+  if (parts[0] === 'todo') {
+    const t = db.prepare('SELECT title FROM todos WHERE id = ?').get(parts[1])
+    return t?.title || `Aufgabe #${parts[1]}`
+  }
+  if (parts[0] === 'event') {
+    const ev = db.prepare('SELECT title FROM calendar_events WHERE id = ?').get(parts[1])
+    let label = ev?.title || `Termin #${parts[1]}`
+    if (parts[2] === 'azubi') {
+      const u = db.prepare('SELECT name FROM users WHERE id = ?').get(parts[3])
+      if (u) label += ` — ${u.name}`
+    }
+    return label
+  }
+  return entityKey
+}
+
 function validateBody(body) {
   if (!body.name) return 'name ist erforderlich'
   if (!TRIGGER_TYPES.includes(body.trigger_type)) return 'Ungültiger Auslöser-Typ'
@@ -37,15 +67,10 @@ router.get('/', (req, res) => {
 router.get('/:id/runs', (req, res) => {
   try {
     const db = getDb()
-    const runs = db.prepare(`
-      SELECT r.*, u.name as azubi_name, u.email as azubi_email
-      FROM workflow_runs r
-      JOIN users u ON u.id = r.azubi_id
-      WHERE r.workflow_id = ?
-      ORDER BY r.fired_at DESC
-      LIMIT 50
-    `).all(req.params.id)
-    res.json(runs)
+    const runs = db.prepare(
+      'SELECT * FROM workflow_runs WHERE workflow_id = ? ORDER BY fired_at DESC LIMIT 50'
+    ).all(req.params.id)
+    res.json(runs.map(r => ({ ...r, label: describeEntityKey(db, r.entity_key) })))
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
