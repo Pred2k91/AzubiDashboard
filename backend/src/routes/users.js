@@ -43,10 +43,37 @@ function generatePassword() {
   return crypto.randomBytes(9).toString('base64url')
 }
 
-// Prüft "azubis.edit" bzw. "users.edit" je nach Rolle des Ziel-Kontos, BEVOR z.B.
-// ein Datei-Upload überhaupt verarbeitet wird.
+// Liefert die Ziel-Zeile (role, is_super_admin) oder null -- null bedeutet "nicht
+// gefunden" ODER "außerhalb der Niederlassungs-Berechtigung", bewusst ohne
+// Unterscheidung (kein Informationsleck über die Existenz fremder Konten).
+// Ein nicht-Super-Admin darf NIE ein Super-Admin-Konto sehen/anfassen -- unabhängig
+// von der Niederlassung. Sonst gilt für JEDES Konto (Azubi oder Ausbilder) dieselbe
+// Niederlassungs-Prüfung: sonst könnte sich ein Niederlassungs-Admin mit users.edit
+// z.B. per Passwort-Reset Zugriff auf ein fremdes oder gar Super-Admin-Konto verschaffen.
+function findScopedTarget(req, id) {
+  const db = getDb()
+  const target = db.prepare(`
+    SELECT u.id, u.role, COALESCE(pr.is_super_admin, 0) as is_super_admin
+    FROM users u
+    LEFT JOIN permission_roles pr ON pr.id = u.permission_role_id
+    WHERE u.id = ?
+  `).get(id)
+  if (!target) return null
+  const locIds = scopeLocationIds(req)
+  if (locIds) {
+    if (target.is_super_admin) return null
+    const inScope = db.prepare(
+      `SELECT 1 FROM user_locations WHERE user_id = ? AND location_id IN ${idsClause(locIds)}`
+    ).get(id, ...locIds)
+    if (!inScope) return null
+  }
+  return target
+}
+
+// Prüft "azubis.edit" bzw. "users.edit" je nach Rolle des (Scope-geprüften) Ziel-Kontos,
+// BEVOR z.B. ein Datei-Upload überhaupt verarbeitet wird.
 function requireTargetEditPermission(req, res, next) {
-  const target = getDb().prepare('SELECT role FROM users WHERE id = ?').get(req.params.id)
+  const target = findScopedTarget(req, req.params.id)
   if (!target) return res.status(404).json({ error: 'Nicht gefunden' })
   if (!hasPermission(req.user, target.role === 'azubi' ? 'azubis.edit' : 'users.edit')) {
     return res.status(403).json({ error: 'Keine Berechtigung' })
@@ -58,17 +85,19 @@ router.get('/', (req, res) => {
   try {
     const db = getDb()
     const locIds = scopeLocationIds(req)
-    // Niederlassungs-Scope gilt nur für Azubi-Zeilen -- andere Ausbilder-Konten
-    // bleiben für jeden Ausbilder mit Nutzer-Sicht auffindbar.
+    // Niederlassungs-Scope gilt für JEDES Konto (Azubi oder Ausbilder) gleichermaßen,
+    // und Super-Admin-Konten sind für nicht-Super-Admins nie sichtbar (siehe
+    // findScopedTarget oben für die ausführliche Begründung).
     const scopeClause = locIds
-      ? `AND (role != 'azubi' OR id IN (SELECT user_id FROM user_locations WHERE location_id IN ${idsClause(locIds)}))`
+      ? `AND (u.permission_role_id IS NULL OR u.permission_role_id NOT IN (SELECT id FROM permission_roles WHERE is_super_admin = 1))
+         AND u.id IN (SELECT user_id FROM user_locations WHERE location_id IN ${idsClause(locIds)})`
       : ''
     const users = db.prepare(`
-      SELECT id, email, role, active, must_change_password, auth_provider,
-             name, lehrjahr, last_login_at, created_at
-      FROM users
+      SELECT u.id, u.email, u.role, u.active, u.must_change_password, u.auth_provider,
+             u.name, u.lehrjahr, u.last_login_at, u.created_at
+      FROM users u
       WHERE 1=1 ${scopeClause}
-      ORDER BY role ASC, email ASC
+      ORDER BY u.role ASC, u.email ASC
     `).all(...(locIds || []))
     res.json(users)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -95,8 +124,13 @@ router.get('/:id', (req, res) => {
       ORDER BY l.name ASC
     `).all(req.params.id)
     const locIds = scopeLocationIds(req)
-    if (locIds && user.role === 'azubi' && !locations.some(l => locIds.includes(l.id))) {
-      return res.status(404).json({ error: 'Nicht gefunden' })
+    if (locIds) {
+      const isSuperAdminTarget = user.permission_role_id
+        ? !!db.prepare('SELECT 1 FROM permission_roles WHERE id = ? AND is_super_admin = 1').get(user.permission_role_id)
+        : false
+      if (isSuperAdminTarget || !locations.some(l => locIds.includes(l.id))) {
+        return res.status(404).json({ error: 'Nicht gefunden' })
+      }
     }
     res.json({ ...user, locations })
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -149,7 +183,7 @@ router.put('/:id', (req, res) => {
   try {
     const { role, active, permission_role_id } = req.body
     const db = getDb()
-    const target = db.prepare('SELECT role FROM users WHERE id = ?').get(req.params.id)
+    const target = findScopedTarget(req, req.params.id)
     if (!target) return res.status(404).json({ error: 'Nicht gefunden' })
     const finalRole = role === 'ausbilder' ? 'ausbilder' : 'azubi'
     const editPerm = r => r === 'azubi' ? 'azubis.edit' : 'users.edit'
@@ -242,7 +276,7 @@ router.delete('/:id', (req, res) => {
       return res.status(400).json({ error: 'Das eigene Konto kann nicht gelöscht werden' })
     }
     const db = getDb()
-    const target = db.prepare('SELECT role FROM users WHERE id = ?').get(req.params.id)
+    const target = findScopedTarget(req, req.params.id)
     if (!target) return res.status(404).json({ error: 'Nicht gefunden' })
     if (!hasPermission(req.user, target.role === 'azubi' ? 'azubis.delete' : 'users.delete')) {
       return res.status(403).json({ error: 'Keine Berechtigung' })
