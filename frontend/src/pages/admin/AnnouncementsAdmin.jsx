@@ -4,10 +4,13 @@ import { format, parseISO, differenceInDays } from 'date-fns'
 import { de } from 'date-fns/locale'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
-import { announcementsApi, azubisApi } from '../../api/client'
+import { announcementsApi, azubisApi, locationsApi } from '../../api/client'
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6']
-const EMPTY = { title: '', content: '', type: 'announcement', priority: 'normal', date: '', azubi_ids: [], color: '#6366f1' }
+const EMPTY = {
+  title: '', content: '', type: 'announcement', priority: 'normal', date: '', azubi_ids: [], color: '#6366f1',
+  notify_push: false, notify_email: false, notify_location_ids: [],
+}
 
 const PRIORITY_LABELS = { urgent: 'Dringend', important: 'Wichtig', normal: 'Info' }
 const PRIORITY_CLS = {
@@ -19,6 +22,7 @@ const PRIORITY_CLS = {
 export default function AnnouncementsAdmin() {
   const [items, setItems] = useState([])
   const [allAzubis, setAllAzubis] = useState([])
+  const [locations, setLocations] = useState([])
   const [modal, setModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(EMPTY)
@@ -32,6 +36,7 @@ export default function AnnouncementsAdmin() {
   useEffect(() => {
     load()
     azubisApi.getAll().then(setAllAzubis).catch(() => {})
+    locationsApi.getAll().then(setLocations).catch(() => {})
   }, [])
 
   const openNew = (defaultType = 'announcement') => {
@@ -48,6 +53,8 @@ export default function AnnouncementsAdmin() {
       title: item.title, content: item.content || '', type: item.type,
       priority: item.priority, date: item.date || '',
       azubi_ids: item.azubi_ids || [], color: item.color || '#6366f1',
+      notify_push: !!item.notify_push, notify_email: !!item.notify_email,
+      notify_location_ids: item.notify_location_ids || [],
     })
     setAzubiSearch('')
     setError('')
@@ -71,6 +78,11 @@ export default function AnnouncementsAdmin() {
   const toggleAzubi = (id) => setForm(f => ({
     ...f,
     azubi_ids: f.azubi_ids.includes(id) ? f.azubi_ids.filter(i => i !== id) : [...f.azubi_ids, id]
+  }))
+
+  const toggleNotifyLocation = (id) => setForm(f => ({
+    ...f,
+    notify_location_ids: f.notify_location_ids.includes(id) ? f.notify_location_ids.filter(i => i !== id) : [...f.notify_location_ids, id]
   }))
 
   const today = new Date().toISOString().slice(0, 10)
@@ -241,6 +253,50 @@ export default function AnnouncementsAdmin() {
                   style={{ backgroundColor: c }} />
               ))}
             </div>
+          </div>
+
+          <div className="border-t border-[#2a2d4a] pt-4 space-y-3">
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Benachrichtigung</h3>
+            {editing && (
+              <p className="text-xs text-slate-600">Wird nur beim Anlegen versendet, nicht erneut beim Speichern von Änderungen.</p>
+            )}
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-sm text-slate-400">
+                <input type="checkbox" className="accent-indigo-600" checked={form.notify_push}
+                  onChange={e => setForm(f => ({ ...f, notify_push: e.target.checked }))} />
+                Push-Benachrichtigung senden
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-400">
+                <input type="checkbox" className="accent-indigo-600" checked={form.notify_email}
+                  onChange={e => setForm(f => ({ ...f, notify_email: e.target.checked }))} />
+                Per E-Mail senden
+              </label>
+            </div>
+            {(form.notify_push || form.notify_email) && (
+              <div>
+                <label className="label">
+                  Niederlassung(en)
+                  {form.notify_location_ids.length > 0 && <span className="text-indigo-400 ml-1">({form.notify_location_ids.length})</span>}
+                </label>
+                <p className="text-xs text-slate-600 mb-1.5">Keine Auswahl = alle Niederlassungen</p>
+                {locations.length === 0 ? (
+                  <p className="text-xs text-slate-600">Keine Niederlassungen angelegt.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {locations.map(l => (
+                      <button key={l.id} type="button" onClick={() => toggleNotifyLocation(l.id)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                          form.notify_location_ids.includes(l.id)
+                            ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300'
+                            : 'bg-[#0d0f1a] border-[#2a2d4a] text-slate-500 hover:text-slate-300'
+                        }`}>
+                        {l.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Azubi-Auswahl nur für Prüfungen */}

@@ -114,6 +114,9 @@ function initDb() {
       azubi_ids TEXT DEFAULT '[]',
       color TEXT DEFAULT '#6366f1',
       active INTEGER DEFAULT 1,
+      notify_push INTEGER DEFAULT 0,
+      notify_email INTEGER DEFAULT 0,
+      notify_location_ids TEXT DEFAULT '[]',
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -275,6 +278,12 @@ function initDb() {
 
   // Migration: lehrjahre-Spalte hinzufügen falls nicht vorhanden
   try { db.exec("ALTER TABLE school_blocks ADD COLUMN lehrjahre TEXT DEFAULT '[]'") } catch (_) {}
+
+  // Migration: Ankündigungen können optional beim Anlegen per Push/E-Mail versendet
+  // werden, wahlweise auf bestimmte Niederlassungen eingeschränkt.
+  try { db.exec("ALTER TABLE announcements ADD COLUMN notify_push INTEGER DEFAULT 0") } catch (_) {}
+  try { db.exec("ALTER TABLE announcements ADD COLUMN notify_email INTEGER DEFAULT 0") } catch (_) {}
+  try { db.exec("ALTER TABLE announcements ADD COLUMN notify_location_ids TEXT DEFAULT '[]'") } catch (_) {}
 
   // Migration: Aufgaben können optional einem Azubi zugewiesen werden (Workflow-Auslöser
   // "Aufgabe zugewiesen"/"Aufgabe überfällig" brauchen dafür einen Empfänger).
