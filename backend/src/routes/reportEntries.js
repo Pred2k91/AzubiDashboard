@@ -22,12 +22,6 @@ function addDays(dateStr, n) {
   return d.toISOString().slice(0, 10)
 }
 
-function getOwnAzubi(req) {
-  if (!req.user.azubi_id) return null
-  const db = getDb()
-  return db.prepare('SELECT * FROM azubis WHERE id = ? AND active = 1').get(req.user.azubi_id)
-}
-
 function entryWithDays(db, entry) {
   const days = db.prepare('SELECT * FROM report_entry_days WHERE report_entry_id = ? ORDER BY date ASC').all(entry.id)
   return { ...entry, days }
@@ -40,15 +34,15 @@ function recomputeLastReportDate(db, azubiId) {
   const row = db.prepare(
     "SELECT MAX(period_end) as maxEnd FROM report_entries WHERE azubi_id = ? AND status IN ('submitted','approved')"
   ).get(azubiId)
-  db.prepare('UPDATE azubis SET last_report_date = ? WHERE id = ?').run(row?.maxEnd || null, azubiId)
+  db.prepare('UPDATE users SET last_report_date = ? WHERE id = ?').run(row?.maxEnd || null, azubiId)
 }
 
-// ── Azubi-Sicht (immer über req.user.azubi_id, nie über Client-Angaben) ──────
+// ── Azubi-Sicht (immer über req.user, nie über Client-Angaben) ──────────────
 
 router.get('/me/report-entries', requireAuth, (req, res) => {
   try {
-    const azubi = getOwnAzubi(req)
-    if (!azubi) return res.json({ linked: false, entries: [] })
+    const azubi = req.user
+    if (azubi.role !== 'azubi') return res.json({ linked: false, entries: [] })
     const db = getDb()
     const entries = db.prepare(
       'SELECT * FROM report_entries WHERE azubi_id = ? ORDER BY period_start DESC'
@@ -64,8 +58,8 @@ router.get('/me/report-entries', requireAuth, (req, res) => {
 
 router.get('/me/report-entries/:id', requireAuth, (req, res) => {
   try {
-    const azubi = getOwnAzubi(req)
-    if (!azubi) return res.status(404).json({ error: 'Kein Azubi verknüpft' })
+    const azubi = req.user
+    if (azubi.role !== 'azubi') return res.status(404).json({ error: 'Kein Azubi verknüpft' })
     const db = getDb()
     const entry = db.prepare('SELECT * FROM report_entries WHERE id = ? AND azubi_id = ?').get(req.params.id, azubi.id)
     if (!entry) return res.status(404).json({ error: 'Nicht gefunden' })
@@ -75,8 +69,8 @@ router.get('/me/report-entries/:id', requireAuth, (req, res) => {
 
 router.post('/me/report-entries', requireAuth, (req, res) => {
   try {
-    const azubi = getOwnAzubi(req)
-    if (!azubi) return res.status(400).json({ error: 'Kein Azubi verknüpft' })
+    const azubi = req.user
+    if (azubi.role !== 'azubi') return res.status(400).json({ error: 'Kein Azubi verknüpft' })
     const { date } = req.body
     if (!date) return res.status(400).json({ error: 'date ist erforderlich' })
     // Berichte werden oft rückwirkend geschrieben, aber nicht für die Zukunft.
@@ -114,8 +108,8 @@ router.post('/me/report-entries', requireAuth, (req, res) => {
 
 router.put('/me/report-entries/:id', requireAuth, (req, res) => {
   try {
-    const azubi = getOwnAzubi(req)
-    if (!azubi) return res.status(404).json({ error: 'Kein Azubi verknüpft' })
+    const azubi = req.user
+    if (azubi.role !== 'azubi') return res.status(404).json({ error: 'Kein Azubi verknüpft' })
     const db = getDb()
     const entry = db.prepare('SELECT * FROM report_entries WHERE id = ? AND azubi_id = ?').get(req.params.id, azubi.id)
     if (!entry) return res.status(404).json({ error: 'Nicht gefunden' })
@@ -174,7 +168,7 @@ router.get('/report-entries', requireRole('ausbilder'), (req, res) => {
     const entries = db.prepare(`
       SELECT re.*, a.name as azubi_name
       FROM report_entries re
-      JOIN azubis a ON a.id = re.azubi_id
+      JOIN users a ON a.id = re.azubi_id
       ${where}
       ORDER BY re.period_start DESC
     `).all(...params)
@@ -187,7 +181,7 @@ router.get('/report-entries/:id', requireRole('ausbilder'), (req, res) => {
     const db = getDb()
     const entry = db.prepare(`
       SELECT re.*, a.name as azubi_name
-      FROM report_entries re JOIN azubis a ON a.id = re.azubi_id
+      FROM report_entries re JOIN users a ON a.id = re.azubi_id
       WHERE re.id = ?
     `).get(req.params.id)
     if (!entry) return res.status(404).json({ error: 'Nicht gefunden' })

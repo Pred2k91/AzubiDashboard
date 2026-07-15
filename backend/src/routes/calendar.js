@@ -9,7 +9,7 @@ function attachAzubis(db, events) {
   const rows = db.prepare(`
     SELECT ea.event_id, a.id, a.name, a.lehrjahr
     FROM event_azubis ea
-    JOIN azubis a ON ea.azubi_id = a.id
+    JOIN users a ON ea.azubi_id = a.id
     WHERE ea.event_id IN (${ids})
     ORDER BY a.name ASC
   `).all()

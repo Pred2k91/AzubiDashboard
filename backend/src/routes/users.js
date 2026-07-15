@@ -16,7 +16,12 @@ const PROFILE_FIELDS = [
   'salutation', 'first_name', 'last_name', 'birthday',
   'phone', 'mobile_phone', 'street', 'postal_code', 'city',
   'personnel_number', 'job_title', 'about_me', 'public_note', 'misc_note',
+  'name', 'lehrjahr', 'start_date', 'current_department_id',
+  'next_department_id', 'next_rotation_date', 'report_period',
 ]
+
+// Felder, die bei fehlendem Wert NULL statt '' sein müssen (Datum/FK-Spalten)
+const NULLABLE_PROFILE_FIELDS = new Set(['birthday', 'start_date', 'current_department_id', 'next_department_id', 'next_rotation_date'])
 
 const avatarStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -42,11 +47,10 @@ router.get('/', (req, res) => {
   try {
     const db = getDb()
     const users = db.prepare(`
-      SELECT u.id, u.email, u.role, u.active, u.must_change_password, u.auth_provider,
-             u.azubi_id, u.last_login_at, u.created_at, a.name as azubi_name
-      FROM users u
-      LEFT JOIN azubis a ON u.azubi_id = a.id
-      ORDER BY u.role ASC, u.email ASC
+      SELECT id, email, role, active, must_change_password, auth_provider,
+             name, lehrjahr, last_login_at, created_at
+      FROM users
+      ORDER BY role ASC, email ASC
     `).all()
     res.json(users)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -57,9 +61,11 @@ router.get('/:id', (req, res) => {
   try {
     const db = getDb()
     const user = db.prepare(`
-      SELECT u.*, a.name as azubi_name, a.birthday as azubi_birthday, a.lehrjahr as azubi_lehrjahr
+      SELECT u.*, d.name as department_name, d.color as department_color,
+             nd.name as next_department_name, nd.color as next_department_color
       FROM users u
-      LEFT JOIN azubis a ON u.azubi_id = a.id
+      LEFT JOIN departments d ON u.current_department_id = d.id
+      LEFT JOIN departments nd ON u.next_department_id = nd.id
       WHERE u.id = ?
     `).get(req.params.id)
     if (!user) return res.status(404).json({ error: 'Nicht gefunden' })
@@ -76,14 +82,16 @@ router.get('/:id', (req, res) => {
 
 router.post('/', (req, res) => {
   try {
-    const { email, role, azubi_id, send_email } = req.body
+    const { email, role, name, send_email } = req.body
     if (!email) return res.status(400).json({ error: 'E-Mail ist erforderlich' })
+    const finalRole = role === 'ausbilder' ? 'ausbilder' : 'azubi'
+    if (finalRole === 'azubi' && !name) return res.status(400).json({ error: 'Name ist erforderlich' })
     const db = getDb()
     const password = generatePassword()
     const hash = bcrypt.hashSync(password, 10)
     const result = db.prepare(
-      'INSERT INTO users (email, password_hash, role, azubi_id, must_change_password) VALUES (?, ?, ?, ?, 1)'
-    ).run(String(email).toLowerCase(), hash, role === 'ausbilder' ? 'ausbilder' : 'azubi', azubi_id || null)
+      'INSERT INTO users (email, password_hash, role, name, must_change_password) VALUES (?, ?, ?, ?, 1)'
+    ).run(String(email).toLowerCase(), hash, finalRole, finalRole === 'azubi' ? name : '')
 
     if (send_email) {
       sendMail({
@@ -93,7 +101,7 @@ router.post('/', (req, res) => {
       }).catch(err => console.error('[mailer] Fehler beim Versand:', err.message))
     }
 
-    const user = db.prepare('SELECT id, email, role, azubi_id, active FROM users WHERE id = ?').get(result.lastInsertRowid)
+    const user = db.prepare('SELECT id, email, role, name, active FROM users WHERE id = ?').get(result.lastInsertRowid)
     res.status(201).json({ ...user, generated_password: password })
   } catch (err) {
     if (err.message.includes('UNIQUE')) return res.status(400).json({ error: 'E-Mail existiert bereits' })
@@ -103,18 +111,17 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   try {
-    const { role, azubi_id, active } = req.body
+    const { role, active } = req.body
     const db = getDb()
-    db.prepare('UPDATE users SET role=?, azubi_id=?, active=? WHERE id=?').run(
+    db.prepare('UPDATE users SET role=?, active=? WHERE id=?').run(
       role === 'ausbilder' ? 'ausbilder' : 'azubi',
-      azubi_id || null,
       active !== undefined ? (active ? 1 : 0) : 1,
       req.params.id
     )
     if (active === false || active === 0) {
       db.prepare('DELETE FROM sessions WHERE user_id = ?').run(req.params.id)
     }
-    const user = db.prepare('SELECT id, email, role, azubi_id, active FROM users WHERE id = ?').get(req.params.id)
+    const user = db.prepare('SELECT id, email, role, active FROM users WHERE id = ?').get(req.params.id)
     if (!user) return res.status(404).json({ error: 'Nicht gefunden' })
     res.json(user)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -127,7 +134,12 @@ router.put('/:id/profile', (req, res) => {
     const db = getDb()
     const body = req.body
     const setClauses = PROFILE_FIELDS.map(f => `${f}=?`).join(', ')
-    const values = PROFILE_FIELDS.map(f => (f === 'birthday' ? (body.birthday || null) : (body[f] ?? '')))
+    const values = PROFILE_FIELDS.map(f => {
+      if (f === 'lehrjahr') return body.lehrjahr != null ? body.lehrjahr : 1
+      if (f === 'report_period') return body.report_period === 'day' ? 'day' : 'week'
+      if (NULLABLE_PROFILE_FIELDS.has(f)) return body[f] || null
+      return body[f] ?? ''
+    })
 
     const run = db.transaction(() => {
       db.prepare(`UPDATE users SET ${setClauses} WHERE id=?`).run(...values, req.params.id)
@@ -164,8 +176,7 @@ router.post('/:id/reset-password', (req, res) => {
 })
 
 // Kontoentfernung ist ein eigener, unumkehrbarer Schritt -- Deaktivieren (PUT /:id) bleibt
-// die reversible Standardaktion. Der verknüpfte Azubi-Datensatz bleibt erhalten, das Konto
-// verschwindet nur als Verknüpfung (zeigt in AzubiAdmin dann wieder "Konto anlegen").
+// die reversible Standardaktion.
 router.delete('/:id', (req, res) => {
   try {
     if (parseInt(req.params.id) === req.user.id) {

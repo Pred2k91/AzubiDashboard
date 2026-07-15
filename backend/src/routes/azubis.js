@@ -1,14 +1,7 @@
 const express = require('express')
 const router = express.Router()
-const crypto = require('crypto')
-const bcrypt = require('bcryptjs')
 const { getDb } = require('../db/init')
 const { requireRole } = require('../middleware/auth')
-const { sendMail } = require('../utils/mailer')
-
-function generatePassword() {
-  return crypto.randomBytes(9).toString('base64url')
-}
 
 // Anzahl Tage vor dem Wechseldatum, ab der die Vorschau im Dashboard erscheint
 const ROTATION_PREVIEW_DAYS = 30
@@ -29,9 +22,9 @@ function calculateLehrjahr(startDateStr) {
 
 function syncLehrjahre(db) {
   const azubis = db.prepare(
-    'SELECT id, start_date, lehrjahr FROM azubis WHERE active = 1 AND start_date IS NOT NULL'
+    "SELECT id, start_date, lehrjahr FROM users WHERE role = 'azubi' AND active = 1 AND start_date IS NOT NULL"
   ).all()
-  const update = db.prepare('UPDATE azubis SET lehrjahr = ? WHERE id = ?')
+  const update = db.prepare('UPDATE users SET lehrjahr = ? WHERE id = ?')
   const run = db.transaction(() => {
     for (const a of azubis) {
       const expected = calculateLehrjahr(a.start_date)
@@ -48,11 +41,11 @@ function syncLehrjahre(db) {
 function syncNextRotation(db) {
   const today = new Date().toISOString().slice(0, 10)
   const pending = db.prepare(
-    'SELECT id, next_department_id, next_rotation_date FROM azubis WHERE active = 1 AND next_rotation_date IS NOT NULL AND next_rotation_date <= ?'
+    "SELECT id, next_department_id, next_rotation_date FROM users WHERE role = 'azubi' AND active = 1 AND next_rotation_date IS NOT NULL AND next_rotation_date <= ?"
   ).all(today)
   if (pending.length === 0) return
   const update = db.prepare(
-    'UPDATE azubis SET current_department_id = ?, next_department_id = NULL, next_rotation_date = NULL WHERE id = ?'
+    'UPDATE users SET current_department_id = ?, next_department_id = NULL, next_rotation_date = NULL WHERE id = ?'
   )
   const insertRotation = db.prepare(
     'INSERT INTO rotations (azubi_id, department_id, start_date) VALUES (?, ?, ?)'
@@ -67,7 +60,9 @@ function syncNextRotation(db) {
   run()
 }
 
-// Get all azubis with department info
+// Get all azubis with department info -- Azubi-Erstellung/-Bearbeitung/-Löschung läuft
+// über /api/users (role='azubi'), diese Datei bündelt nur noch die Azubi-spezifischen
+// Listen-/Auswertungs-Endpunkte, die von Kiosk-Widgets und Admin-Pickern genutzt werden.
 router.get('/', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
@@ -75,12 +70,11 @@ router.get('/', requireRole('ausbilder'), (req, res) => {
     syncNextRotation(db)
     const azubis = db.prepare(`
       SELECT a.*, d.name as department_name, d.color as department_color, d.location as department_location,
-             nd.name as next_department_name, nd.color as next_department_color,
-             (SELECT id FROM users WHERE azubi_id = a.id LIMIT 1) as user_id
-      FROM azubis a
+             nd.name as next_department_name, nd.color as next_department_color
+      FROM users a
       LEFT JOIN departments d ON a.current_department_id = d.id
       LEFT JOIN departments nd ON a.next_department_id = nd.id
-      WHERE a.active = 1
+      WHERE a.role = 'azubi' AND a.active = 1
       ORDER BY a.lehrjahr ASC, a.name ASC
     `).all()
     res.json(azubis)
@@ -115,7 +109,7 @@ router.get('/by-department', (req, res) => {
       const azubis = db.prepare(`
         SELECT a.id, a.name, a.lehrjahr
         FROM event_azubis ea
-        JOIN azubis a ON ea.azubi_id = a.id
+        JOIN users a ON ea.azubi_id = a.id
         WHERE ea.event_id = ? AND a.active = 1
         ORDER BY a.name ASC
       `).all(event.id)
@@ -140,7 +134,7 @@ router.get('/by-department', (req, res) => {
       const excluded = busyAzubiIds.size > 0 ? `AND a.id NOT IN (${[...busyAzubiIds].join(',')})` : ''
       const azubis = db.prepare(`
         SELECT a.id, a.name, a.lehrjahr FROM school_block_azubis sba
-        JOIN azubis a ON sba.azubi_id = a.id
+        JOIN users a ON sba.azubi_id = a.id
         WHERE sba.block_id = ? AND a.active = 1 ${excluded}
         ORDER BY a.lehrjahr, a.name ASC
       `).all(block.id)
@@ -159,9 +153,9 @@ router.get('/by-department', (req, res) => {
     const previewRows = db.prepare(`
       SELECT a.id, a.name, a.lehrjahr, a.next_rotation_date,
              nd.id as next_department_id, nd.name as next_department_name, nd.color as next_department_color
-      FROM azubis a
+      FROM users a
       JOIN departments nd ON a.next_department_id = nd.id
-      WHERE a.active = 1 AND a.next_rotation_date IS NOT NULL AND a.next_rotation_date <= ?
+      WHERE a.role = 'azubi' AND a.active = 1 AND a.next_rotation_date IS NOT NULL AND a.next_rotation_date <= ?
       ORDER BY a.next_rotation_date ASC, nd.name ASC, a.name ASC
     `).all(previewLimitStr)
 
@@ -196,14 +190,14 @@ router.get('/by-department', (req, res) => {
       SELECT d.id, d.name, d.color, d.location,
         json_group_array(json_object('id', a.id, 'name', a.name, 'lehrjahr', a.lehrjahr)) as azubis
       FROM departments d
-      LEFT JOIN azubis a ON a.current_department_id = d.id AND a.active = 1 ${busyJoin}
+      LEFT JOIN users a ON a.current_department_id = d.id AND a.role = 'azubi' AND a.active = 1 ${busyJoin}
       GROUP BY d.id
       ORDER BY d.name ASC
     `).all()
 
     const unassigned = db.prepare(`
-      SELECT a.id, a.name, a.lehrjahr FROM azubis a
-      WHERE a.current_department_id IS NULL AND a.active = 1 ${busyWhere}
+      SELECT a.id, a.name, a.lehrjahr FROM users a
+      WHERE a.role = 'azubi' AND a.current_department_id IS NULL AND a.active = 1 ${busyWhere}
       ORDER BY a.name ASC
     `).all()
 
@@ -222,87 +216,12 @@ router.get('/by-department', (req, res) => {
   }
 })
 
-// Azubi anlegen -- wenn eine E-Mail angegeben wird, wird im selben Schritt (eine Transaktion,
-// damit nie ein Azubi ohne zugehöriges Konto oder umgekehrt übrig bleibt) auch das verknüpfte
-// Nutzerkonto mit Einmalpasswort angelegt. Ohne E-Mail bleibt es wie zuvor ein reiner Stammdatensatz.
-router.post('/', requireRole('ausbilder'), (req, res) => {
-  try {
-    const db = getDb()
-    const { name, lehrjahr, start_date, current_department_id, email, birthday, next_department_id, next_rotation_date, report_period, send_email } = req.body
-    if (!name) return res.status(400).json({ error: 'name ist erforderlich' })
-
-    let generatedPassword = null
-    let newUserId = null
-
-    const azubiId = db.transaction(() => {
-      const result = db.prepare(
-        'INSERT INTO azubis (name, lehrjahr, start_date, current_department_id, email, birthday, next_department_id, next_rotation_date, report_period) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(name, lehrjahr != null ? lehrjahr : 1, start_date || null, current_department_id || null, email || '', birthday || null, next_department_id || null, next_rotation_date || null, report_period === 'day' ? 'day' : 'week')
-      const id = result.lastInsertRowid
-
-      if (email) {
-        generatedPassword = generatePassword()
-        const hash = bcrypt.hashSync(generatedPassword, 10)
-        const userResult = db.prepare(
-          'INSERT INTO users (email, password_hash, role, azubi_id, must_change_password) VALUES (?, ?, ?, ?, 1)'
-        ).run(String(email).toLowerCase(), hash, 'azubi', id)
-        newUserId = userResult.lastInsertRowid
-      }
-
-      return id
-    })()
-
-    if (email && send_email) {
-      sendMail({
-        to: email,
-        subject: 'Dein Zugang zum Ausbildungsdashboard',
-        text: `Hallo ${name},\n\nfür dich wurde ein Konto im Ausbildungsdashboard angelegt.\n\nE-Mail: ${email}\nEinmalpasswort: ${generatedPassword}\n\nBitte melde dich an und ändere das Passwort bei der ersten Anmeldung.`,
-      }).catch(err => console.error('[mailer] Fehler beim Versand:', err.message))
-    }
-
-    const azubi = db.prepare(`
-      SELECT a.*, d.name as department_name, d.color as department_color,
-             nd.name as next_department_name, nd.color as next_department_color
-      FROM azubis a
-      LEFT JOIN departments d ON a.current_department_id = d.id
-      LEFT JOIN departments nd ON a.next_department_id = nd.id
-      WHERE a.id = ?
-    `).get(azubiId)
-    res.status(201).json({ ...azubi, user_id: newUserId, generated_password: generatedPassword })
-  } catch (err) {
-    if (err.message.includes('UNIQUE')) return res.status(400).json({ error: 'Diese E-Mail wird bereits für ein Nutzerkonto verwendet' })
-    res.status(500).json({ error: err.message })
-  }
-})
-
-router.put('/:id', requireRole('ausbilder'), (req, res) => {
-  try {
-    const db = getDb()
-    const { name, lehrjahr, start_date, current_department_id, email, active, birthday, next_department_id, next_rotation_date, report_period } = req.body
-    db.prepare(
-      'UPDATE azubis SET name=?, lehrjahr=?, start_date=?, current_department_id=?, email=?, active=?, birthday=?, next_department_id=?, next_rotation_date=?, report_period=? WHERE id=?'
-    ).run(name, lehrjahr != null ? lehrjahr : 1, start_date || null, current_department_id || null, email || '', active !== undefined ? active : 1, birthday || null, next_department_id || null, next_rotation_date || null, report_period === 'day' ? 'day' : 'week', req.params.id)
-    const azubi = db.prepare(`
-      SELECT a.*, d.name as department_name, d.color as department_color,
-             nd.name as next_department_name, nd.color as next_department_color
-      FROM azubis a
-      LEFT JOIN departments d ON a.current_department_id = d.id
-      LEFT JOIN departments nd ON a.next_department_id = nd.id
-      WHERE a.id = ?
-    `).get(req.params.id)
-    if (!azubi) return res.status(404).json({ error: 'Nicht gefunden' })
-    res.json(azubi)
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-})
-
 // Kommende Geburtstage (nächste 30 Tage)
 router.get('/birthdays', (req, res) => {
   try {
     const db = getDb()
     const azubis = db.prepare(
-      "SELECT id, name, birthday, lehrjahr FROM azubis WHERE active = 1 AND birthday IS NOT NULL AND birthday != ''"
+      "SELECT id, name, birthday, lehrjahr FROM users WHERE role = 'azubi' AND active = 1 AND birthday IS NOT NULL AND birthday != ''"
     ).all()
 
     const today = new Date()
@@ -344,7 +263,7 @@ router.get('/next-rotation', (req, res) => {
       SELECT r.start_date, a.id as azubi_id, a.name, a.lehrjahr,
              d.id as dept_id, d.name as dept_name, d.color
       FROM rotations r
-      JOIN azubis a ON r.azubi_id = a.id AND a.active = 1
+      JOIN users a ON r.azubi_id = a.id AND a.active = 1
       JOIN departments d ON r.department_id = d.id
       WHERE r.start_date = ?
       ORDER BY d.name ASC, a.name ASC
@@ -375,7 +294,7 @@ router.post('/rotation', requireRole('ausbilder'), (req, res) => {
     // assignments: [{ azubi_id, department_id }]
     if (!Array.isArray(assignments)) return res.status(400).json({ error: 'assignments muss ein Array sein' })
 
-    const updateStmt = db.prepare('UPDATE azubis SET current_department_id=? WHERE id=?')
+    const updateStmt = db.prepare('UPDATE users SET current_department_id=? WHERE id=?')
     const insertRotation = db.prepare(
       'INSERT INTO rotations (azubi_id, department_id, start_date) VALUES (?, ?, ?)'
     )
@@ -391,16 +310,6 @@ router.post('/rotation', requireRole('ausbilder'), (req, res) => {
 
     runAll()
     res.json({ success: true, count: assignments.length })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-})
-
-router.delete('/:id', requireRole('ausbilder'), (req, res) => {
-  try {
-    const db = getDb()
-    db.prepare('UPDATE azubis SET active = 0 WHERE id = ?').run(req.params.id)
-    res.json({ success: true })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

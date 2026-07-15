@@ -1,26 +1,21 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Trash2, Users, RotateCcw, Search, ExternalLink, UserPlus } from 'lucide-react'
+import { Trash2, Users, RotateCcw, Search, ExternalLink } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
-import { azubisApi, departmentsApi } from '../../api/client'
+import { azubisApi, departmentsApi, usersApi } from '../../api/client'
 import { format, parseISO } from 'date-fns'
-
-const EMPTY = { name: '', email: '', send_email: false }
 
 export default function AzubiAdmin() {
   const navigate = useNavigate()
   const [azubis, setAzubis] = useState([])
   const [departments, setDepartments] = useState([])
-  const [modal, setModal] = useState(false)
   const [rotationModal, setRotationModal] = useState(false)
-  const [form, setForm] = useState(EMPTY)
-  const [deleteId, setDeleteId] = useState(null)
+  const [deactivateId, setDeactivateId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [rotationAssignments, setRotationAssignments] = useState({})
   const [rotationDate, setRotationDate] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [revealPassword, setRevealPassword] = useState(null)
 
   const load = async () => {
     const [a, d] = await Promise.all([azubisApi.getAll(), departmentsApi.getAll()]).catch(() => [[], []])
@@ -30,8 +25,6 @@ export default function AzubiAdmin() {
 
   useEffect(() => { load() }, [])
 
-  const openNew = () => { setForm(EMPTY); setModal(true) }
-
   const openRotation = () => {
     const init = {}
     azubis.forEach(a => { init[a.id] = a.current_department_id || '' })
@@ -39,17 +32,9 @@ export default function AzubiAdmin() {
     setRotationModal(true)
   }
 
-  const handleSave = async () => {
-    if (!form.name) return
-    setLoading(true)
-    try {
-      const created = await azubisApi.create(form)
-      await load()
-      setModal(false)
-      if (created.generated_password) {
-        setRevealPassword({ email: created.email, password: created.generated_password })
-      }
-    } finally { setLoading(false) }
+  const handleDeactivate = async () => {
+    await usersApi.update(deactivateId, { role: 'azubi', active: false })
+    await load()
   }
 
   const handleRotationSave = async () => {
@@ -88,10 +73,6 @@ export default function AzubiAdmin() {
           <button className="btn-secondary" onClick={openRotation}>
             <RotateCcw size={14} />
             Abteilungswechsel
-          </button>
-          <button className="btn-primary" onClick={openNew}>
-            <Plus size={16} />
-            Neuer Azubi
           </button>
         </div>
       </div>
@@ -160,26 +141,15 @@ export default function AzubiAdmin() {
                   <td className="text-sm text-slate-400">{a.email || <span className="text-slate-700">—</span>}</td>
                   <td>
                     <div className="flex gap-1 justify-end items-center">
-                      {a.user_id ? (
-                        <button
-                          onClick={() => navigate(`/admin/users/${a.user_id}`)}
-                          title="Profil öffnen (Lehrjahr, Abteilung, Berichtsheft-Rhythmus etc. bearbeiten)"
-                          className="btn-secondary text-xs py-1 px-2"
-                        >
-                          <ExternalLink size={12} />
-                          Profil
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => navigate('/admin/users')}
-                          title="Erst ein Nutzerkonto anlegen/verknüpfen, um Details zu bearbeiten"
-                          className="btn-secondary text-xs py-1 px-2"
-                        >
-                          <UserPlus size={12} />
-                          Konto anlegen
-                        </button>
-                      )}
-                      <button onClick={() => setDeleteId(a.id)} className="p-1.5 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10"><Trash2 size={13} /></button>
+                      <button
+                        onClick={() => navigate(`/admin/users/${a.id}`)}
+                        title="Profil öffnen (Lehrjahr, Abteilung, Berichtsheft-Rhythmus etc. bearbeiten)"
+                        className="btn-secondary text-xs py-1 px-2"
+                      >
+                        <ExternalLink size={12} />
+                        Profil
+                      </button>
+                      <button onClick={() => setDeactivateId(a.id)} className="p-1.5 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10"><Trash2 size={13} /></button>
                     </div>
                   </td>
                 </tr>
@@ -189,50 +159,6 @@ export default function AzubiAdmin() {
           </div>
         </div>
       ))}
-
-      {/* Neuer Azubi Modal — Name + optionale E-Mail, mit der direkt das Nutzerkonto mit angelegt wird */}
-      <Modal open={modal} onClose={() => setModal(false)} title="Neuer Azubi">
-        <div className="space-y-4">
-          <div>
-            <label className="label">Name *</label>
-            <input className="input-field" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Vor- und Nachname" />
-          </div>
-          <div>
-            <label className="label">E-Mail</label>
-            <input type="email" className="input-field" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="azubi@beispiel.de" />
-          </div>
-          {form.email && (
-            <label className="flex items-center gap-2 text-sm text-slate-400">
-              <input type="checkbox" className="accent-indigo-600" checked={form.send_email} onChange={e => setForm(f => ({ ...f, send_email: e.target.checked }))} />
-              Zugangsdaten per E-Mail versenden (falls Mailversand konfiguriert ist)
-            </label>
-          )}
-          <p className="text-xs text-slate-600">
-            {form.email
-              ? 'Mit dieser E-Mail wird direkt ein Nutzerkonto angelegt und mit dem Azubi verknüpft. Lehrjahr, Abteilung, Ausbildungsstart, Berichtsheft-Rhythmus u.a. werden anschließend über das Nutzerprofil gepflegt.'
-              : 'Ohne E-Mail wird nur der Stammdatensatz angelegt — ein Nutzerkonto kann später über die Nutzerverwaltung verknüpft werden. Lehrjahr, Abteilung u.a. werden über das Nutzerprofil gepflegt.'}
-          </p>
-          <div className="flex justify-end gap-3 pt-2">
-            <button className="btn-secondary" onClick={() => setModal(false)}>Abbrechen</button>
-            <button className="btn-primary" onClick={handleSave} disabled={loading}>{loading ? 'Speichern...' : 'Anlegen'}</button>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal open={!!revealPassword} onClose={() => setRevealPassword(null)} title="Einmalpasswort">
-        {revealPassword && (
-          <div className="space-y-4">
-            <p className="text-sm text-slate-400">
-              Bitte gib dieses Einmalpasswort an <strong className="text-white">{revealPassword.email}</strong> weiter.
-              Es wird nur jetzt einmalig angezeigt und muss beim ersten Login geändert werden.
-            </p>
-            <div className="bg-[#0d0f1a] border border-[#2a2d4a] rounded-lg px-4 py-3 text-center text-lg font-mono tracking-wider text-white">
-              {revealPassword.password}
-            </div>
-            <button className="btn-primary w-full justify-center" onClick={() => setRevealPassword(null)}>Verstanden</button>
-          </div>
-        )}
-      </Modal>
 
       {/* Abteilungswechsel Modal */}
       <Modal open={rotationModal} onClose={() => setRotationModal(false)} title="Abteilungswechsel" size="lg">
@@ -272,7 +198,7 @@ export default function AzubiAdmin() {
         </div>
       </Modal>
 
-      <ConfirmDialog open={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={() => { azubisApi.delete(deleteId).then(load) }} title="Azubi deaktivieren" message="Diesen Azubi wirklich deaktivieren?" />
+      <ConfirmDialog open={!!deactivateId} onClose={() => setDeactivateId(null)} onConfirm={handleDeactivate} title="Azubi deaktivieren" message="Diesen Azubi wirklich deaktivieren?" />
     </div>
   )
 }

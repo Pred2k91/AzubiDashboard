@@ -29,41 +29,32 @@ const meAvatarUpload = multer({
   fileFilter: (req, file, cb) => file.mimetype.startsWith('image/') ? cb(null, true) : cb(new Error('Nur Bilddateien erlaubt')),
 })
 
-// Liefert den mit dem eingeloggten Benutzer verknüpften Azubi-Datensatz —
-// die azubi_id kommt IMMER aus der Session (req.user), niemals aus der Anfrage,
-// damit ein Azubi niemals Daten eines anderen Azubis abrufen kann.
-function getOwnAzubi(req) {
-  if (!req.user.azubi_id) return null
-  const db = getDb()
-  return db.prepare('SELECT * FROM azubis WHERE id = ? AND active = 1').get(req.user.azubi_id)
-}
-
 router.get('/', requireAuth, (req, res) => {
   try {
-    const azubi = getOwnAzubi(req)
-    if (!azubi) return res.json({ linked: false })
+    const u = req.user
+    if (u.role !== 'azubi') return res.json({ linked: false })
     res.json({
       linked: true,
-      id: azubi.id,
-      name: azubi.name,
-      lehrjahr: azubi.lehrjahr,
-      start_date: azubi.start_date,
+      id: u.id,
+      name: u.name,
+      lehrjahr: u.lehrjahr,
+      start_date: u.start_date,
     })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 router.get('/team', requireAuth, (req, res) => {
   try {
-    const azubi = getOwnAzubi(req)
-    if (!azubi) return res.json({ linked: false })
+    const u = req.user
+    if (u.role !== 'azubi') return res.json({ linked: false })
     const db = getDb()
-    const current = azubi.current_department_id
-      ? db.prepare('SELECT id, name, color, location FROM departments WHERE id = ?').get(azubi.current_department_id)
+    const current = u.current_department_id
+      ? db.prepare('SELECT id, name, color, location FROM departments WHERE id = ?').get(u.current_department_id)
       : null
-    const next = azubi.next_department_id
+    const next = u.next_department_id
       ? {
-          ...db.prepare('SELECT id, name, color, location FROM departments WHERE id = ?').get(azubi.next_department_id),
-          date: azubi.next_rotation_date,
+          ...db.prepare('SELECT id, name, color, location FROM departments WHERE id = ?').get(u.next_department_id),
+          date: u.next_rotation_date,
         }
       : null
     res.json({ linked: true, current, next })
@@ -72,8 +63,8 @@ router.get('/team', requireAuth, (req, res) => {
 
 router.get('/calendar', requireAuth, (req, res) => {
   try {
-    const azubi = getOwnAzubi(req)
-    if (!azubi) return res.json({ linked: false, events: [] })
+    const u = req.user
+    if (u.role !== 'azubi') return res.json({ linked: false, events: [] })
     const db = getDb()
     const { start, end } = req.query
     const events = (start && end)
@@ -82,29 +73,29 @@ router.get('/calendar', requireAuth, (req, res) => {
           JOIN event_azubis ea ON ea.event_id = ce.id
           WHERE ea.azubi_id = ? AND ce.start_datetime <= ? AND ce.end_datetime >= ?
           ORDER BY ce.start_datetime ASC
-        `).all(azubi.id, end, start)
+        `).all(u.id, end, start)
       : db.prepare(`
           SELECT ce.* FROM calendar_events ce
           JOIN event_azubis ea ON ea.event_id = ce.id
           WHERE ea.azubi_id = ?
           ORDER BY ce.start_datetime ASC
-        `).all(azubi.id)
+        `).all(u.id)
     res.json({ linked: true, events })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 router.get('/reports', requireAuth, (req, res) => {
   try {
-    const azubi = getOwnAzubi(req)
-    if (!azubi) return res.json({ linked: false })
+    const u = req.user
+    if (u.role !== 'azubi') return res.json({ linked: false })
     const db = getDb()
     const { warn, alert } = getThresholds(db)
     res.json({
       linked: true,
       warn,
       alert,
-      last_report_date: azubi.last_report_date,
-      ...calcStatus(azubi.last_report_date, warn, alert),
+      last_report_date: u.last_report_date,
+      ...calcStatus(u.last_report_date, warn, alert),
     })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -113,7 +104,6 @@ router.get('/profile', requireAuth, (req, res) => {
   try {
     const db = getDb()
     const u = req.user
-    const azubi = u.azubi_id ? db.prepare('SELECT name, birthday FROM azubis WHERE id=?').get(u.azubi_id) : null
     const locations = db.prepare(`
       SELECT l.id, l.name, l.short_code FROM locations l
       JOIN user_locations ul ON ul.location_id = l.id
@@ -124,11 +114,10 @@ router.get('/profile', requireAuth, (req, res) => {
       id: u.id,
       email: u.email,
       role: u.role,
-      is_azubi_linked: !!u.azubi_id,
-      // Name/Geburtsdatum kommen bei verknüpftem Azubi-Konto aus azubis (dort die
-      // alleinige Quelle der Wahrheit), sonst aus den eigenen users-Feldern.
-      display_name: azubi ? azubi.name : `${u.first_name || ''} ${u.last_name || ''}`.trim(),
-      display_birthday: azubi ? azubi.birthday : u.birthday,
+      is_azubi_linked: u.role === 'azubi',
+      // Name/Geburtsdatum: Azubis pflegen nur einen Namen (name), Ausbilder Vor-/Nachname.
+      display_name: u.role === 'azubi' ? u.name : `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+      display_birthday: u.birthday,
       salutation: u.salutation,
       first_name: u.first_name,
       last_name: u.last_name,
@@ -152,9 +141,9 @@ router.put('/profile', requireAuth, (req, res) => {
     const db = getDb()
     const body = req.body
     const fields = [...SELF_EDITABLE_FIELDS]
-    // Name darf nur selbst geändert werden, wenn kein Azubi-Datensatz verknüpft ist --
-    // sonst bleibt azubis.name/birthday maßgeblich (nur über AzubiAdmin.jsx änderbar).
-    if (!req.user.azubi_id) fields.push('first_name', 'last_name')
+    // Name darf Azubis nur über den Admin-Bereich geändert werden (dort auch das
+    // Berichtsheft/Ausbildungsdaten verwaltet werden) -- Ausbilder pflegen ihn selbst.
+    if (req.user.role !== 'azubi') fields.push('first_name', 'last_name')
     const setClauses = fields.map(f => `${f}=?`).join(', ')
     const values = fields.map(f => body[f] ?? '')
     db.prepare(`UPDATE users SET ${setClauses} WHERE id=?`).run(...values, req.user.id)

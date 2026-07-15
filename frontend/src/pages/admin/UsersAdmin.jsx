@@ -3,16 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, KeyRound, Users as UsersIcon, ShieldCheck, Ban, CheckCircle2, Trash2 } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
-import { usersApi, azubisApi } from '../../api/client'
+import { usersApi } from '../../api/client'
 import { useAuth } from '../../contexts/AuthContext'
 
-const EMPTY = { email: '', role: 'azubi', azubi_id: '', send_email: false }
+const EMPTY = { email: '', role: 'azubi', name: '', send_email: false }
 
 export default function UsersAdmin() {
   const navigate = useNavigate()
   const { user: currentUser } = useAuth()
   const [users, setUsers] = useState([])
-  const [azubis, setAzubis] = useState([])
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [loading, setLoading] = useState(false)
@@ -20,9 +19,8 @@ export default function UsersAdmin() {
   const [deleteUser, setDeleteUser] = useState(null)
 
   const load = async () => {
-    const [u, a] = await Promise.all([usersApi.getAll(), azubisApi.getAll()]).catch(() => [[], []])
+    const u = await usersApi.getAll().catch(() => [])
     setUsers(u)
-    setAzubis(a)
   }
 
   useEffect(() => { load() }, [])
@@ -30,11 +28,10 @@ export default function UsersAdmin() {
   const openNew = () => { setForm(EMPTY); setModal(true) }
 
   const handleSave = async () => {
-    if (!form.email) return
+    if (!form.email || (form.role === 'azubi' && !form.name)) return
     setLoading(true)
     try {
-      const data = { ...form, azubi_id: form.azubi_id || null }
-      const created = await usersApi.create(data)
+      const created = await usersApi.create(form)
       await load()
       setModal(false)
       if (created.generated_password) {
@@ -44,7 +41,7 @@ export default function UsersAdmin() {
   }
 
   const handleToggleActive = async (u) => {
-    await usersApi.update(u.id, { role: u.role, azubi_id: u.azubi_id, active: !u.active })
+    await usersApi.update(u.id, { role: u.role, active: !u.active })
     await load()
   }
 
@@ -81,7 +78,6 @@ export default function UsersAdmin() {
             <tr>
               <th>E-Mail</th>
               <th>Rolle</th>
-              <th>Verknüpfter Azubi</th>
               <th>Status</th>
               <th>Letzter Login</th>
               <th></th>
@@ -89,7 +85,7 @@ export default function UsersAdmin() {
           </thead>
           <tbody>
             {users.length === 0 ? (
-              <tr><td colSpan={6} className="text-center text-slate-600 py-10">Keine Konten gefunden</td></tr>
+              <tr><td colSpan={5} className="text-center text-slate-600 py-10">Keine Konten gefunden</td></tr>
             ) : users.map(u => (
               <tr key={u.id} onClick={() => navigate(`/admin/users/${u.id}`)} className="cursor-pointer hover:bg-[#1e2035]/50">
                 <td className="text-white">{u.email}</td>
@@ -98,7 +94,6 @@ export default function UsersAdmin() {
                     {u.role === 'ausbilder' ? 'Ausbilder' : 'Azubi'}
                   </span>
                 </td>
-                <td className="text-sm text-slate-400">{u.azubi_name || <span className="text-slate-700">—</span>}</td>
                 <td>
                   {u.active ? (
                     <span className="flex items-center gap-1 text-xs text-green-400"><CheckCircle2 size={12} />Aktiv</span>
@@ -143,11 +138,8 @@ export default function UsersAdmin() {
           </div>
           {form.role === 'azubi' && (
             <div>
-              <label className="label">Verknüpfter Azubi</label>
-              <select className="input-field" value={form.azubi_id} onChange={e => setForm(f => ({ ...f, azubi_id: e.target.value }))}>
-                <option value="">— Keiner —</option>
-                {azubis.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
+              <label className="label">Name *</label>
+              <input className="input-field" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Vor- und Nachname" />
             </div>
           )}
           <label className="flex items-center gap-2 text-sm text-slate-400">
@@ -181,7 +173,7 @@ export default function UsersAdmin() {
         onClose={() => setDeleteUser(null)}
         onConfirm={handleDelete}
         title="Konto löschen"
-        message={deleteUser ? `Konto "${deleteUser.email}" wirklich unwiderruflich löschen? ${deleteUser.azubi_name ? 'Der verknüpfte Azubi-Datensatz bleibt erhalten, verliert aber die Kontoverknüpfung.' : ''}` : ''}
+        message={deleteUser ? `Konto "${deleteUser.email}" wirklich unwiderruflich löschen?` : ''}
       />
     </div>
   )

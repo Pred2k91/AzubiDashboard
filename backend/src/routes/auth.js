@@ -33,7 +33,6 @@ function publicUser(u) {
     id: u.id,
     email: u.email,
     role: u.role,
-    azubi_id: u.azubi_id,
     must_change_password: !!u.must_change_password,
   }
 }

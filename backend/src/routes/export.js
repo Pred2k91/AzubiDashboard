@@ -70,7 +70,7 @@ router.get('/reports.xlsx', requireRole('ausbilder'), async (req, res) => {
         ru.email as reviewed_by_email,
         red.date, red.day_type, red.activities_text, red.hours
       FROM report_entries re
-      JOIN azubis a ON a.id = re.azubi_id
+      JOIN users a ON a.id = re.azubi_id
       LEFT JOIN departments d ON d.id = re.department_id
       LEFT JOIN users ru ON ru.id = re.reviewed_by
       JOIN report_entry_days red ON red.report_entry_id = re.id
@@ -439,10 +439,10 @@ router.get('/reports/:azubi_id/pdf', requireRole('ausbilder'), (req, res) => {
     const { from, to } = req.query
 
     const azubi = db.prepare(`
-      SELECT a.*, d.name as department_name
-      FROM azubis a
+      SELECT a.id, a.name, a.birthday, a.start_date, a.lehrjahr, d.name as department_name
+      FROM users a
       LEFT JOIN departments d ON d.id = a.current_department_id
-      WHERE a.id = ?
+      WHERE a.id = ? AND a.role = 'azubi'
     `).get(azubiId)
     if (!azubi) return res.status(404).json({ error: 'Azubi nicht gefunden' })
 

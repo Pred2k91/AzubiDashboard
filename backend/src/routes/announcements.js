@@ -8,7 +8,7 @@ function parseAzubis(db, row) {
     const ids = JSON.parse(row.azubi_ids || '[]')
     if (!ids.length) return { ...row, azubi_ids: [], azubis: [] }
     const azubis = db.prepare(
-      `SELECT id, name, lehrjahr FROM azubis WHERE id IN (${ids.join(',')}) ORDER BY lehrjahr, name`
+      `SELECT id, name, lehrjahr FROM users WHERE role = 'azubi' AND id IN (${ids.join(',')}) ORDER BY lehrjahr, name`
     ).all()
     return { ...row, azubi_ids: ids, azubis }
   } catch { return { ...row, azubi_ids: [], azubis: [] } }

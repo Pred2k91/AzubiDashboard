@@ -26,7 +26,7 @@ router.get('/', optionalAuth, (req, res) => {
     const includeEmail = req.user?.role === 'ausbilder'
     const azubis = db.prepare(`
       SELECT id, name, lehrjahr, last_report_date${includeEmail ? ', email' : ''}
-      FROM azubis WHERE active = 1 AND lehrjahr > 0
+      FROM users WHERE role = 'azubi' AND active = 1 AND lehrjahr > 0
       ORDER BY lehrjahr ASC, name ASC
     `).all()
 
@@ -47,7 +47,7 @@ router.put('/:id', requireRole('ausbilder'), (req, res) => {
   try {
     const db = getDb()
     const date = req.body.date || new Date().toISOString().slice(0, 10)
-    db.prepare('UPDATE azubis SET last_report_date = ? WHERE id = ?').run(date, req.params.id)
+    db.prepare('UPDATE users SET last_report_date = ? WHERE id = ?').run(date, req.params.id)
     res.json({ success: true, date })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -58,7 +58,7 @@ router.put('/bulk/submit', requireRole('ausbilder'), (req, res) => {
     const db = getDb()
     const { ids, date } = req.body
     const d = date || new Date().toISOString().slice(0, 10)
-    const stmt = db.prepare('UPDATE azubis SET last_report_date = ? WHERE id = ?')
+    const stmt = db.prepare('UPDATE users SET last_report_date = ? WHERE id = ?')
     const run = db.transaction(() => ids.forEach(id => stmt.run(d, id)))
     run()
     res.json({ success: true, count: ids.length, date: d })

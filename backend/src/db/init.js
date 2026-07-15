@@ -61,17 +61,6 @@ function initDb() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
-    CREATE TABLE IF NOT EXISTS azubis (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      lehrjahr INTEGER DEFAULT 1,
-      start_date TEXT,
-      current_department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
-      email TEXT DEFAULT '',
-      active INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
     CREATE TABLE IF NOT EXISTS vocational_schools (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
@@ -93,20 +82,20 @@ function initDb() {
     CREATE TABLE IF NOT EXISTS school_block_azubis (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       block_id INTEGER NOT NULL REFERENCES school_blocks(id) ON DELETE CASCADE,
-      azubi_id INTEGER NOT NULL REFERENCES azubis(id) ON DELETE CASCADE,
+      azubi_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       UNIQUE(block_id, azubi_id)
     );
 
     CREATE TABLE IF NOT EXISTS event_azubis (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_id INTEGER NOT NULL REFERENCES calendar_events(id) ON DELETE CASCADE,
-      azubi_id INTEGER NOT NULL REFERENCES azubis(id) ON DELETE CASCADE,
+      azubi_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       UNIQUE(event_id, azubi_id)
     );
 
     CREATE TABLE IF NOT EXISTS rotations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      azubi_id INTEGER NOT NULL REFERENCES azubis(id) ON DELETE CASCADE,
+      azubi_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
       start_date TEXT NOT NULL,
       end_date TEXT,
@@ -139,7 +128,6 @@ function initDb() {
       password_hash TEXT,
       auth_provider TEXT NOT NULL DEFAULT 'local',
       role TEXT NOT NULL DEFAULT 'azubi',
-      azubi_id INTEGER REFERENCES azubis(id) ON DELETE SET NULL,
       active INTEGER DEFAULT 1,
       must_change_password INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
@@ -165,7 +153,7 @@ function initDb() {
 
     CREATE TABLE IF NOT EXISTS report_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      azubi_id INTEGER NOT NULL REFERENCES azubis(id) ON DELETE CASCADE,
+      azubi_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       period_type TEXT NOT NULL,
       period_start TEXT NOT NULL,
       period_end TEXT NOT NULL,
@@ -215,27 +203,24 @@ function initDb() {
       ('widgets_enabled', '{"clock":true,"calendar":true,"todos":true,"departments":true,"notes":true}');
   `)
 
-  // Migration: birthday-Spalte hinzufügen falls nicht vorhanden
-  try { db.exec("ALTER TABLE azubis ADD COLUMN birthday TEXT") } catch (_) {}
-  // Migration: last_report_date-Spalte hinzufügen
-  try { db.exec("ALTER TABLE azubis ADD COLUMN last_report_date TEXT") } catch (_) {}
-
   // Migration: lehrjahre-Spalte hinzufügen falls nicht vorhanden
   try { db.exec("ALTER TABLE school_blocks ADD COLUMN lehrjahre TEXT DEFAULT '[]'") } catch (_) {}
-
-  // Migration: geplanter Abteilungswechsel pro Azubi (next_department_id/next_rotation_date)
-  try { db.exec("ALTER TABLE azubis ADD COLUMN next_department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL") } catch (_) {}
-  try { db.exec("ALTER TABLE azubis ADD COLUMN next_rotation_date TEXT") } catch (_) {}
-
-  // Migration: Berichtsheft-Führungsrhythmus pro Azubi ('day' | 'week', IHK/HWK-konform)
-  try { db.exec("ALTER TABLE azubis ADD COLUMN report_period TEXT DEFAULT 'week'") } catch (_) {}
 
   // Migration: alten Klartext-Admin-PIN entfernen — abgelöst durch echte Benutzerkonten
   db.prepare("DELETE FROM settings WHERE key = 'admin_pin'").run()
 
-  // Migration: Profil-/Kontaktfelder für Benutzer (Selbstauskunft + Admin-Profilseite).
-  // azubis bleibt bewusst unverändert -- name/birthday eines verknüpften Azubis bleiben
-  // dort die alleinige Quelle der Wahrheit, diese Felder gelten nur für Nutzer ohne azubi_id.
+  // Migration: Ausbildungsdaten liegen direkt auf users (role='azubi') statt in einer
+  // separaten azubis-Tabelle -- jede Person ist genau eine users-Zeile.
+  try { db.exec("ALTER TABLE users ADD COLUMN name TEXT DEFAULT ''") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN lehrjahr INTEGER DEFAULT 1") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN start_date TEXT") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN current_department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN next_department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN next_rotation_date TEXT") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN report_period TEXT DEFAULT 'week'") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN last_report_date TEXT") } catch (_) {}
+
+  // Migration: Profil-/Kontaktfelder für Benutzer (Selbstauskunft + Admin-Profilseite)
   try { db.exec("ALTER TABLE users ADD COLUMN salutation TEXT DEFAULT ''") } catch (_) {}
   try { db.exec("ALTER TABLE users ADD COLUMN first_name TEXT DEFAULT ''") } catch (_) {}
   try { db.exec("ALTER TABLE users ADD COLUMN last_name TEXT DEFAULT ''") } catch (_) {}

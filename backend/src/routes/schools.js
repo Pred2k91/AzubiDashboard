@@ -53,7 +53,7 @@ router.delete('/:id', requireRole('ausbilder'), (req, res) => {
 function blockWithAzubis(db, block) {
   const azubis = db.prepare(`
     SELECT a.id, a.name, a.lehrjahr FROM school_block_azubis sba
-    JOIN azubis a ON sba.azubi_id = a.id
+    JOIN users a ON sba.azubi_id = a.id
     WHERE sba.block_id = ? ORDER BY a.lehrjahr, a.name ASC
   `).all(block.id)
   return { ...block, azubis, azubi_ids: azubis.map(a => a.id) }

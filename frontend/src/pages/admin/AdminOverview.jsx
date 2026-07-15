@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { CalendarDays, CheckSquare, StickyNote, Users, ArrowRight, UserPlus } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
-import { calendarApi, todosApi, notesApi, azubisApi } from '../../api/client'
+import { calendarApi, todosApi, notesApi, azubisApi, usersApi } from '../../api/client'
 import { format, parseISO, isAfter, startOfDay } from 'date-fns'
 import { de } from 'date-fns/locale'
 import Modal from '../../components/ui/Modal'
@@ -48,10 +48,10 @@ export default function AdminOverview() {
     if (!azubiForm.name || !azubiForm.email) return
     setAzubiLoading(true)
     try {
-      const created = await azubisApi.create(azubiForm)
+      const created = await usersApi.create({ ...azubiForm, role: 'azubi' })
       setNewAzubiModal(false)
       setStats(s => ({ ...s, azubis: s.azubis + 1 }))
-      setRevealPassword({ email: created.email, password: created.generated_password, userId: created.user_id })
+      setRevealPassword({ email: created.email, password: created.generated_password, userId: created.id })
     } finally { setAzubiLoading(false) }
   }
 
