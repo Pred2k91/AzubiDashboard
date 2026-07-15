@@ -18,7 +18,7 @@ export default function PortalLayout() {
   }
 
   return (
-    <div className="portal-theme flex flex-col md:flex-row h-[100dvh] overflow-hidden bg-[#0d0f1a]">
+    <div className="light-theme flex flex-col md:flex-row h-[100dvh] overflow-hidden bg-[#0d0f1a]">
       {/* Sidebar — ab Tablet-Breite (md) aufwärts */}
       <aside className="hidden md:flex md:w-56 shrink-0 flex-col border-r border-[#2a2d4a] bg-[#0d0f1a]">
         <div className="px-4 py-5 border-b border-[#2a2d4a]">
