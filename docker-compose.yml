@@ -60,6 +60,9 @@ services:
       - "80:80"
     environment:
       - SITE_DOMAIN=${SITE_DOMAIN:-localhost}
+      # internal = selbstsigniert fürs LAN (Standard); für den echten Launch später auf
+      # eine Kontakt-E-Mail (z.B. admin@ihre-domain.example) für Let's Encrypt umstellen.
+      - TLS_MODE=${TLS_MODE:-internal}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy-data:/data

@@ -1,13 +1,28 @@
 # TLS-Reverse-Proxy — wird NICHT automatisch gestartet (siehe docker-compose.yml,
-# Service "caddy" mit profiles: ["tls"]). Erst relevant, wenn die IT eine echte
-# Domain/Zertifikat bereitstellt.
+# Service "caddy" mit profiles: ["tls"]). Erforderlich für HTTPS (nötig z.B. für Web
+# Push/Workflows), sonst weigern sich Browser, Service Worker/Push zu erlauben.
 #
-# Aktivierung:
-#   1. SITE_DOMAIN=ihre-domain.example in der .env setzen (Default: localhost)
-#   2. Port 443 (und 80 für ACME-Challenge) am Host freigeben
-#   3. docker compose --profile tls up -d
-#   4. Beim backend-Service COOKIE_SECURE=true und TRUST_PROXY=true setzen und neu starten
+# Zwei Modi über TLS_MODE steuerbar, ohne diese Datei anzufassen:
+#
+# A) Selbstsigniert im LAN (TLS_MODE=internal, Standard) — funktioniert sofort ohne
+#    Internet/Domain, z.B. Zugriff über die Server-IP im internen Netz:
+#      1. SITE_DOMAIN=<Server-IP oder lokaler Name> in der .env setzen
+#      2. TLS_MODE=internal (Standard, muss nicht extra gesetzt werden)
+#      3. Port 443 am Host freigeben
+#      4. docker compose --profile tls up -d --build
+#      5. Beim backend-Service COOKIE_SECURE=true und TRUST_PROXY=true setzen und neu starten
+#      6. Auf jedem Gerät beim ersten Aufruf die Zertifikatswarnung einmalig akzeptieren
+#         ("Erweitert" → "Trotzdem fortfahren") — das ist normal bei selbstsignierten
+#         Zertifikaten und muss nur einmal pro Gerät/Browser gemacht werden.
+#
+# B) Echte Domain beim Launch (später, für den Internet-Betrieb):
+#      1. SITE_DOMAIN=ihre-domain.example in der .env setzen
+#      2. TLS_MODE=admin@ihre-domain.example (echte Kontakt-E-Mail für Let's Encrypt)
+#      3. Port 80 (ACME-Challenge) und 443 am Host freigeben
+#      4. docker compose --profile tls up -d --build
+#      Kein Zertifikatswarnung mehr, echtes von allen Geräten akzeptiertes Zertifikat.
 
 {$SITE_DOMAIN:localhost} {
+	tls {$TLS_MODE:-internal}
 	reverse_proxy frontend:80
 }
