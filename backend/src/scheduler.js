@@ -37,6 +37,46 @@ function getAllAusbilderIds(db) {
   return db.prepare("SELECT id FROM users WHERE role = 'ausbilder' AND active = 1").all().map(r => r.id)
 }
 
+// Löst eine Empfänger-Gruppe in konkrete Nutzer-IDs auf: feste Mitglieder (member_type
+// 'user') plus dynamisch alle aktiven Ausbilder mit einer verknüpften Berechtigungsrolle
+// (member_type 'permission_role') -- wächst/schrumpft automatisch mit Rollenzuweisungen.
+function resolveGroupMemberIds(db, groupId) {
+  const members = db.prepare('SELECT member_type, member_id FROM notification_group_members WHERE group_id = ?').all(groupId)
+  const ids = new Set()
+  for (const m of members) {
+    if (m.member_type === 'user') {
+      ids.add(m.member_id)
+    } else if (m.member_type === 'permission_role') {
+      db.prepare("SELECT id FROM users WHERE permission_role_id = ? AND active = 1").all(m.member_id).forEach(r => ids.add(r.id))
+    }
+  }
+  return [...ids]
+}
+
+// Löst die generische `recipients`-Liste einer Aktion (siehe workflowCatalog.js) in
+// konkrete Nutzer-IDs auf. azubi kann null sein (kein Betroffener bei diesem Auslöser) --
+// "subject_*"-Einträge liefern dann einfach nichts, außer "subject_location_ausbilder"
+// weicht mangels Niederlassung auf alle Ausbilder aus (gleiche Logik wie zuvor bei
+// to_location_ausbilder/target: 'ausbilder').
+function resolveRecipientUserIds(db, recipients, azubi) {
+  const ids = new Set()
+  for (const r of (recipients || [])) {
+    if (r.type === 'subject_azubi') {
+      if (azubi) ids.add(azubi.id)
+    } else if (r.type === 'subject_location_ausbilder') {
+      const scoped = azubi ? getLocationScopedAusbilderIds(db, azubi.id) : getAllAusbilderIds(db)
+      scoped.forEach(id => ids.add(id))
+    } else if (r.type === 'all_ausbilder') {
+      getAllAusbilderIds(db).forEach(id => ids.add(id))
+    } else if (r.type === 'user' && r.user_id) {
+      ids.add(r.user_id)
+    } else if (r.type === 'group' && r.group_id) {
+      resolveGroupMemberIds(db, r.group_id).forEach(id => ids.add(id))
+    }
+  }
+  return [...ids]
+}
+
 function loadActiveWorkflows(db) {
   const workflows = db.prepare('SELECT * FROM workflows WHERE active = 1').all()
   const getActions = db.prepare('SELECT * FROM workflow_actions WHERE workflow_id = ? ORDER BY position ASC')
@@ -48,24 +88,18 @@ function loadActiveWorkflows(db) {
 }
 
 // azubi kann null sein (z.B. unzugewiesene Aufgabe, Termin ohne verknüpfte Azubis) --
-// azubi-bezogene Optionen (to_azubi, target: 'azubi') laufen dann einfach ins Leere;
-// "an alle Ausbilder" bleibt als azubi-unabhängiger Fallback verfügbar. Für target/
-// to_location_ausbilder OHNE Azubi wird ebenfalls auf "alle Ausbilder" ausgewichen,
-// da keine Niederlassung zum Scopen vorhanden ist.
+// siehe resolveRecipientUserIds() für die genaue Fallback-Logik pro Empfänger-Typ.
 async function runAction(action, azubi, vars) {
   const db = getDb()
   if (action.action_type === 'email') {
     const cfg = action.action_config
+    const userIds = resolveRecipientUserIds(db, cfg.recipients, azubi)
     const recipients = new Set()
-    if (cfg.to_azubi && azubi?.email) recipients.add(azubi.email)
-    if (Array.isArray(cfg.cc)) cfg.cc.filter(Boolean).forEach(e => recipients.add(e))
-    const addEmailsForIds = (ids) => {
-      if (!ids.length) return
-      const rows = db.prepare(`SELECT email FROM users WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids)
+    if (userIds.length) {
+      const rows = db.prepare(`SELECT email FROM users WHERE id IN (${userIds.map(() => '?').join(',')})`).all(...userIds)
       rows.forEach(r => { if (r.email) recipients.add(r.email) })
     }
-    if (cfg.to_location_ausbilder) addEmailsForIds(azubi ? getLocationScopedAusbilderIds(db, azubi.id) : getAllAusbilderIds(db))
-    if (cfg.to_all_ausbilder) addEmailsForIds(getAllAusbilderIds(db))
+    if (Array.isArray(cfg.cc)) cfg.cc.filter(Boolean).forEach(e => recipients.add(e))
     if (recipients.size === 0) return
     const [to, ...cc] = [...recipients]
     await sendMail({
@@ -75,10 +109,7 @@ async function runAction(action, azubi, vars) {
     }).catch(err => console.error('[scheduler] E-Mail-Aktion fehlgeschlagen:', err.message))
   } else if (action.action_type === 'push') {
     const cfg = action.action_config
-    let userIds = []
-    if (cfg.target === 'all_ausbilder') userIds = getAllAusbilderIds(db)
-    else if (cfg.target === 'ausbilder') userIds = azubi ? getLocationScopedAusbilderIds(db, azubi.id) : getAllAusbilderIds(db)
-    else if (azubi) userIds = [azubi.id]
+    const userIds = resolveRecipientUserIds(db, cfg.recipients, azubi)
     if (!userIds.length) return
     await sendPushToUsers(userIds, {
       title: renderTemplate(cfg.title, vars),
@@ -219,8 +250,9 @@ const POLLERS = {
   report_pending_review: pollReportPendingReview,
   todo_overdue: pollTodoOverdue,
   event_upcoming: pollEventUpcoming,
-  // report_rejected / report_approved / todo_assigned / event_created sind Sofort-Auslöser
-  // -- siehe fireEventWorkflows(), aufgerufen direkt aus den jeweiligen Routen.
+  // report_submitted / report_rejected / report_approved / todo_assigned / event_created /
+  // event_cancelled sind Sofort-Auslöser -- siehe fireEventWorkflows(), aufgerufen direkt
+  // aus den jeweiligen Routen.
 }
 
 // Einmal beim Start und danach stündlich aufgerufen (siehe index.js). Wertet alle aktiven

@@ -146,6 +146,13 @@ export const workflowsApi = {
   getRuns: (id) => api.get(`/workflows/${id}/runs`).then(r => r.data),
 }
 
+export const notificationGroupsApi = {
+  getAll: () => api.get('/notification-groups').then(r => r.data),
+  create: (data) => api.post('/notification-groups', data).then(r => r.data),
+  update: (id, data) => api.put(`/notification-groups/${id}`, data).then(r => r.data),
+  delete: (id) => api.delete(`/notification-groups/${id}`).then(r => r.data),
+}
+
 export const pushApi = {
   getVapidPublicKey: () => api.get('/push/vapid-public-key').then(r => r.data),
   subscribe: (subscription) => api.post('/push/subscribe', subscription).then(r => r.data),

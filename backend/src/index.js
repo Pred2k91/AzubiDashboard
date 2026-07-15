@@ -24,6 +24,7 @@ const weatherRoutes = require('./routes/weather')
 const reportsRoutes = require('./routes/reports')
 const exportRoutes = require('./routes/export')
 const workflowsRoutes = require('./routes/workflows')
+const notificationGroupsRoutes = require('./routes/notificationGroups')
 const pushRoutes = require('./routes/push')
 
 const app = express()
@@ -58,6 +59,7 @@ app.use('/api/weather', weatherRoutes)
 app.use('/api/reports', reportsRoutes)
 app.use('/api/export', exportRoutes)
 app.use('/api/workflows', workflowsRoutes)
+app.use('/api/notification-groups', notificationGroupsRoutes)
 app.use('/api/push', pushRoutes)
 
 app.get('/api/health', (req, res) => {

@@ -246,6 +246,23 @@ function initDb() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    -- Frei benennbare Empfänger-Gruppen für Workflow-Aktionen (z.B. "Niederlassung-Admins").
+    -- member_type 'user' = fester einzelner Nutzer, 'permission_role' = dynamisch alle
+    -- aktuell Ausbilder mit dieser Berechtigungsrolle (wächst/schrumpft mit Rollenzuweisungen).
+    CREATE TABLE IF NOT EXISTS notification_groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS notification_group_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_id INTEGER NOT NULL REFERENCES notification_groups(id) ON DELETE CASCADE,
+      member_type TEXT NOT NULL,
+      member_id INTEGER NOT NULL,
+      UNIQUE(group_id, member_type, member_id)
+    );
+
     INSERT OR IGNORE INTO settings (key, value) VALUES
       ('report_warn_days', '14'),
       ('report_alert_days', '28'),
@@ -262,6 +279,32 @@ function initDb() {
   // Migration: Aufgaben können optional einem Azubi zugewiesen werden (Workflow-Auslöser
   // "Aufgabe zugewiesen"/"Aufgabe überfällig" brauchen dafür einen Empfänger).
   try { db.exec("ALTER TABLE todos ADD COLUMN assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL") } catch (_) {}
+
+  // Migration: Aktions-Empfänger von festen Checkboxen/einem Ziel-Dropdown (to_azubi,
+  // to_location_ausbilder, to_all_ausbilder, target) auf eine generische recipients-Liste
+  // umstellen -- erlaubt jetzt zusätzlich einzelne Nutzer und benutzerdefinierte Gruppen.
+  try {
+    const actionRows = db.prepare('SELECT id, action_type, action_config FROM workflow_actions').all()
+    const updateAction = db.prepare('UPDATE workflow_actions SET action_config = ? WHERE id = ?')
+    for (const row of actionRows) {
+      const cfg = JSON.parse(row.action_config)
+      if (cfg.recipients) continue // bereits migriert
+      const recipients = []
+      if (row.action_type === 'email') {
+        if (cfg.to_azubi) recipients.push({ type: 'subject_azubi' })
+        if (cfg.to_location_ausbilder) recipients.push({ type: 'subject_location_ausbilder' })
+        if (cfg.to_all_ausbilder) recipients.push({ type: 'all_ausbilder' })
+        delete cfg.to_azubi; delete cfg.to_location_ausbilder; delete cfg.to_all_ausbilder
+      } else if (row.action_type === 'push') {
+        if (cfg.target === 'azubi') recipients.push({ type: 'subject_azubi' })
+        else if (cfg.target === 'ausbilder') recipients.push({ type: 'subject_location_ausbilder' })
+        else if (cfg.target === 'all_ausbilder') recipients.push({ type: 'all_ausbilder' })
+        delete cfg.target
+      }
+      cfg.recipients = recipients
+      updateAction.run(JSON.stringify(cfg), row.id)
+    }
+  } catch (_) {}
 
   // Migration: workflow_runs von der alten azubi_id-Spalte auf einen generischen entity_key
   // umstellen (nötig für neue, nicht-Azubi-bezogene Auslöser). Nur auf alten DBs relevant --

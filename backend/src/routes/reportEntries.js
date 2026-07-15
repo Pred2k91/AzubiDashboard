@@ -157,6 +157,14 @@ router.put('/me/report-entries/:id', requireAuth, (req, res) => {
     }
 
     const updated = db.prepare('SELECT * FROM report_entries WHERE id = ?').get(entry.id)
+
+    if (submit) {
+      fireEventWorkflows(
+        'report_submitted', `report_entry:${entry.id}`, `submitted:${updated.submitted_at}`, azubi,
+        { name: azubi.name, date: updated.period_end }
+      ).catch(err => console.error('[workflows] Fehler:', err.message))
+    }
+
     res.json(entryWithDays(db, updated))
   } catch (err) { res.status(500).json({ error: err.message }) }
 })

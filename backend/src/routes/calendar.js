@@ -4,16 +4,19 @@ const { getDb } = require('../db/init')
 const { requirePermission } = require('../middleware/auth')
 const { fireEventWorkflows } = require('../scheduler')
 
-function notifyEventCreated(db, event, azubiIds) {
+// Feuert einen Termin-Auslöser einmal pro verknüpftem Azubi, oder einmal ohne Azubi-Bezug,
+// falls keine Azubis verknüpft sind. Wird sowohl für "angelegt" als auch für "abgesagt"
+// genutzt -- beim Löschen müssen azubiIds/event VOR dem eigentlichen DELETE ermittelt werden.
+function notifyEventTrigger(db, triggerType, triggerKey, event, azubiIds) {
   const vars = { title: event.title, date: event.start_datetime }
   if (!azubiIds || azubiIds.length === 0) {
-    fireEventWorkflows('event_created', `event:${event.id}`, 'created', null, { ...vars, name: '' })
+    fireEventWorkflows(triggerType, `event:${event.id}`, triggerKey, null, { ...vars, name: '' })
       .catch(err => console.error('[workflows] Fehler:', err.message))
     return
   }
   const rows = db.prepare(`SELECT id, name, email FROM users WHERE id IN (${azubiIds.map(() => '?').join(',')})`).all(...azubiIds)
   for (const azubi of rows) {
-    fireEventWorkflows('event_created', `event:${event.id}:azubi:${azubi.id}`, 'created', azubi, { ...vars, name: azubi.name })
+    fireEventWorkflows(triggerType, `event:${event.id}:azubi:${azubi.id}`, triggerKey, azubi, { ...vars, name: azubi.name })
       .catch(err => console.error('[workflows] Fehler:', err.message))
   }
 }
@@ -75,7 +78,7 @@ router.post('/', requirePermission('calendar.manage'), (req, res) => {
     ).run(title, description || '', start_datetime, end_datetime, all_day ? 1 : 0, color || '#6366f1')
     saveAzubis(db, result.lastInsertRowid, azubi_ids)
     const event = db.prepare('SELECT * FROM calendar_events WHERE id = ?').get(result.lastInsertRowid)
-    notifyEventCreated(db, event, azubi_ids)
+    notifyEventTrigger(db, 'event_created', 'created', event, azubi_ids)
     res.status(201).json(attachAzubis(db, [event])[0])
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -101,7 +104,12 @@ router.put('/:id', requirePermission('calendar.manage'), (req, res) => {
 router.delete('/:id', requirePermission('calendar.manage'), (req, res) => {
   try {
     const db = getDb()
+    const event = db.prepare('SELECT * FROM calendar_events WHERE id = ?').get(req.params.id)
+    if (!event) return res.status(404).json({ error: 'Nicht gefunden' })
+    // Vor dem DELETE ermitteln -- event_azubis kaskadiert sonst mit weg.
+    const azubiIds = db.prepare('SELECT azubi_id FROM event_azubis WHERE event_id = ?').all(event.id).map(r => r.azubi_id)
     db.prepare('DELETE FROM calendar_events WHERE id = ?').run(req.params.id)
+    notifyEventTrigger(db, 'event_cancelled', 'cancelled', event, azubiIds)
     res.json({ success: true })
   } catch (err) {
     res.status(500).json({ error: err.message })
