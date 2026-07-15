@@ -8,6 +8,24 @@ function daysSince(dateStr) {
   return Math.floor((Date.now() - new Date(dateStr)) / 86400000)
 }
 
+// Ausbilder, die für einen Azubi "zuständig" sind: Super Admins (sehen ohnehin alles)
+// plus Ausbilder, die mindestens eine Niederlassung mit dem Azubi teilen. Verhindert,
+// dass z.B. ein überfälliges Berichtsheft eines Köln-Azubis auch den Hamburg-Ausbilder
+// per Push/E-Mail benachrichtigt.
+function getLocationScopedAusbilderIds(db, azubiId) {
+  return db.prepare(`
+    SELECT id FROM users
+    WHERE role = 'ausbilder' AND active = 1
+      AND (
+        permission_role_id IN (SELECT id FROM permission_roles WHERE is_super_admin = 1)
+        OR id IN (
+          SELECT user_id FROM user_locations
+          WHERE location_id IN (SELECT location_id FROM user_locations WHERE user_id = ?)
+        )
+      )
+  `).all(azubiId).map(r => r.id)
+}
+
 function loadActiveWorkflows(db) {
   const workflows = db.prepare('SELECT * FROM workflows WHERE active = 1').all()
   const getActions = db.prepare('SELECT * FROM workflow_actions WHERE workflow_id = ? ORDER BY position ASC')
@@ -19,22 +37,30 @@ function loadActiveWorkflows(db) {
 }
 
 async function runAction(action, azubi, vars) {
+  const db = getDb()
   if (action.action_type === 'email') {
     const cfg = action.action_config
-    const toAzubi = cfg.to_azubi ? azubi.email : null
-    const ccList = Array.isArray(cfg.cc) ? cfg.cc.filter(Boolean) : []
-    if (!toAzubi && ccList.length === 0) return
+    const recipients = new Set()
+    if (cfg.to_azubi && azubi.email) recipients.add(azubi.email)
+    if (Array.isArray(cfg.cc)) cfg.cc.filter(Boolean).forEach(e => recipients.add(e))
+    if (cfg.to_location_ausbilder) {
+      const ids = getLocationScopedAusbilderIds(db, azubi.id)
+      if (ids.length) {
+        const rows = db.prepare(`SELECT email FROM users WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids)
+        rows.forEach(r => { if (r.email) recipients.add(r.email) })
+      }
+    }
+    if (recipients.size === 0) return
+    const [to, ...cc] = [...recipients]
     await sendMail({
-      to: toAzubi || ccList.join(', '),
-      cc: toAzubi ? ccList : [],
+      to, cc,
       subject: renderTemplate(cfg.subject, vars),
       text: renderTemplate(cfg.body, vars),
     }).catch(err => console.error('[scheduler] E-Mail-Aktion fehlgeschlagen:', err.message))
   } else if (action.action_type === 'push') {
     const cfg = action.action_config
-    const db = getDb()
     const userIds = cfg.target === 'ausbilder'
-      ? db.prepare("SELECT id FROM users WHERE role='ausbilder' AND active=1").all().map(r => r.id)
+      ? getLocationScopedAusbilderIds(db, azubi.id)
       : [azubi.id]
     await sendPushToUsers(userIds, {
       title: renderTemplate(cfg.title, vars),

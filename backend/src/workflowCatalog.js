@@ -21,7 +21,8 @@ const ACTIONS = [
     label: 'E-Mail versenden',
     fields: [
       { key: 'to_azubi', label: 'An den betroffenen Azubi senden', type: 'checkbox', default: true },
-      { key: 'cc', label: 'CC (weitere E-Mail-Adressen, eine pro Zeile)', type: 'email_list', default: [] },
+      { key: 'to_location_ausbilder', label: 'CC an Ausbilder der Niederlassung des Azubis (+ Super Admins)', type: 'checkbox', default: false },
+      { key: 'cc', label: 'Zusätzliche feste CC-Adressen (eine pro Zeile)', type: 'email_list', default: [] },
       { key: 'subject', label: 'Betreff', type: 'text', default: 'Erinnerung: Berichtsheft überfällig' },
       {
         key: 'body', label: 'Text (Platzhalter: {{name}}, {{days_overdue}})', type: 'textarea',
@@ -37,7 +38,7 @@ const ACTIONS = [
         key: 'target', label: 'Empfänger', type: 'select', default: 'azubi',
         options: [
           { value: 'azubi', label: 'Betroffener Azubi' },
-          { value: 'ausbilder', label: 'Alle Ausbilder mit aktivierten Push-Benachrichtigungen' },
+          { value: 'ausbilder', label: 'Ausbilder der Niederlassung des Azubis (+ Super Admins)' },
         ],
       },
       { key: 'title', label: 'Titel', type: 'text', default: 'Berichtsheft überfällig' },
