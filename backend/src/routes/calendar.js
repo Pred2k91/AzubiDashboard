@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
-const { requireRole } = require('../middleware/auth')
+const { requirePermission } = require('../middleware/auth')
 
 function attachAzubis(db, events) {
   if (!events.length) return events
@@ -48,7 +48,7 @@ router.get('/', (req, res) => {
   }
 })
 
-router.post('/', requireRole('ausbilder'), (req, res) => {
+router.post('/', requirePermission('calendar.manage'), (req, res) => {
   try {
     const db = getDb()
     const { title, description, start_datetime, end_datetime, all_day, color, azubi_ids } = req.body
@@ -66,7 +66,7 @@ router.post('/', requireRole('ausbilder'), (req, res) => {
   }
 })
 
-router.put('/:id', requireRole('ausbilder'), (req, res) => {
+router.put('/:id', requirePermission('calendar.manage'), (req, res) => {
   try {
     const db = getDb()
     const { title, description, start_datetime, end_datetime, all_day, color, azubi_ids } = req.body
@@ -82,7 +82,7 @@ router.put('/:id', requireRole('ausbilder'), (req, res) => {
   }
 })
 
-router.delete('/:id', requireRole('ausbilder'), (req, res) => {
+router.delete('/:id', requirePermission('calendar.manage'), (req, res) => {
   try {
     const db = getDb()
     db.prepare('DELETE FROM calendar_events WHERE id = ?').run(req.params.id)

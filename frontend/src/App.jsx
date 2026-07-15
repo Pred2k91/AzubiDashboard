@@ -4,6 +4,7 @@ import { settingsApi } from './api/client'
 import { applyAccentColor, applyWidgetOpacity } from './utils/theme'
 import { AuthProvider } from './contexts/AuthContext'
 import RequireRole from './components/RequireRole'
+import RequirePermission from './components/RequirePermission'
 import KioskPage from './pages/KioskPage'
 import LoginPage from './pages/LoginPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
@@ -28,6 +29,7 @@ import SettingsPage from './pages/admin/SettingsPage'
 import UsersAdmin from './pages/admin/UsersAdmin'
 import UserProfileAdmin from './pages/admin/UserProfileAdmin'
 import LocationsAdmin from './pages/admin/LocationsAdmin'
+import RolesAdmin from './pages/admin/RolesAdmin'
 
 export default function App() {
   useEffect(() => {
@@ -49,19 +51,20 @@ export default function App() {
           <Route path="/change-password" element={<RequireRole><ChangePasswordPage /></RequireRole>} />
           <Route path="/admin" element={<RequireRole role="ausbilder"><AdminLayout /></RequireRole>}>
             <Route index element={<AdminOverview />} />
-            <Route path="calendar" element={<CalendarAdmin />} />
-            <Route path="todos" element={<TodosAdmin />} />
-            <Route path="notes" element={<NotesAdmin />} />
+            <Route path="calendar" element={<RequirePermission permission="calendar.manage"><CalendarAdmin /></RequirePermission>} />
+            <Route path="todos" element={<RequirePermission permission="productivity.manage"><TodosAdmin /></RequirePermission>} />
+            <Route path="notes" element={<RequirePermission permission="productivity.manage"><NotesAdmin /></RequirePermission>} />
             <Route path="azubis" element={<AzubiAdmin />} />
-            <Route path="departments" element={<DepartmentsAdmin />} />
-            <Route path="schools" element={<SchoolsAdmin />} />
-            <Route path="announcements" element={<AnnouncementsAdmin />} />
-            <Route path="reports" element={<ReportsAdmin />} />
+            <Route path="departments" element={<RequirePermission permission="departments.manage"><DepartmentsAdmin /></RequirePermission>} />
+            <Route path="schools" element={<RequirePermission permission="schools.manage"><SchoolsAdmin /></RequirePermission>} />
+            <Route path="announcements" element={<RequirePermission permission="announcements.manage"><AnnouncementsAdmin /></RequirePermission>} />
+            <Route path="reports" element={<RequirePermission permission="reports.review"><ReportsAdmin /></RequirePermission>} />
             <Route path="users" element={<UsersAdmin />} />
             <Route path="users/:id" element={<UserProfileAdmin />} />
-            <Route path="locations" element={<LocationsAdmin />} />
+            <Route path="locations" element={<RequirePermission permission="locations.manage"><LocationsAdmin /></RequirePermission>} />
+            <Route path="roles" element={<RequirePermission superAdminOnly><RolesAdmin /></RequirePermission>} />
             <Route path="profile" element={<ProfilePage />} />
-            <Route path="settings" element={<SettingsPage />} />
+            <Route path="settings" element={<RequirePermission permission="settings.manage"><SettingsPage /></RequirePermission>} />
           </Route>
           <Route path="/portal" element={<RequireRole role="azubi"><PortalLayout /></RequireRole>}>
             <Route index element={<PortalDashboard />} />

@@ -6,7 +6,7 @@ const multer = require('multer')
 const path = require('path')
 const fs = require('fs')
 const { getDb } = require('../db/init')
-const { requireRole } = require('../middleware/auth')
+const { requireRole, hasPermission, scopeLocationIds, idsClause } = require('../middleware/auth')
 const { sendMail } = require('../utils/mailer')
 const { UPLOADS_DIR } = require('./upload')
 
@@ -43,15 +43,33 @@ function generatePassword() {
   return crypto.randomBytes(9).toString('base64url')
 }
 
+// Prüft "azubis.edit" bzw. "users.edit" je nach Rolle des Ziel-Kontos, BEVOR z.B.
+// ein Datei-Upload überhaupt verarbeitet wird.
+function requireTargetEditPermission(req, res, next) {
+  const target = getDb().prepare('SELECT role FROM users WHERE id = ?').get(req.params.id)
+  if (!target) return res.status(404).json({ error: 'Nicht gefunden' })
+  if (!hasPermission(req.user, target.role === 'azubi' ? 'azubis.edit' : 'users.edit')) {
+    return res.status(403).json({ error: 'Keine Berechtigung' })
+  }
+  next()
+}
+
 router.get('/', (req, res) => {
   try {
     const db = getDb()
+    const locIds = scopeLocationIds(req)
+    // Niederlassungs-Scope gilt nur für Azubi-Zeilen -- andere Ausbilder-Konten
+    // bleiben für jeden Ausbilder mit Nutzer-Sicht auffindbar.
+    const scopeClause = locIds
+      ? `AND (role != 'azubi' OR id IN (SELECT user_id FROM user_locations WHERE location_id IN ${idsClause(locIds)}))`
+      : ''
     const users = db.prepare(`
       SELECT id, email, role, active, must_change_password, auth_provider,
              name, lehrjahr, last_login_at, created_at
       FROM users
+      WHERE 1=1 ${scopeClause}
       ORDER BY role ASC, email ASC
-    `).all()
+    `).all(...(locIds || []))
     res.json(users)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -76,6 +94,10 @@ router.get('/:id', (req, res) => {
       WHERE ul.user_id = ?
       ORDER BY l.name ASC
     `).all(req.params.id)
+    const locIds = scopeLocationIds(req)
+    if (locIds && user.role === 'azubi' && !locations.some(l => locIds.includes(l.id))) {
+      return res.status(404).json({ error: 'Nicht gefunden' })
+    }
     res.json({ ...user, locations })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -85,6 +107,9 @@ router.post('/', (req, res) => {
     const { email, role, name, send_email } = req.body
     if (!email) return res.status(400).json({ error: 'E-Mail ist erforderlich' })
     const finalRole = role === 'ausbilder' ? 'ausbilder' : 'azubi'
+    if (!hasPermission(req.user, finalRole === 'azubi' ? 'azubis.create' : 'users.create')) {
+      return res.status(403).json({ error: 'Keine Berechtigung' })
+    }
     if (finalRole === 'azubi' && !name) return res.status(400).json({ error: 'Name ist erforderlich' })
     const db = getDb()
     const password = generatePassword()
@@ -92,6 +117,17 @@ router.post('/', (req, res) => {
     const result = db.prepare(
       'INSERT INTO users (email, password_hash, role, name, must_change_password) VALUES (?, ?, ?, ?, 1)'
     ).run(String(email).toLowerCase(), hash, finalRole, finalRole === 'azubi' ? name : '')
+
+    // Ein Niederlassungs-gescopter Ersteller legt einen Azubi automatisch in seiner(n)
+    // eigenen Niederlassung(en) an -- sonst wäre der neue Azubi für ihn selbst sofort
+    // nicht mehr sichtbar. Super Admin (locIds === null) lässt die Zuordnung frei/leer.
+    if (finalRole === 'azubi') {
+      const locIds = scopeLocationIds(req)
+      if (locIds && locIds.length > 0) {
+        const insertLoc = db.prepare('INSERT OR IGNORE INTO user_locations (user_id, location_id) VALUES (?, ?)')
+        for (const locId of locIds) insertLoc.run(result.lastInsertRowid, locId)
+      }
+    }
 
     if (send_email) {
       sendMail({
@@ -111,17 +147,40 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   try {
-    const { role, active } = req.body
+    const { role, active, permission_role_id } = req.body
     const db = getDb()
-    db.prepare('UPDATE users SET role=?, active=? WHERE id=?').run(
-      role === 'ausbilder' ? 'ausbilder' : 'azubi',
-      active !== undefined ? (active ? 1 : 0) : 1,
-      req.params.id
-    )
+    const target = db.prepare('SELECT role FROM users WHERE id = ?').get(req.params.id)
+    if (!target) return res.status(404).json({ error: 'Nicht gefunden' })
+    const finalRole = role === 'ausbilder' ? 'ausbilder' : 'azubi'
+    const editPerm = r => r === 'azubi' ? 'azubis.edit' : 'users.edit'
+    // Ändert sich die Konto-Art (azubi <-> ausbilder), braucht es die Bearbeiten-Berechtigung
+    // für BEIDE Seiten -- sonst könnte "nur Azubis bearbeiten" ein Konto zum Ausbilder machen.
+    if (!hasPermission(req.user, editPerm(target.role)) || (finalRole !== target.role && !hasPermission(req.user, editPerm(finalRole)))) {
+      return res.status(403).json({ error: 'Keine Berechtigung' })
+    }
+    // Wer welche Berechtigungsrolle bekommt ist selbst eine Rechtevergabe -- nur
+    // Super Admin darf das ändern, unabhängig von azubis.edit/users.edit.
+    if (permission_role_id !== undefined && !req.user.isSuperAdmin) {
+      return res.status(403).json({ error: 'Nur Super Admin darf die Berechtigungsrolle ändern' })
+    }
+    if (permission_role_id !== undefined) {
+      db.prepare('UPDATE users SET role=?, active=?, permission_role_id=? WHERE id=?').run(
+        finalRole,
+        active !== undefined ? (active ? 1 : 0) : 1,
+        finalRole === 'ausbilder' ? (permission_role_id || null) : null,
+        req.params.id
+      )
+    } else {
+      db.prepare('UPDATE users SET role=?, active=? WHERE id=?').run(
+        finalRole,
+        active !== undefined ? (active ? 1 : 0) : 1,
+        req.params.id
+      )
+    }
     if (active === false || active === 0) {
       db.prepare('DELETE FROM sessions WHERE user_id = ?').run(req.params.id)
     }
-    const user = db.prepare('SELECT id, email, role, active FROM users WHERE id = ?').get(req.params.id)
+    const user = db.prepare('SELECT id, email, role, active, permission_role_id FROM users WHERE id = ?').get(req.params.id)
     if (!user) return res.status(404).json({ error: 'Nicht gefunden' })
     res.json(user)
   } catch (err) { res.status(500).json({ error: err.message }) }
@@ -129,7 +188,7 @@ router.put('/:id', (req, res) => {
 
 // Profilfelder + Standort-Zuordnung -- getrennt von PUT /:id (dort nur role/azubi_id/active),
 // damit handleToggleActive in UsersAdmin.jsx weiterhin nur diese 3 Felder anfasst.
-router.put('/:id/profile', (req, res) => {
+router.put('/:id/profile', requireTargetEditPermission, (req, res) => {
   try {
     const db = getDb()
     const body = req.body
@@ -157,14 +216,14 @@ router.put('/:id/profile', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-router.post('/:id/avatar', avatarUpload.single('file'), (req, res) => {
+router.post('/:id/avatar', requireTargetEditPermission, avatarUpload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Keine Datei' })
   const url = `/uploads/${req.file.filename}`
   getDb().prepare('UPDATE users SET avatar_url=? WHERE id=?').run(url, req.params.id)
   res.json({ avatar_url: url })
 })
 
-router.post('/:id/reset-password', (req, res) => {
+router.post('/:id/reset-password', requireTargetEditPermission, (req, res) => {
   try {
     const db = getDb()
     const password = generatePassword()
@@ -183,6 +242,11 @@ router.delete('/:id', (req, res) => {
       return res.status(400).json({ error: 'Das eigene Konto kann nicht gelöscht werden' })
     }
     const db = getDb()
+    const target = db.prepare('SELECT role FROM users WHERE id = ?').get(req.params.id)
+    if (!target) return res.status(404).json({ error: 'Nicht gefunden' })
+    if (!hasPermission(req.user, target.role === 'azubi' ? 'azubis.delete' : 'users.delete')) {
+      return res.status(403).json({ error: 'Keine Berechtigung' })
+    }
     db.prepare('DELETE FROM sessions WHERE user_id = ?').run(req.params.id)
     const result = db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id)
     if (result.changes === 0) return res.status(404).json({ error: 'Nicht gefunden' })

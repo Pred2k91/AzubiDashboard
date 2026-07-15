@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
-const { requireRole } = require('../middleware/auth')
+const { requirePermission } = require('../middleware/auth')
 
 // ── Schulen ───────────────────────────────────────────────────────────────────
 
@@ -13,7 +13,7 @@ router.get('/', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-router.post('/', requireRole('ausbilder'), (req, res) => {
+router.post('/', requirePermission('schools.manage'), (req, res) => {
   try {
     const db = getDb()
     const { name, color, location } = req.body
@@ -28,7 +28,7 @@ router.post('/', requireRole('ausbilder'), (req, res) => {
   }
 })
 
-router.put('/:id', requireRole('ausbilder'), (req, res) => {
+router.put('/:id', requirePermission('schools.manage'), (req, res) => {
   try {
     const db = getDb()
     const { name, color, location } = req.body
@@ -40,7 +40,7 @@ router.put('/:id', requireRole('ausbilder'), (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-router.delete('/:id', requireRole('ausbilder'), (req, res) => {
+router.delete('/:id', requirePermission('schools.manage'), (req, res) => {
   try {
     const db = getDb()
     db.prepare('DELETE FROM vocational_schools WHERE id = ?').run(req.params.id)
@@ -74,7 +74,7 @@ router.get('/:schoolId/blocks', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-router.post('/:schoolId/blocks', requireRole('ausbilder'), (req, res) => {
+router.post('/:schoolId/blocks', requirePermission('schools.manage'), (req, res) => {
   try {
     const db = getDb()
     const { start_date, end_date, notes, azubi_ids } = req.body
@@ -87,7 +87,7 @@ router.post('/:schoolId/blocks', requireRole('ausbilder'), (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-router.put('/blocks/:id', requireRole('ausbilder'), (req, res) => {
+router.put('/blocks/:id', requirePermission('schools.manage'), (req, res) => {
   try {
     const db = getDb()
     const { start_date, end_date, notes, azubi_ids } = req.body
@@ -98,7 +98,7 @@ router.put('/blocks/:id', requireRole('ausbilder'), (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-router.delete('/blocks/:id', requireRole('ausbilder'), (req, res) => {
+router.delete('/blocks/:id', requirePermission('schools.manage'), (req, res) => {
   try {
     const db = getDb()
     db.prepare('DELETE FROM school_blocks WHERE id = ?').run(req.params.id)

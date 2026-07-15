@@ -3,7 +3,7 @@ const router = express.Router()
 const ExcelJS = require('exceljs')
 const PDFDocument = require('pdfkit')
 const { getDb } = require('../db/init')
-const { requireRole } = require('../middleware/auth')
+const { requirePermission, scopeLocationIds, idsClause } = require('../middleware/auth')
 const { dayTypeLabel, ABSENCE_TYPES } = require('../utils/reportDayTypes')
 
 const WEEKDAYS_SO_SA = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
@@ -49,7 +49,7 @@ function getSetting(db, key) {
 
 // ── Excel: Sammel-Export über mehrere Azubis/Zeiträume (Übersicht/Audit) ────
 
-router.get('/reports.xlsx', requireRole('ausbilder'), async (req, res) => {
+router.get('/reports.xlsx', requirePermission('reports.export'), async (req, res) => {
   try {
     const db = getDb()
     const { azubi_id, status, from, to } = req.query
@@ -59,6 +59,11 @@ router.get('/reports.xlsx', requireRole('ausbilder'), async (req, res) => {
     if (status) { clauses.push('re.status = ?'); params.push(status) }
     if (from) { clauses.push('re.period_end >= ?'); params.push(from) }
     if (to) { clauses.push('re.period_start <= ?'); params.push(to) }
+    const locIds = scopeLocationIds(req)
+    if (locIds) {
+      clauses.push(`re.azubi_id IN (SELECT user_id FROM user_locations WHERE location_id IN ${idsClause(locIds)})`)
+      params.push(...locIds)
+    }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
 
     const rows = db.prepare(`
@@ -432,7 +437,7 @@ function drawDeclarationPage(doc, azubi) {
   doc.fillColor('#000000')
 }
 
-router.get('/reports/:azubi_id/pdf', requireRole('ausbilder'), (req, res) => {
+router.get('/reports/:azubi_id/pdf', requirePermission('reports.export'), (req, res) => {
   try {
     const db = getDb()
     const azubiId = req.params.azubi_id
@@ -445,6 +450,12 @@ router.get('/reports/:azubi_id/pdf', requireRole('ausbilder'), (req, res) => {
       WHERE a.id = ? AND a.role = 'azubi'
     `).get(azubiId)
     if (!azubi) return res.status(404).json({ error: 'Azubi nicht gefunden' })
+
+    const locIds = scopeLocationIds(req)
+    if (locIds) {
+      const inScope = db.prepare(`SELECT 1 FROM user_locations WHERE user_id = ? AND location_id IN ${idsClause(locIds)}`).get(azubiId, ...locIds)
+      if (!inScope) return res.status(404).json({ error: 'Azubi nicht gefunden' })
+    }
 
     const clauses = ['re.azubi_id = ?']
     const params = [azubiId]

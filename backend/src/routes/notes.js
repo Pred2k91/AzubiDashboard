@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
-const { requireRole } = require('../middleware/auth')
+const { requirePermission } = require('../middleware/auth')
 
 router.get('/', (req, res) => {
   try {
@@ -13,7 +13,7 @@ router.get('/', (req, res) => {
   }
 })
 
-router.post('/', requireRole('ausbilder'), (req, res) => {
+router.post('/', requirePermission('productivity.manage'), (req, res) => {
   try {
     const db = getDb()
     const { title, content, color, pinned } = req.body
@@ -28,7 +28,7 @@ router.post('/', requireRole('ausbilder'), (req, res) => {
   }
 })
 
-router.put('/:id', requireRole('ausbilder'), (req, res) => {
+router.put('/:id', requirePermission('productivity.manage'), (req, res) => {
   try {
     const db = getDb()
     const { title, content, color, pinned } = req.body
@@ -43,7 +43,7 @@ router.put('/:id', requireRole('ausbilder'), (req, res) => {
   }
 })
 
-router.delete('/:id', requireRole('ausbilder'), (req, res) => {
+router.delete('/:id', requirePermission('productivity.manage'), (req, res) => {
   try {
     const db = getDb()
     db.prepare('DELETE FROM notes WHERE id = ?').run(req.params.id)

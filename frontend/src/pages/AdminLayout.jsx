@@ -3,25 +3,28 @@ import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, CalendarDays, CheckSquare, StickyNote,
   Users, Building2, Settings, ExternalLink, GraduationCap, Megaphone, BookOpen,
-  UserCog, UserCircle, LogOut, Menu, X, Landmark,
+  UserCog, UserCircle, LogOut, Menu, X, Landmark, ShieldCheck,
 } from 'lucide-react'
 import { settingsApi } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
+// permission: null/undefined = für jeden Ausbilder sichtbar (Ansicht ist im Backend
+// nicht einzeln berechtigt). superAdminOnly: nur für die feste Super-Admin-Rolle.
 const NAV = [
   { to: '/admin', label: 'Übersicht', icon: LayoutDashboard, end: true },
-  { to: '/admin/calendar', label: 'Kalender', icon: CalendarDays },
-  { to: '/admin/todos', label: 'Aufgaben', icon: CheckSquare },
-  { to: '/admin/notes', label: 'Notizen', icon: StickyNote },
+  { to: '/admin/calendar', label: 'Kalender', icon: CalendarDays, permission: 'calendar.manage' },
+  { to: '/admin/todos', label: 'Aufgaben', icon: CheckSquare, permission: 'productivity.manage' },
+  { to: '/admin/notes', label: 'Notizen', icon: StickyNote, permission: 'productivity.manage' },
   { to: '/admin/azubis', label: 'Azubis', icon: Users },
-  { to: '/admin/departments', label: 'Abteilungen', icon: Building2 },
-  { to: '/admin/locations', label: 'Niederlassungen', icon: Landmark },
-  { to: '/admin/schools', label: 'Berufsschulen', icon: GraduationCap },
-  { to: '/admin/announcements', label: 'Schwarzes Brett', icon: Megaphone },
-  { to: '/admin/reports', label: 'Berichtshefte', icon: BookOpen },
+  { to: '/admin/departments', label: 'Abteilungen', icon: Building2, permission: 'departments.manage' },
+  { to: '/admin/locations', label: 'Niederlassungen', icon: Landmark, permission: 'locations.manage' },
+  { to: '/admin/schools', label: 'Berufsschulen', icon: GraduationCap, permission: 'schools.manage' },
+  { to: '/admin/announcements', label: 'Schwarzes Brett', icon: Megaphone, permission: 'announcements.manage' },
+  { to: '/admin/reports', label: 'Berichtshefte', icon: BookOpen, permission: 'reports.review' },
   { to: '/admin/users', label: 'Nutzer', icon: UserCog },
+  { to: '/admin/roles', label: 'Rollen', icon: ShieldCheck, superAdminOnly: true },
   { to: '/admin/profile', label: 'Mein Profil', icon: UserCircle },
-  { to: '/admin/settings', label: 'Einstellungen', icon: Settings },
+  { to: '/admin/settings', label: 'Einstellungen', icon: Settings, permission: 'settings.manage' },
 ]
 
 export default function AdminLayout() {
@@ -41,10 +44,18 @@ export default function AdminLayout() {
     navigate('/login', { replace: true })
   }
 
+  const visibleNav = NAV.filter(item => {
+    if (!user) return false
+    if (user.is_super_admin) return true
+    if (item.superAdminOnly) return false
+    if (item.permission) return user.permissions?.includes(item.permission)
+    return true
+  })
+
   const navLinks = (onNavigate) => (
     <>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" onClick={onNavigate}>
-        {NAV.map(({ to, label, icon: Icon, end }) => (
+        {visibleNav.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}

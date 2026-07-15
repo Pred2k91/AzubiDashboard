@@ -51,6 +51,13 @@ export const usersApi = {
   delete: (id) => api.delete(`/users/${id}`).then(r => r.data),
 }
 
+export const permissionRolesApi = {
+  getAll: () => api.get('/permission-roles').then(r => r.data),
+  create: (data) => api.post('/permission-roles', data).then(r => r.data),
+  update: (id, data) => api.put(`/permission-roles/${id}`, data).then(r => r.data),
+  delete: (id) => api.delete(`/permission-roles/${id}`).then(r => r.data),
+}
+
 export const locationsApi = {
   getAll: () => api.get('/locations').then(r => r.data),
   create: (data) => api.post('/locations', data).then(r => r.data),

@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
-const { requireAuth, requireRole } = require('../middleware/auth')
+const { requireAuth, requirePermission, scopeLocationIds, idsClause } = require('../middleware/auth')
 
 const ABSENCE_TYPES = ['urlaub', 'krank', 'feiertag']
 
@@ -20,6 +20,14 @@ function addDays(dateStr, n) {
   const d = new Date(dateStr)
   d.setUTCDate(d.getUTCDate() + n)
   return d.toISOString().slice(0, 10)
+}
+
+// Prüft, ob ein Azubi innerhalb der Niederlassungs-Berechtigung des eingeloggten
+// Ausbilders liegt (null = Super Admin, sieht immer alles).
+function inScope(db, req, azubiId) {
+  const locIds = scopeLocationIds(req)
+  if (!locIds) return true
+  return !!db.prepare(`SELECT 1 FROM user_locations WHERE user_id = ? AND location_id IN ${idsClause(locIds)}`).get(azubiId, ...locIds)
 }
 
 function entryWithDays(db, entry) {
@@ -154,7 +162,7 @@ router.put('/me/report-entries/:id', requireAuth, (req, res) => {
 
 // ── Ausbilder-Sicht ───────────────────────────────────────────────────────
 
-router.get('/report-entries', requireRole('ausbilder'), (req, res) => {
+router.get('/report-entries', requirePermission('reports.review'), (req, res) => {
   try {
     const db = getDb()
     const { azubi_id, status, from, to } = req.query
@@ -164,6 +172,11 @@ router.get('/report-entries', requireRole('ausbilder'), (req, res) => {
     if (status) { clauses.push('re.status = ?'); params.push(status) }
     if (from) { clauses.push('re.period_end >= ?'); params.push(from) }
     if (to) { clauses.push('re.period_start <= ?'); params.push(to) }
+    const locIds = scopeLocationIds(req)
+    if (locIds) {
+      clauses.push(`re.azubi_id IN (SELECT user_id FROM user_locations WHERE location_id IN ${idsClause(locIds)})`)
+      params.push(...locIds)
+    }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
     const entries = db.prepare(`
       SELECT re.*, a.name as azubi_name
@@ -176,7 +189,7 @@ router.get('/report-entries', requireRole('ausbilder'), (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-router.get('/report-entries/:id', requireRole('ausbilder'), (req, res) => {
+router.get('/report-entries/:id', requirePermission('reports.review'), (req, res) => {
   try {
     const db = getDb()
     const entry = db.prepare(`
@@ -185,11 +198,12 @@ router.get('/report-entries/:id', requireRole('ausbilder'), (req, res) => {
       WHERE re.id = ?
     `).get(req.params.id)
     if (!entry) return res.status(404).json({ error: 'Nicht gefunden' })
+    if (!inScope(getDb(), req, entry.azubi_id)) return res.status(404).json({ error: 'Nicht gefunden' })
     res.json(entryWithDays(db, entry))
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-router.put('/report-entries/:id/review', requireRole('ausbilder'), (req, res) => {
+router.put('/report-entries/:id/review', requirePermission('reports.review'), (req, res) => {
   try {
     const { status, comment } = req.body
     if (!['approved', 'rejected'].includes(status)) {
@@ -201,6 +215,7 @@ router.put('/report-entries/:id/review', requireRole('ausbilder'), (req, res) =>
     const db = getDb()
     const entry = db.prepare('SELECT * FROM report_entries WHERE id = ?').get(req.params.id)
     if (!entry) return res.status(404).json({ error: 'Nicht gefunden' })
+    if (!inScope(db, req, entry.azubi_id)) return res.status(404).json({ error: 'Nicht gefunden' })
     // 'draft' ausgenommen — der Azubi hat den Bericht noch nicht eingereicht.
     // 'submitted'/'approved'/'rejected' dürfen jederzeit korrigiert werden
     // (z.B. eine versehentliche Freigabe nachträglich zurücknehmen).

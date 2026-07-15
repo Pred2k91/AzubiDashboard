@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
-const { requireRole, optionalAuth } = require('../middleware/auth')
+const { requirePermission, optionalAuth } = require('../middleware/auth')
 
 function getThresholds(db) {
   const rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('report_warn_days','report_alert_days')").all()
@@ -43,7 +43,7 @@ router.get('/', optionalAuth, (req, res) => {
 })
 
 // PUT /api/reports/:id — Einreichung markieren
-router.put('/:id', requireRole('ausbilder'), (req, res) => {
+router.put('/:id', requirePermission('reports.review'), (req, res) => {
   try {
     const db = getDb()
     const date = req.body.date || new Date().toISOString().slice(0, 10)
@@ -53,7 +53,7 @@ router.put('/:id', requireRole('ausbilder'), (req, res) => {
 })
 
 // PUT /api/reports/bulk — Mehrere auf einmal markieren
-router.put('/bulk/submit', requireRole('ausbilder'), (req, res) => {
+router.put('/bulk/submit', requirePermission('reports.review'), (req, res) => {
   try {
     const db = getDb()
     const { ids, date } = req.body

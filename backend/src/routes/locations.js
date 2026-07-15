@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
-const { requireRole } = require('../middleware/auth')
+const { requirePermission } = require('../middleware/auth')
 
 router.get('/', (req, res) => {
   try {
@@ -13,7 +13,7 @@ router.get('/', (req, res) => {
   }
 })
 
-router.post('/', requireRole('ausbilder'), (req, res) => {
+router.post('/', requirePermission('locations.manage'), (req, res) => {
   try {
     const db = getDb()
     const { name, short_code } = req.body
@@ -31,7 +31,7 @@ router.post('/', requireRole('ausbilder'), (req, res) => {
   }
 })
 
-router.put('/:id', requireRole('ausbilder'), (req, res) => {
+router.put('/:id', requirePermission('locations.manage'), (req, res) => {
   try {
     const db = getDb()
     const { name, short_code } = req.body
@@ -46,7 +46,7 @@ router.put('/:id', requireRole('ausbilder'), (req, res) => {
   }
 })
 
-router.delete('/:id', requireRole('ausbilder'), (req, res) => {
+router.delete('/:id', requirePermission('locations.manage'), (req, res) => {
   try {
     const db = getDb()
     db.prepare('DELETE FROM locations WHERE id = ?').run(req.params.id)

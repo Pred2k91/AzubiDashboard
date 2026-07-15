@@ -193,6 +193,20 @@ function initDb() {
       UNIQUE(user_id, location_id)
     );
 
+    CREATE TABLE IF NOT EXISTS permission_roles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      is_super_admin INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS role_permissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      role_id INTEGER NOT NULL REFERENCES permission_roles(id) ON DELETE CASCADE,
+      permission_key TEXT NOT NULL,
+      UNIQUE(role_id, permission_key)
+    );
+
     INSERT OR IGNORE INTO settings (key, value) VALUES
       ('report_warn_days', '14'),
       ('report_alert_days', '28'),
@@ -237,9 +251,32 @@ function initDb() {
   try { db.exec("ALTER TABLE users ADD COLUMN misc_note TEXT DEFAULT ''") } catch (_) {}
   try { db.exec("ALTER TABLE users ADD COLUMN avatar_url TEXT") } catch (_) {}
 
+  // Rechtesystem: Berechtigungsrolle pro Ausbilder-Konto (bei Azubis immer NULL)
+  let permissionRoleColumnIsNew = false
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN permission_role_id INTEGER REFERENCES permission_roles(id) ON DELETE SET NULL")
+    permissionRoleColumnIsNew = true
+  } catch (_) {}
+
+  bootstrapPermissions(db, permissionRoleColumnIsNew)
   bootstrapFirstUser(db)
 
   console.log('Database initialized at:', DB_PATH)
+}
+
+// Legt die feste "Super Admin"-Rolle an. Beim Einführen des Rechtesystems (Spalte
+// permission_role_id ist neu) werden bestehende Ausbilder-Konten automatisch dieser
+// Rolle zugewiesen, damit niemand durchs Update ausgesperrt wird. Neu angelegte
+// Ausbilder-Konten danach bekommen bewusst KEINE automatische Rolle -- sicherer
+// Standard, ein Super Admin muss die Berechtigungsrolle explizit vergeben.
+function bootstrapPermissions(db, backfillExistingAusbilder) {
+  db.prepare("INSERT OR IGNORE INTO permission_roles (name, is_super_admin) VALUES ('Super Admin', 1)").run()
+  if (backfillExistingAusbilder) {
+    const superAdmin = db.prepare('SELECT id FROM permission_roles WHERE is_super_admin = 1').get()
+    db.prepare(
+      "UPDATE users SET permission_role_id = ? WHERE role = 'ausbilder' AND permission_role_id IS NULL"
+    ).run(superAdmin.id)
+  }
 }
 
 // Legt beim allerersten Start ein Ausbilder-Konto an, falls noch keine Benutzer existieren
@@ -250,10 +287,11 @@ function bootstrapFirstUser(db) {
   const email = (process.env.BOOTSTRAP_ADMIN_EMAIL || 'admin@example.com').toLowerCase()
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64url')
   const hash = bcrypt.hashSync(password, 10)
+  const superAdmin = db.prepare('SELECT id FROM permission_roles WHERE is_super_admin = 1').get()
 
   db.prepare(
-    'INSERT INTO users (email, password_hash, role, must_change_password) VALUES (?, ?, ?, 1)'
-  ).run(email, hash, 'ausbilder')
+    'INSERT INTO users (email, password_hash, role, must_change_password, permission_role_id) VALUES (?, ?, ?, 1, ?)'
+  ).run(email, hash, 'ausbilder', superAdmin.id)
 
   console.log('========================================')
   console.log('Erstes Ausbilder-Konto wurde angelegt:')

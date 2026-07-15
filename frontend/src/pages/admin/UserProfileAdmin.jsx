@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Pencil, KeyRound, Camera, Phone, Smartphone, Mail, MapPin, Trash2 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { usersApi, locationsApi, departmentsApi } from '../../api/client'
+import { usersApi, locationsApi, departmentsApi, permissionRolesApi } from '../../api/client'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
@@ -18,6 +18,8 @@ const EMPTY_FORM = {
   // Ausbildungsdaten -- nur relevant/sichtbar wenn role === 'azubi'.
   lehrjahr: 1, start_date: '', current_department_id: '',
   next_department_id: '', next_rotation_date: '', report_period: 'week',
+  // Berechtigungsrolle -- nur relevant für role==='ausbilder', nur Super Admin darf sie ändern.
+  permission_role_id: '',
 }
 
 export default function UserProfileAdmin() {
@@ -27,6 +29,7 @@ export default function UserProfileAdmin() {
   const [user, setUser] = useState(null)
   const [locations, setLocations] = useState([])
   const [departments, setDepartments] = useState([])
+  const [roles, setRoles] = useState([])
   const [editOpen, setEditOpen] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [loading, setLoading] = useState(false)
@@ -34,8 +37,8 @@ export default function UserProfileAdmin() {
   const [revealPassword, setRevealPassword] = useState(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
-  const load = () => Promise.all([usersApi.getOne(id), locationsApi.getAll(), departmentsApi.getAll()])
-    .then(([u, locs, depts]) => { setUser(u); setLocations(locs); setDepartments(depts) })
+  const load = () => Promise.all([usersApi.getOne(id), locationsApi.getAll(), departmentsApi.getAll(), permissionRolesApi.getAll()])
+    .then(([u, locs, depts, rls]) => { setUser(u); setLocations(locs); setDepartments(depts); setRoles(rls) })
     .catch(() => setError('Profil konnte nicht geladen werden'))
 
   useEffect(() => { load() }, [id])
@@ -54,6 +57,7 @@ export default function UserProfileAdmin() {
       lehrjahr: user.lehrjahr ?? 1, start_date: user.start_date || '', current_department_id: user.current_department_id || '',
       next_department_id: user.next_department_id || '', next_rotation_date: user.next_rotation_date || '',
       report_period: user.report_period || 'week',
+      permission_role_id: user.permission_role_id || '',
     })
     setError('')
     setEditOpen(true)
@@ -70,8 +74,14 @@ export default function UserProfileAdmin() {
     setLoading(true)
     setError('')
     try {
+      const roleUpdate = { role: form.role, active: form.active }
+      // Nur Super Admin darf die Berechtigungsrolle ändern (Backend lehnt es sonst ab) --
+      // das Feld wird also nur mitgeschickt, wenn der Betrachter selbst Super Admin ist.
+      if (currentUser?.is_super_admin) {
+        roleUpdate.permission_role_id = form.role === 'ausbilder' ? (form.permission_role_id || null) : null
+      }
       await Promise.all([
-        usersApi.update(id, { role: form.role, active: form.active }),
+        usersApi.update(id, roleUpdate),
         usersApi.updateProfile(id, {
           name: form.name,
           salutation: form.salutation, first_name: form.first_name, last_name: form.last_name, birthday: form.birthday || null,
@@ -227,6 +237,9 @@ export default function UserProfileAdmin() {
               <FieldRow label="User ID" value={`#${user.id}`} />
               <FieldRow label="Personal Nr." value={user.personnel_number} />
               <FieldRow label="Rolle" value={user.role === 'ausbilder' ? 'Ausbilder:in' : 'Azubi'} />
+              {user.role === 'ausbilder' && (
+                <FieldRow label="Berechtigungsrolle" value={roles.find(r => r.id === user.permission_role_id)?.name || 'Keine (keine Berechtigungen)'} />
+              )}
               <FieldRow label="Funktion" value={user.job_title} />
               <FieldRow label="Ausbildungsorte" value={user.locations.map(l => l.name).join(', ')} />
             </div>
@@ -252,7 +265,16 @@ export default function UserProfileAdmin() {
                 <option value="ausbilder">Ausbilder</option>
               </select>
             </div>
-            <label className="flex items-center gap-2 text-sm text-slate-400 col-span-2">
+            {form.role === 'ausbilder' && currentUser?.is_super_admin && (
+              <div className="col-span-2">
+                <label className="label">Berechtigungsrolle</label>
+                <select className="input-field" value={form.permission_role_id} onChange={e => setForm(f => ({ ...f, permission_role_id: e.target.value }))}>
+                  <option value="">— Keine (keine Berechtigungen) —</option>
+                  {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              </div>
+            )}
+            <label className="flex items-center gap-2 text-sm text-slate-400 col-span-3">
               <input type="checkbox" className="accent-indigo-600" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} />
               Konto aktiv
             </label>

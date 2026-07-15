@@ -3,7 +3,7 @@ const router = express.Router()
 const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
 const { getDb } = require('../db/init')
-const { requireAuth } = require('../middleware/auth')
+const { requireAuth, attachPermissions } = require('../middleware/auth')
 const { sendMail } = require('../utils/mailer')
 
 const SESSION_DAYS = 30
@@ -34,6 +34,10 @@ function publicUser(u) {
     email: u.email,
     role: u.role,
     must_change_password: !!u.must_change_password,
+    is_super_admin: !!u.isSuperAdmin,
+    permission_role_id: u.permission_role_id || null,
+    permissions: u.permissions ? [...u.permissions] : [],
+    location_ids: u.locationIds || [],
   }
 }
 
@@ -49,7 +53,7 @@ router.post('/login', (req, res) => {
     const session = createSession(db, user.id, req.headers['user-agent'])
     setSessionCookie(res, session)
     db.prepare("UPDATE users SET last_login_at = datetime('now') WHERE id = ?").run(user.id)
-    res.json({ user: publicUser(user) })
+    res.json({ user: publicUser(attachPermissions(db, user)) })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
@@ -74,7 +78,7 @@ router.put('/me', requireAuth, (req, res) => {
     const db = getDb()
     db.prepare('UPDATE users SET email = ? WHERE id = ?').run(String(email).toLowerCase(), req.user.id)
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id)
-    res.json({ user: publicUser(user) })
+    res.json({ user: publicUser(attachPermissions(db, user)) })
   } catch (err) {
     if (err.message.includes('UNIQUE')) return res.status(400).json({ error: 'E-Mail wird bereits verwendet' })
     res.status(500).json({ error: err.message })

@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
-const { requireRole } = require('../middleware/auth')
+const { requireRole, requirePermission, scopeLocationIds, idsClause } = require('../middleware/auth')
 
 // Anzahl Tage vor dem Wechseldatum, ab der die Vorschau im Dashboard erscheint
 const ROTATION_PREVIEW_DAYS = 30
@@ -68,15 +68,19 @@ router.get('/', requireRole('ausbilder'), (req, res) => {
     const db = getDb()
     syncLehrjahre(db)
     syncNextRotation(db)
+    const locIds = scopeLocationIds(req)
+    const scopeClause = locIds
+      ? `AND a.id IN (SELECT user_id FROM user_locations WHERE location_id IN ${idsClause(locIds)})`
+      : ''
     const azubis = db.prepare(`
       SELECT a.*, d.name as department_name, d.color as department_color, d.location as department_location,
              nd.name as next_department_name, nd.color as next_department_color
       FROM users a
       LEFT JOIN departments d ON a.current_department_id = d.id
       LEFT JOIN departments nd ON a.next_department_id = nd.id
-      WHERE a.role = 'azubi' AND a.active = 1
+      WHERE a.role = 'azubi' AND a.active = 1 ${scopeClause}
       ORDER BY a.lehrjahr ASC, a.name ASC
-    `).all()
+    `).all(...(locIds || []))
     res.json(azubis)
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -287,12 +291,22 @@ router.get('/next-rotation', (req, res) => {
 })
 
 // Bulk Abteilungswechsel: mehrere Azubis auf einmal zuweisen
-router.post('/rotation', requireRole('ausbilder'), (req, res) => {
+router.post('/rotation', requirePermission('azubis.edit'), (req, res) => {
   try {
     const db = getDb()
     const { assignments, rotation_date } = req.body
     // assignments: [{ azubi_id, department_id }]
     if (!Array.isArray(assignments)) return res.status(400).json({ error: 'assignments muss ein Array sein' })
+
+    const locIds = scopeLocationIds(req)
+    if (locIds) {
+      const allowed = new Set(
+        db.prepare(`SELECT user_id FROM user_locations WHERE location_id IN ${idsClause(locIds)}`).all(...locIds).map(r => r.user_id)
+      )
+      if (assignments.some(a => !allowed.has(a.azubi_id))) {
+        return res.status(403).json({ error: 'Keine Berechtigung für mindestens einen der angegebenen Azubis' })
+      }
+    }
 
     const updateStmt = db.prepare('UPDATE users SET current_department_id=? WHERE id=?')
     const insertRotation = db.prepare(
