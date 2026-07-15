@@ -24,6 +24,11 @@
 
 {
 	debug
+	# Browser schicken bei einer nackten IP-Adresse (statt einem Hostnamen) bewusst kein
+	# SNI im TLS-ClientHello (RFC 6066). Ohne default_sni versucht Caddy dann, das
+	# Zertifikat anhand der internen Docker-Container-IP zu finden statt anhand der
+	# tatsächlichen externen Adresse -- und findet keins ("internal error"-TLS-Alert).
+	default_sni {$SITE_DOMAIN}
 }
 
 {$SITE_DOMAIN:localhost} {
