@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import GridLayout from 'react-grid-layout'
+import axios from 'axios'
 import { Settings, Lock, Unlock, RotateCcw, AlignVerticalJustifyStart } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { getBerlinOffset } from '../utils/berlinTime'
 import ClockWidget from '../components/widgets/ClockWidget'
 import CalendarWidget from '../components/widgets/CalendarWidget'
 import TodoWidget from '../components/widgets/TodoWidget'
@@ -60,6 +62,7 @@ export default function KioskPage() {
   const [darkScreenInterval, setDarkScreenIntervalVal] = useState(60)
   const [darkScreenDuration, setDarkScreenDuration] = useState(30)
   const [isMirrored, setIsMirrored] = useState(false)
+  const [serverOffset, setServerOffset] = useState(0)  // Differenz Server-UTC zu Client-Date.now()
 
   const HEADER_HEIGHT = 44
   const GRID_MARGIN = 12
@@ -141,11 +144,33 @@ export default function KioskPage() {
   const preScaleWidth = Math.round(containerWidth / scaleFactor)
   const preScaleHeight = Math.round(containerHeight / scaleFactor)
 
-  // Nacht-Dimming: jede Minute prüfen
+  // Server-Zeit einmalig holen und Offset berechnen, dann stündlich neu synchronisieren --
+  // dieselbe Quelle wie ClockWidget, damit Anzeige und Nacht-Dimming nie auseinanderlaufen
+  // (z.B. bei falsch eingestellter Geräte-Uhr/-Zeitzone auf Tizen-Kiosk-Geräten).
+  useEffect(() => {
+    const syncTime = () => {
+      const clientBefore = Date.now()
+      axios.get('/api/time').then(r => {
+        const clientAfter = Date.now()
+        const latency = (clientAfter - clientBefore) / 2
+        const serverUtc = r.data.utc + latency
+        setServerOffset(serverUtc - Date.now())
+      }).catch(() => {})
+    }
+    syncTime()
+    const t = setInterval(syncTime, 60 * 60 * 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  // Nacht-Dimming: jede Minute prüfen -- Stunde aus der server-synchronisierten
+  // Europe/Berlin-Zeit, NICHT aus new Date().getHours() (Geräte-Uhr kann falsch
+  // gehen/falsche Zeitzone haben und würde sonst zur falschen Uhrzeit abdunkeln).
   useEffect(() => {
     const check = () => {
       if (!nightDimEnabled) { setIsDimmed(false); return }
-      const h = new Date().getHours()
+      const utcMs = Date.now() + serverOffset
+      const offsetH = getBerlinOffset(utcMs)
+      const h = new Date(utcMs + offsetH * 3600000).getUTCHours()
       const dimmed = nightDimStart > nightDimEnd
         ? h >= nightDimStart || h < nightDimEnd
         : h >= nightDimStart && h < nightDimEnd
@@ -154,7 +179,7 @@ export default function KioskPage() {
     check()
     const interval = setInterval(check, 60000)
     return () => clearInterval(interval)
-  }, [nightDimEnabled, nightDimStart, nightDimEnd])
+  }, [nightDimEnabled, nightDimStart, nightDimEnd, serverOffset])
 
   const saveLayout = useCallback(async (newLayout) => {
     await settingsApi.update('kiosk_layout', newLayout).catch(() => {})

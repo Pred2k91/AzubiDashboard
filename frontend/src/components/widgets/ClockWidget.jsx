@@ -2,19 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { Droplets, Wind } from 'lucide-react'
 import { settingsApi } from '../../api/client'
 import axios from 'axios'
+import { getBerlinOffset } from '../../utils/berlinTime'
 
 const MONTHS_DE = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
 const DAYS_DE = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']
-
-function getBerlinOffset(utcMs) {
-  const d = new Date(utcMs)
-  const y = d.getUTCFullYear()
-  const lastSunMar = new Date(Date.UTC(y, 2, 31))
-  lastSunMar.setUTCDate(31 - lastSunMar.getUTCDay())
-  const lastSunOct = new Date(Date.UTC(y, 9, 31))
-  lastSunOct.setUTCDate(31 - lastSunOct.getUTCDay())
-  return d >= lastSunMar && d < lastSunOct ? 2 : 1
-}
 
 function getISOWeekNum(utcMs) {
   const d = new Date(utcMs)
