@@ -27,6 +27,6 @@
 }
 
 {$SITE_DOMAIN:localhost} {
-	tls {$TLS_MODE:-internal}
+	tls {$TLS_MODE}
 	reverse_proxy frontend:80
 }
