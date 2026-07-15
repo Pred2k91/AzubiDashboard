@@ -177,6 +177,96 @@ html, body {
   }
 }
 
+/* Azubi-Portal (/portal/*): eigenes helles Theme fürs Produktivsystem -- Kiosk und Admin
+   bleiben bewusst im dunklen Design. Überschreibt gezielt dieselben Utility-Klassen, die
+   PortalLayout/PortalDashboard/ReportsList/ReportEditor/ProfilePage (dort auch von der
+   Admin-Ansicht /admin/profile geteilt) bereits verwenden, statt die Komponenten selbst
+   zu forken -- ein Farb-Set an einer Stelle, analog zum bestehenden Akzentfarben-Override
+   in utils/theme.js. */
+.portal-theme {
+  color-scheme: light;
+}
+
+.portal-theme.bg-\[\#0d0f1a\],
+.portal-theme .bg-\[\#0d0f1a\] {
+  background-color: #f7f8fb !important;
+}
+
+.portal-theme .bg-\[\#0d0f1a\]\/95 {
+  background-color: rgba(247, 248, 251, 0.95) !important;
+}
+
+.portal-theme .bg-\[\#0d0f1a\]\/50 {
+  background-color: #f0f1f5 !important;
+}
+
+.portal-theme .bg-\[\#141625\] {
+  background-color: #ffffff !important;
+}
+
+.portal-theme .border-\[\#2a2d4a\] {
+  border-color: #e3e6ed !important;
+}
+
+.portal-theme .border-\[\#2a2d4a\]\/50 {
+  border-color: #edeff4 !important;
+}
+
+.portal-theme .divide-\[\#2a2d4a\] > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e3e6ed !important;
+}
+
+.portal-theme .hover\:bg-\[\#1e2035\]:hover,
+.portal-theme .hover\:bg-\[\#2a2d4a\]:hover {
+  background-color: #eef0f5 !important;
+}
+
+.portal-theme .text-white { color: #101322 !important; }
+.portal-theme .text-slate-300 { color: #3a3f52 !important; }
+.portal-theme .text-slate-400 { color: #5b6178 !important; }
+.portal-theme .text-slate-500 { color: #6b7280 !important; }
+.portal-theme .text-slate-600 { color: #8b90a3 !important; }
+.portal-theme .text-slate-700 { color: #a3a7b8 !important; }
+/* War auf Dunkelblau bewusst fast unsichtbar (zukünftige/vor Ausbildungsbeginn liegende
+   Kalenderzellen) -- auf hellem Grund muss das Gegenstück ein sehr blasses Grau sein. */
+.portal-theme .text-slate-800 { color: #d8dbe2 !important; }
+.portal-theme .text-red-400 { color: #dc2626 !important; }
+.portal-theme .text-amber-400 { color: #b45309 !important; }
+.portal-theme .text-green-400 { color: #16a34a !important; }
+
+.portal-theme .input-field {
+  background-color: #ffffff !important;
+  border-color: #d5d9e3 !important;
+  color: #101322 !important;
+}
+.portal-theme .input-field::placeholder { color: #9199ad !important; }
+
+.portal-theme .label { color: #6b7280 !important; }
+
+.portal-theme .btn-secondary {
+  background-color: #f1f2f6 !important;
+  border-color: #d5d9e3 !important;
+  color: #3a3f52 !important;
+}
+.portal-theme .btn-secondary:hover { background-color: #e6e8ef !important; }
+
+.portal-theme .btn-danger {
+  background-color: rgba(220, 38, 38, 0.08) !important;
+  border-color: rgba(220, 38, 38, 0.28) !important;
+  color: #dc2626 !important;
+}
+
+.portal-theme .nav-item { color: #5b6178 !important; }
+.portal-theme .nav-item:hover,
+.portal-theme .nav-item.active {
+  color: #101322 !important;
+  background-color: #eef0f5 !important;
+}
+
+.portal-theme ::-webkit-scrollbar-track { background: #eef0f5; }
+.portal-theme ::-webkit-scrollbar-thumb { background: #d5d9e3; }
+.portal-theme ::-webkit-scrollbar-thumb:hover { background: #c3c8d6; }
+
 /* Animation */
 .animate-fade-in {
   animation: fadeIn 0.2s ease-in-out;
