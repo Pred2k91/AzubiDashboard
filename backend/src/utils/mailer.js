@@ -20,7 +20,7 @@ function getTransporter() {
 
 // No-op solange MAIL_ENABLED nicht auf 'true' steht — Versandlogik ist vollständig
 // vorbereitet, wird aber erst nach Konfiguration durch die IT aktiv.
-async function sendMail({ to, subject, text, html }) {
+async function sendMail({ to, cc, subject, text, html }) {
   if (!isEnabled()) {
     console.log(`[mailer] MAIL_ENABLED ist nicht aktiv — Mail an ${to} ("${subject}") wurde NICHT versendet.`)
     return { sent: false, reason: 'disabled' }
@@ -28,6 +28,7 @@ async function sendMail({ to, subject, text, html }) {
   await getTransporter().sendMail({
     from: process.env.MAIL_FROM || process.env.SMTP_USER,
     to,
+    ...(cc && cc.length ? { cc } : {}),
     subject,
     text,
     html,

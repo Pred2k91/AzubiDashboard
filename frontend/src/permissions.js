@@ -16,4 +16,5 @@ export const PERMISSIONS = [
   { key: 'users.delete', label: 'Ausbilder-Konten löschen/deaktivieren' },
   { key: 'settings.manage', label: 'Einstellungen ändern' },
   { key: 'productivity.manage', label: 'Aufgaben & Notizen pflegen' },
+  { key: 'workflows.manage', label: 'Workflows pflegen' },
 ]

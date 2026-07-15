@@ -137,3 +137,17 @@ export const settingsApi = {
   getAll: () => api.get('/settings').then(r => r.data),
   update: (key, value) => api.put(`/settings/${key}`, { value }).then(r => r.data),
 }
+
+export const workflowsApi = {
+  getAll: () => api.get('/workflows').then(r => r.data),
+  create: (data) => api.post('/workflows', data).then(r => r.data),
+  update: (id, data) => api.put(`/workflows/${id}`, data).then(r => r.data),
+  delete: (id) => api.delete(`/workflows/${id}`).then(r => r.data),
+  getRuns: (id) => api.get(`/workflows/${id}/runs`).then(r => r.data),
+}
+
+export const pushApi = {
+  getVapidPublicKey: () => api.get('/push/vapid-public-key').then(r => r.data),
+  subscribe: (subscription) => api.post('/push/subscribe', subscription).then(r => r.data),
+  unsubscribe: (endpoint) => api.delete('/push/subscribe', { data: { endpoint } }).then(r => r.data),
+}

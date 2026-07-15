@@ -17,6 +17,7 @@ const PERMISSIONS = [
   { key: 'users.delete', label: 'Nutzerkonten löschen/deaktivieren' },
   { key: 'settings.manage', label: 'Einstellungen ändern' },
   { key: 'productivity.manage', label: 'Aufgaben & Notizen pflegen' },
+  { key: 'workflows.manage', label: 'Workflows pflegen' },
 ]
 
 const PERMISSION_KEYS = PERMISSIONS.map(p => p.key)

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, CalendarDays, CheckSquare, StickyNote,
   Users, Building2, Settings, ExternalLink, GraduationCap, Megaphone, BookOpen,
-  UserCog, UserCircle, LogOut, Menu, X, Landmark, ShieldCheck,
+  UserCog, UserCircle, LogOut, Menu, X, Landmark, ShieldCheck, Zap,
 } from 'lucide-react'
 import { settingsApi } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
@@ -41,6 +41,7 @@ const NAV_GROUPS = [
       { to: '/admin/users', label: 'Nutzer', icon: UserCog },
       { to: '/admin/roles', label: 'Rollen', icon: ShieldCheck, superAdminOnly: true },
       { to: '/admin/locations', label: 'Niederlassungen', icon: Landmark, permission: 'locations.manage' },
+      { to: '/admin/workflows', label: 'Workflows', icon: Zap, permission: 'workflows.manage' },
       { to: '/admin/settings', label: 'Einstellungen', icon: Settings, permission: 'settings.manage' },
     ],
   },

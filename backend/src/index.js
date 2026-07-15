@@ -3,6 +3,7 @@ const cors = require('cors')
 const cookieParser = require('cookie-parser')
 const path = require('path')
 const { initDb } = require('./db/init')
+const { startScheduler } = require('./scheduler')
 
 const authRoutes = require('./routes/auth')
 const usersRoutes = require('./routes/users')
@@ -22,6 +23,8 @@ const announcementsRoutes = require('./routes/announcements')
 const weatherRoutes = require('./routes/weather')
 const reportsRoutes = require('./routes/reports')
 const exportRoutes = require('./routes/export')
+const workflowsRoutes = require('./routes/workflows')
+const pushRoutes = require('./routes/push')
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -34,6 +37,7 @@ app.use(cookieParser())
 app.use('/uploads', express.static(UPLOADS_DIR))
 
 initDb()
+startScheduler()
 
 app.use('/api/auth', authRoutes)
 app.use('/api/users', usersRoutes)
@@ -53,6 +57,8 @@ app.use('/api/announcements', announcementsRoutes)
 app.use('/api/weather', weatherRoutes)
 app.use('/api/reports', reportsRoutes)
 app.use('/api/export', exportRoutes)
+app.use('/api/workflows', workflowsRoutes)
+app.use('/api/push', pushRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })

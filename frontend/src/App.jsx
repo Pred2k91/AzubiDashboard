@@ -30,6 +30,7 @@ import UsersAdmin from './pages/admin/UsersAdmin'
 import UserProfileAdmin from './pages/admin/UserProfileAdmin'
 import LocationsAdmin from './pages/admin/LocationsAdmin'
 import RolesAdmin from './pages/admin/RolesAdmin'
+import WorkflowsAdmin from './pages/admin/WorkflowsAdmin'
 
 export default function App() {
   useEffect(() => {
@@ -37,6 +38,11 @@ export default function App() {
       if (s.theme_accent) applyAccentColor(s.theme_accent)
       if (s.widget_opacity !== undefined) applyWidgetOpacity(s.widget_opacity)
     }).catch(() => {})
+
+    // Service Worker nur für Web Push (Workflows) -- kein Offline-Caching.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {})
+    }
   }, [])
 
   return (
@@ -63,6 +69,7 @@ export default function App() {
             <Route path="users/:id" element={<UserProfileAdmin />} />
             <Route path="locations" element={<RequirePermission permission="locations.manage"><LocationsAdmin /></RequirePermission>} />
             <Route path="roles" element={<RequirePermission superAdminOnly><RolesAdmin /></RequirePermission>} />
+            <Route path="workflows" element={<RequirePermission permission="workflows.manage"><WorkflowsAdmin /></RequirePermission>} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="settings" element={<RequirePermission permission="settings.manage"><SettingsPage /></RequirePermission>} />
           </Route>

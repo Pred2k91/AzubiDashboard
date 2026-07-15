@@ -207,6 +207,42 @@ function initDb() {
       UNIQUE(role_id, permission_key)
     );
 
+    CREATE TABLE IF NOT EXISTS workflows (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      active INTEGER DEFAULT 1,
+      trigger_type TEXT NOT NULL,
+      trigger_config TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS workflow_actions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workflow_id INTEGER NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL DEFAULT 0,
+      action_type TEXT NOT NULL,
+      action_config TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS workflow_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workflow_id INTEGER NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+      azubi_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      trigger_key TEXT NOT NULL,
+      fired_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(workflow_id, azubi_id, trigger_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     INSERT OR IGNORE INTO settings (key, value) VALUES
       ('report_warn_days', '14'),
       ('report_alert_days', '28'),

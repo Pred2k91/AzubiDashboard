@@ -1,8 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
-import { Mail, KeyRound, User, Camera } from 'lucide-react'
+import { Mail, KeyRound, User, Camera, Bell } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
-import { authApi, meApi } from '../api/client'
+import { authApi, meApi, pushApi } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)))
+}
 
 const EMPTY_FORM = {
   salutation: '', first_name: '', last_name: '',
@@ -31,6 +38,11 @@ export default function ProfilePage() {
   const [avatarUploading, setAvatarUploading] = useState(false)
   const fileInputRef = useRef(null)
 
+  const [pushSupported, setPushSupported] = useState(false)
+  const [pushSubscribed, setPushSubscribed] = useState(false)
+  const [pushLoading, setPushLoading] = useState(false)
+  const [pushError, setPushError] = useState('')
+
   const loadProfile = () => meApi.getFullProfile().then(p => {
     setProfile(p)
     setForm({
@@ -42,6 +54,53 @@ export default function ProfilePage() {
   }).catch(() => {})
 
   useEffect(() => { loadProfile() }, [])
+
+  useEffect(() => {
+    const supported = 'serviceWorker' in navigator && 'PushManager' in window
+    setPushSupported(supported)
+    if (!supported) return
+    navigator.serviceWorker.ready
+      .then(reg => reg.pushManager.getSubscription())
+      .then(sub => setPushSubscribed(!!sub))
+      .catch(() => {})
+  }, [])
+
+  const handlePushToggle = async () => {
+    setPushError('')
+    setPushLoading(true)
+    try {
+      const reg = await navigator.serviceWorker.ready
+      if (pushSubscribed) {
+        const sub = await reg.pushManager.getSubscription()
+        if (sub) {
+          await pushApi.unsubscribe(sub.endpoint)
+          await sub.unsubscribe()
+        }
+        setPushSubscribed(false)
+      } else {
+        const permission = await Notification.requestPermission()
+        if (permission !== 'granted') {
+          setPushError('Benachrichtigungen wurden nicht erlaubt.')
+          return
+        }
+        const { publicKey } = await pushApi.getVapidPublicKey()
+        if (!publicKey) {
+          setPushError('Push ist serverseitig noch nicht eingerichtet (VAPID-Schlüssel fehlen).')
+          return
+        }
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        })
+        await pushApi.subscribe(sub.toJSON())
+        setPushSubscribed(true)
+      }
+    } catch (err) {
+      setPushError(err.message || 'Fehler beim Aktivieren der Benachrichtigungen')
+    } finally {
+      setPushLoading(false)
+    }
+  }
 
   const handleEmailSave = async (e) => {
     e.preventDefault()
@@ -267,6 +326,22 @@ export default function ProfilePage() {
                 </button>
               </div>
             </div>
+
+            {pushSupported && (
+              <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
+                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                  <Bell size={14} className="text-slate-400" />
+                  Push-Benachrichtigungen
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Erhalte Benachrichtigungen auf diesem Gerät (z.B. bei überfälligem Berichtsheft). Auf dem iPhone zuerst über "Teilen" → "Zum Home-Bildschirm" hinzufügen, sonst funktioniert das nicht.
+                </p>
+                {pushError && <p className="text-sm text-red-400">{pushError}</p>}
+                <button type="button" onClick={handlePushToggle} disabled={pushLoading} className={pushSubscribed ? 'btn-secondary' : 'btn-primary'}>
+                  {pushLoading ? '...' : pushSubscribed ? 'Benachrichtigungen deaktivieren' : 'Benachrichtigungen aktivieren'}
+                </button>
+              </div>
+            )}
 
             <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-4">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2">
