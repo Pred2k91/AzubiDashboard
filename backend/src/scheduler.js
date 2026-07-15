@@ -13,6 +13,18 @@ function daysUntil(dateStr) {
   return Math.floor((new Date(dateStr) - Date.now()) / 86400000)
 }
 
+// Erweitert einen sonst einmaligen trigger_key um einen Wiederholungs-"Eimer", damit ein
+// Workflow nicht nur einmal, sondern alle `repeatEveryDays` Tage erneut feuert, solange die
+// zugrundeliegende Bedingung bestehen bleibt (z.B. weiterhin überfällig) -- ohne das würde
+// derselbe entity_key/trigger_key für immer als "schon gefeuert" gelten. `days` wächst bei
+// "seit X"-Auslösern (überfällig) und schrumpft bei "bis X"-Auslösern (steht bevor) --
+// in beiden Fällen ändert sich der Eimer-Index periodisch, das reicht für die Deduplizierung.
+function recurringKey(baseKey, days, repeatEveryDays) {
+  const repeat = Number(repeatEveryDays) || 0
+  if (repeat <= 0 || !Number.isFinite(days)) return baseKey
+  return `${baseKey}:r${Math.floor(Math.max(days, 0) / repeat)}`
+}
+
 // Ausbilder, die für einen Azubi "zuständig" sind: Super Admins (sehen ohnehin alles)
 // plus Ausbilder, die mindestens eine Niederlassung mit dem Azubi teilen. Verhindert,
 // dass z.B. ein überfälliges Berichtsheft eines Köln-Azubis auch den Hamburg-Ausbilder
@@ -153,14 +165,20 @@ async function fireEventWorkflows(triggerType, entityKey, triggerKey, azubi, var
 
 async function pollReportOverdue(db, workflow) {
   const minDays = Number(workflow.trigger_config.min_days) || 1
+  const repeatEvery = workflow.trigger_config.repeat_every_days
   const azubis = db.prepare(
-    "SELECT id, name, email, last_report_date FROM users WHERE role = 'azubi' AND active = 1 AND lehrjahr > 0"
+    "SELECT id, name, email, last_report_date, created_at FROM users WHERE role = 'azubi' AND active = 1 AND lehrjahr > 0"
   ).all()
 
   for (const azubi of azubis) {
     const days = daysSince(azubi.last_report_date)
     if (days < minDays) continue
-    const triggerKey = azubi.last_report_date || 'never'
+    const baseKey = azubi.last_report_date || 'never'
+    // Ohne last_report_date ist `days` Infinity (noch nie eingereicht) -- für den
+    // Wiederholungs-Eimer wird ersatzweise seit Kontoerstellung gezählt, sonst würde
+    // "noch nie eingereicht" trotz repeat_every_days nie erneut feuern.
+    const bucketDays = Number.isFinite(days) ? days : daysSince(azubi.created_at)
+    const triggerKey = recurringKey(baseKey, bucketDays, repeatEvery)
     const vars = { name: azubi.name, days_overdue: Number.isFinite(days) ? days : 'vielen', days: Number.isFinite(days) ? days : 'vielen' }
     await fireIfNew(db, workflow, `azubi:${azubi.id}`, triggerKey, azubi, vars)
   }
@@ -168,6 +186,7 @@ async function pollReportOverdue(db, workflow) {
 
 async function pollRotationUpcoming(db, workflow) {
   const daysBefore = Number(workflow.trigger_config.days_before) || 0
+  const repeatEvery = workflow.trigger_config.repeat_every_days
   const azubis = db.prepare(`
     SELECT a.id, a.name, a.email, a.next_rotation_date, d.name as dept_name
     FROM users a LEFT JOIN departments d ON d.id = a.next_department_id
@@ -177,7 +196,7 @@ async function pollRotationUpcoming(db, workflow) {
   for (const azubi of azubis) {
     const until = daysUntil(azubi.next_rotation_date)
     if (until > daysBefore || until < 0) continue
-    const triggerKey = `rotation:${azubi.next_rotation_date}`
+    const triggerKey = recurringKey(`rotation:${azubi.next_rotation_date}`, until, repeatEvery)
     const vars = { name: azubi.name, days: until, days_overdue: until, date: azubi.next_rotation_date, title: azubi.dept_name || '' }
     await fireIfNew(db, workflow, `azubi:${azubi.id}`, triggerKey, azubi, vars)
   }
@@ -185,6 +204,7 @@ async function pollRotationUpcoming(db, workflow) {
 
 async function pollReportPendingReview(db, workflow) {
   const minDays = Number(workflow.trigger_config.min_days) || 1
+  const repeatEvery = workflow.trigger_config.repeat_every_days
   const entries = db.prepare(`
     SELECT re.id, re.azubi_id, re.submitted_at, a.name, a.email
     FROM report_entries re JOIN users a ON a.id = re.azubi_id
@@ -194,7 +214,7 @@ async function pollReportPendingReview(db, workflow) {
   for (const entry of entries) {
     const days = daysSince(entry.submitted_at)
     if (days < minDays) continue
-    const triggerKey = `submitted:${entry.submitted_at}`
+    const triggerKey = recurringKey(`submitted:${entry.submitted_at}`, days, repeatEvery)
     const azubi = { id: entry.azubi_id, name: entry.name, email: entry.email }
     const vars = { name: azubi.name, days, days_overdue: days, date: entry.submitted_at }
     await fireIfNew(db, workflow, `report_entry:${entry.id}`, triggerKey, azubi, vars)
@@ -203,6 +223,7 @@ async function pollReportPendingReview(db, workflow) {
 
 async function pollTodoOverdue(db, workflow) {
   const minDays = Number(workflow.trigger_config.min_days) || 0
+  const repeatEvery = workflow.trigger_config.repeat_every_days
   const todos = db.prepare(`
     SELECT t.id, t.title, t.due_date, t.assigned_to, u.name as assignee_name, u.email as assignee_email
     FROM todos t LEFT JOIN users u ON u.id = t.assigned_to
@@ -212,7 +233,7 @@ async function pollTodoOverdue(db, workflow) {
   for (const todo of todos) {
     const days = daysSince(todo.due_date)
     if (days < minDays) continue
-    const triggerKey = `overdue:${todo.due_date}`
+    const triggerKey = recurringKey(`overdue:${todo.due_date}`, days, repeatEvery)
     const azubi = todo.assigned_to ? { id: todo.assigned_to, name: todo.assignee_name, email: todo.assignee_email } : null
     const vars = { title: todo.title, name: azubi?.name || '', days, days_overdue: days, date: todo.due_date }
     await fireIfNew(db, workflow, `todo:${todo.id}`, triggerKey, azubi, vars)
@@ -221,12 +242,13 @@ async function pollTodoOverdue(db, workflow) {
 
 async function pollEventUpcoming(db, workflow) {
   const daysBefore = Number(workflow.trigger_config.days_before) || 0
+  const repeatEvery = workflow.trigger_config.repeat_every_days
   const events = db.prepare('SELECT id, title, start_datetime FROM calendar_events').all()
 
   for (const event of events) {
     const until = daysUntil(event.start_datetime)
     if (until > daysBefore || until < 0) continue
-    const triggerKey = `upcoming:${event.start_datetime}`
+    const triggerKey = recurringKey(`upcoming:${event.start_datetime}`, until, repeatEvery)
     const azubiRows = db.prepare(`
       SELECT u.id, u.name, u.email FROM event_azubis ea JOIN users u ON u.id = ea.azubi_id
       WHERE ea.event_id = ? AND u.active = 1

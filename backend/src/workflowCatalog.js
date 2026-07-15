@@ -10,6 +10,13 @@
 // oder ein Termin ohne verknüpfte Azubis). Die "subject_*"-Empfänger-Optionen laufen dann
 // ins Leere -- "Alle Ausbilder", einzelne Nutzer und Gruppen sind azubi-unabhängig.
 
+// Wiederverwendet von allen zeitbasierten (Polling-)Auslösern -- solange die zugrunde
+// liegende Bedingung bestehen bleibt (weiterhin überfällig/steht weiterhin bevor), feuert
+// der Workflow sonst nur einmalig. Mit gesetztem Wert erinnert derselbe Workflow von allein
+// alle X Tage erneut, ohne dass dafür mehrere Workflows mit unterschiedlichen Schwellen
+// angelegt werden müssen.
+const REPEAT_FIELD = { key: 'repeat_every_days', label: 'Danach alle X Tage erneut erinnern (0 = nur einmal)', type: 'number', default: 0, min: 0 }
+
 const CATEGORIES = [
   { key: 'report', label: 'Berichtsheft' },
   { key: 'rotation', label: 'Abteilungswechsel' },
@@ -25,6 +32,7 @@ const TRIGGERS = [
     description: 'Feuert pro aktivem Azubi, dessen letzter eingereichter Bericht mindestens so viele Tage zurückliegt (oder der noch nie einen eingereicht hat).',
     fields: [
       { key: 'min_days', label: 'Tage seit letztem Bericht (mindestens)', type: 'number', default: 7, min: 1 },
+      REPEAT_FIELD,
     ],
   },
   {
@@ -41,6 +49,7 @@ const TRIGGERS = [
     description: 'Feuert, wenn ein eingereichter Bericht mindestens so viele Tage unbearbeitet auf eine Ausbilder-Prüfung wartet.',
     fields: [
       { key: 'min_days', label: 'Tage seit Einreichung (mindestens)', type: 'number', default: 3, min: 1 },
+      REPEAT_FIELD,
     ],
   },
   {
@@ -64,6 +73,7 @@ const TRIGGERS = [
     description: 'Feuert einmalig pro Azubi, sobald der geplante Wechsel-Stichtag höchstens so viele Tage entfernt ist.',
     fields: [
       { key: 'days_before', label: 'Tage vor dem Wechsel', type: 'number', default: 7, min: 0 },
+      REPEAT_FIELD,
     ],
   },
   {
@@ -73,6 +83,7 @@ const TRIGGERS = [
     description: 'Feuert pro offener Aufgabe, deren Fälligkeitsdatum mindestens so viele Tage zurückliegt.',
     fields: [
       { key: 'min_days', label: 'Tage seit Fälligkeit (mindestens)', type: 'number', default: 0, min: 0 },
+      REPEAT_FIELD,
     ],
   },
   {
@@ -96,6 +107,7 @@ const TRIGGERS = [
     description: 'Feuert einmalig pro Termin, sobald dessen Beginn höchstens so viele Tage entfernt ist. Bei Terminen mit verknüpften Azubis feuert es pro Azubi.',
     fields: [
       { key: 'days_before', label: 'Tage vor Termin-Beginn', type: 'number', default: 1, min: 0 },
+      REPEAT_FIELD,
     ],
   },
   {

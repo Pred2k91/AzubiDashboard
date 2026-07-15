@@ -386,9 +386,11 @@ export default function WorkflowsAdmin() {
   const summarizeTrigger = (w) => {
     const t = TRIGGERS.find(x => x.type === w.trigger_type)
     if (!t) return w.trigger_type
-    if (w.trigger_config?.min_days != null) return `${t.label} (≥ ${w.trigger_config.min_days} Tage)`
-    if (w.trigger_config?.days_before != null) return `${t.label} (${w.trigger_config.days_before} Tage vorher)`
-    return t.label
+    let base = t.label
+    if (w.trigger_config?.min_days != null) base = `${t.label} (≥ ${w.trigger_config.min_days} Tage)`
+    else if (w.trigger_config?.days_before != null) base = `${t.label} (${w.trigger_config.days_before} Tage vorher)`
+    if (w.trigger_config?.repeat_every_days > 0) base += `, wiederholt alle ${w.trigger_config.repeat_every_days} Tage`
+    return base
   }
 
   return (
