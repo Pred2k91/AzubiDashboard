@@ -10,21 +10,40 @@ import { useAuth } from '../contexts/AuthContext'
 
 // permission: null/undefined = für jeden Ausbilder sichtbar (Ansicht ist im Backend
 // nicht einzeln berechtigt). superAdminOnly: nur für die feste Super-Admin-Rolle.
-const NAV = [
-  { to: '/admin', label: 'Übersicht', icon: LayoutDashboard, end: true },
-  { to: '/admin/calendar', label: 'Kalender', icon: CalendarDays, permission: 'calendar.manage' },
-  { to: '/admin/todos', label: 'Aufgaben', icon: CheckSquare, permission: 'productivity.manage' },
-  { to: '/admin/notes', label: 'Notizen', icon: StickyNote, permission: 'productivity.manage' },
-  { to: '/admin/azubis', label: 'Azubis', icon: Users },
-  { to: '/admin/departments', label: 'Abteilungen', icon: Building2, permission: 'departments.manage' },
-  { to: '/admin/locations', label: 'Niederlassungen', icon: Landmark, permission: 'locations.manage' },
-  { to: '/admin/schools', label: 'Berufsschulen', icon: GraduationCap, permission: 'schools.manage' },
-  { to: '/admin/announcements', label: 'Schwarzes Brett', icon: Megaphone, permission: 'announcements.manage' },
-  { to: '/admin/reports', label: 'Berichtshefte', icon: BookOpen, permission: 'reports.review' },
-  { to: '/admin/users', label: 'Nutzer', icon: UserCog },
-  { to: '/admin/roles', label: 'Rollen', icon: ShieldCheck, superAdminOnly: true },
-  { to: '/admin/profile', label: 'Mein Profil', icon: UserCircle },
-  { to: '/admin/settings', label: 'Einstellungen', icon: Settings, permission: 'settings.manage' },
+// "Mein Profil" steht bewusst nicht hier, sondern unten im Konto-Bereich der Sidebar.
+const NAV_GROUPS = [
+  {
+    items: [
+      { to: '/admin', label: 'Übersicht', icon: LayoutDashboard, end: true },
+    ],
+  },
+  {
+    label: 'Ausbildung',
+    items: [
+      { to: '/admin/azubis', label: 'Azubis', icon: Users },
+      { to: '/admin/reports', label: 'Berichtshefte', icon: BookOpen, permission: 'reports.review' },
+      { to: '/admin/departments', label: 'Abteilungen', icon: Building2, permission: 'departments.manage' },
+      { to: '/admin/schools', label: 'Berufsschulen', icon: GraduationCap, permission: 'schools.manage' },
+    ],
+  },
+  {
+    label: 'Planung',
+    items: [
+      { to: '/admin/calendar', label: 'Kalender', icon: CalendarDays, permission: 'calendar.manage' },
+      { to: '/admin/todos', label: 'Aufgaben', icon: CheckSquare, permission: 'productivity.manage' },
+      { to: '/admin/notes', label: 'Notizen', icon: StickyNote, permission: 'productivity.manage' },
+      { to: '/admin/announcements', label: 'Schwarzes Brett', icon: Megaphone, permission: 'announcements.manage' },
+    ],
+  },
+  {
+    label: 'Verwaltung',
+    items: [
+      { to: '/admin/users', label: 'Nutzer', icon: UserCog },
+      { to: '/admin/roles', label: 'Rollen', icon: ShieldCheck, superAdminOnly: true },
+      { to: '/admin/locations', label: 'Niederlassungen', icon: Landmark, permission: 'locations.manage' },
+      { to: '/admin/settings', label: 'Einstellungen', icon: Settings, permission: 'settings.manage' },
+    ],
+  },
 ]
 
 export default function AdminLayout() {
@@ -44,29 +63,44 @@ export default function AdminLayout() {
     navigate('/login', { replace: true })
   }
 
-  const visibleNav = NAV.filter(item => {
+  const isVisible = (item) => {
     if (!user) return false
     if (user.is_super_admin) return true
     if (item.superAdminOnly) return false
     if (item.permission) return user.permissions?.includes(item.permission)
     return true
-  })
+  }
+
+  const visibleGroups = NAV_GROUPS
+    .map(group => ({ ...group, items: group.items.filter(isVisible) }))
+    .filter(group => group.items.length > 0)
 
   const navLinks = (onNavigate) => (
     <>
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" onClick={onNavigate}>
-        {visibleNav.map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            className={({ isActive }) =>
-              `nav-item ${isActive ? 'active' : ''}`
-            }
-          >
-            <Icon size={16} />
-            {label}
-          </NavLink>
+      <nav className="flex-1 px-3 py-4 overflow-y-auto" onClick={onNavigate}>
+        {visibleGroups.map((group, i) => (
+          <div key={group.label || 'root'} className={i > 0 ? 'mt-4' : ''}>
+            {group.label && (
+              <div className="px-3 pb-1.5 text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
+                {group.label}
+              </div>
+            )}
+            <div className="space-y-1">
+              {group.items.map(({ to, label, icon: Icon, end }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={end}
+                  className={({ isActive }) =>
+                    `nav-item ${isActive ? 'active' : ''}`
+                  }
+                >
+                  <Icon size={16} />
+                  {label}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 
@@ -74,6 +108,10 @@ export default function AdminLayout() {
         {user && (
           <div className="px-3 py-1.5 text-xs text-slate-600 truncate">{user.email}</div>
         )}
+        <NavLink to="/admin/profile" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onNavigate}>
+          <UserCircle size={16} />
+          Mein Profil
+        </NavLink>
         <Link to="/kiosk" className="nav-item" onClick={onNavigate}>
           <ExternalLink size={16} />
           Kiosk-Ansicht
