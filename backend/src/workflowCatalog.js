@@ -114,9 +114,9 @@ const ACTIONS = [
     fields: [
       { key: 'recipients', label: 'Empfänger', type: 'recipients', default: [] },
       { key: 'cc', label: 'Zusätzliche feste E-Mail-Adressen (eine pro Zeile, z.B. externe Kontakte)', type: 'email_list', default: [] },
-      { key: 'subject', label: 'Betreff', type: 'text', default: 'Erinnerung: Berichtsheft überfällig' },
+      { key: 'subject', label: 'Betreff', type: 'text', default: 'Erinnerung: Berichtsheft überfällig', showVariables: true },
       {
-        key: 'body', label: 'Text (Platzhalter je nach Auslöser: {{name}}, {{title}}, {{days_overdue}}, {{comment}}, {{date}} — nicht verfügbare bleiben leer)', type: 'textarea',
+        key: 'body', label: 'Text', type: 'textarea', showVariables: true,
         default: 'Hallo {{name}},\n\ndein Berichtsheft ist seit {{days_overdue}} Tagen überfällig. Bitte trage deine Einträge zeitnah nach.',
       },
     ],
@@ -126,9 +126,9 @@ const ACTIONS = [
     label: 'Push-Benachrichtigung senden',
     fields: [
       { key: 'recipients', label: 'Empfänger', type: 'recipients', default: [] },
-      { key: 'title', label: 'Titel', type: 'text', default: 'Berichtsheft überfällig' },
+      { key: 'title', label: 'Titel', type: 'text', default: 'Berichtsheft überfällig', showVariables: true },
       {
-        key: 'body', label: 'Text (Platzhalter je nach Auslöser: {{name}}, {{title}}, {{days_overdue}}, {{comment}}, {{date}})', type: 'textarea',
+        key: 'body', label: 'Text', type: 'textarea', showVariables: true,
         default: '{{name}} hat das Berichtsheft seit {{days_overdue}} Tagen nicht eingereicht.',
       },
     ],

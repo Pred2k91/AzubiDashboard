@@ -114,9 +114,9 @@ export const ACTIONS = [
     fields: [
       { key: 'recipients', label: 'Empfänger', type: 'recipients', default: [] },
       { key: 'cc', label: 'Zusätzliche feste E-Mail-Adressen (eine pro Zeile, z.B. externe Kontakte)', type: 'email_list', default: [] },
-      { key: 'subject', label: 'Betreff', type: 'text', default: 'Erinnerung: Berichtsheft überfällig' },
+      { key: 'subject', label: 'Betreff', type: 'text', default: 'Erinnerung: Berichtsheft überfällig', showVariables: true },
       {
-        key: 'body', label: 'Text (Platzhalter je nach Auslöser: {{name}}, {{title}}, {{days_overdue}}, {{comment}}, {{date}} — nicht verfügbare bleiben leer)', type: 'textarea',
+        key: 'body', label: 'Text', type: 'textarea', showVariables: true,
         default: 'Hallo {{name}},\n\ndein Berichtsheft ist seit {{days_overdue}} Tagen überfällig. Bitte trage deine Einträge zeitnah nach.',
       },
     ],
@@ -126,15 +126,73 @@ export const ACTIONS = [
     label: 'Push-Benachrichtigung senden',
     fields: [
       { key: 'recipients', label: 'Empfänger', type: 'recipients', default: [] },
-      { key: 'title', label: 'Titel', type: 'text', default: 'Berichtsheft überfällig' },
+      { key: 'title', label: 'Titel', type: 'text', default: 'Berichtsheft überfällig', showVariables: true },
       {
-        key: 'body', label: 'Text (Platzhalter je nach Auslöser: {{name}}, {{title}}, {{days_overdue}}, {{comment}}, {{date}})', type: 'textarea',
+        key: 'body', label: 'Text', type: 'textarea', showVariables: true,
         default: '{{name}} hat das Berichtsheft seit {{days_overdue}} Tagen nicht eingereicht.',
       },
     ],
   },
 ]
 
+// Rein informativ fürs Formular (WorkflowsAdmin.jsx zeigt das neben Feldern mit
+// showVariables an) -- welche {{platzhalter}} für welchen Auslöser tatsächlich befüllt
+// werden und was sie dort bedeuten (z.B. {{date}} ist je nach Auslöser ein anderes Datum).
+// Nicht aufgeführte Platzhalter bleiben beim Versand einfach leer (siehe renderTemplate).
+export const TRIGGER_VARS = {
+  report_overdue: [
+    { key: 'name', label: 'Name des Azubis' },
+    { key: 'days_overdue', label: 'Tage seit letztem Bericht' },
+  ],
+  report_submitted: [
+    { key: 'name', label: 'Name des Azubis' },
+  ],
+  report_pending_review: [
+    { key: 'name', label: 'Name des Azubis' },
+    { key: 'days', label: 'Tage seit Einreichung' },
+    { key: 'date', label: 'Datum der Einreichung' },
+  ],
+  report_approved: [
+    { key: 'name', label: 'Name des Azubis' },
+  ],
+  report_rejected: [
+    { key: 'name', label: 'Name des Azubis' },
+    { key: 'comment', label: 'Ablehnungsgrund' },
+  ],
+  rotation_upcoming: [
+    { key: 'name', label: 'Name des Azubis' },
+    { key: 'title', label: 'Name der neuen Abteilung' },
+    { key: 'days', label: 'Tage bis zum Wechsel' },
+    { key: 'date', label: 'Datum des Wechsels' },
+  ],
+  todo_overdue: [
+    { key: 'title', label: 'Titel der Aufgabe' },
+    { key: 'name', label: 'Name des zugewiesenen Azubis (falls zugewiesen)' },
+    { key: 'days', label: 'Tage seit Fälligkeit' },
+    { key: 'date', label: 'Fälligkeitsdatum' },
+  ],
+  todo_assigned: [
+    { key: 'title', label: 'Titel der Aufgabe' },
+    { key: 'name', label: 'Name des zugewiesenen Azubis' },
+    { key: 'date', label: 'Fälligkeitsdatum' },
+  ],
+  event_created: [
+    { key: 'title', label: 'Titel des Termins' },
+    { key: 'name', label: 'Name des verknüpften Azubis (falls vorhanden)' },
+    { key: 'date', label: 'Termin-Beginn' },
+  ],
+  event_upcoming: [
+    { key: 'title', label: 'Titel des Termins' },
+    { key: 'name', label: 'Name des verknüpften Azubis (falls vorhanden)' },
+    { key: 'days', label: 'Tage bis zum Termin' },
+    { key: 'date', label: 'Termin-Beginn' },
+  ],
+  event_cancelled: [
+    { key: 'title', label: 'Titel des Termins' },
+    { key: 'name', label: 'Name des verknüpften Azubis (falls vorhanden)' },
+    { key: 'date', label: 'Ursprünglicher Termin-Beginn' },
+  ],
+}
 
 export function defaultConfig(fields) {
   const cfg = {}

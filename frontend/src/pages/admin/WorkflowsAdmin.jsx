@@ -3,7 +3,22 @@ import { Plus, Trash2, Zap, Pencil, Users } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { workflowsApi, notificationGroupsApi, usersApi, permissionRolesApi } from '../../api/client'
-import { CATEGORIES, TRIGGERS, ACTIONS, defaultConfig } from '../../workflowCatalog'
+import { CATEGORIES, TRIGGERS, ACTIONS, TRIGGER_VARS, defaultConfig } from '../../workflowCatalog'
+
+function VariableReference({ vars }) {
+  if (!vars || vars.length === 0) return null
+  return (
+    <div className="shrink-0 sm:w-56 bg-[#0d0f1a] border border-[#2a2d4a] rounded-lg p-2.5 space-y-1.5">
+      <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Verfügbare Platzhalter</div>
+      {vars.map(v => (
+        <div key={v.key}>
+          <code className="text-indigo-300 text-xs">{`{{${v.key}}}`}</code>
+          <div className="text-xs text-slate-500 leading-snug">{v.label}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function RecipientPicker({ value, onChange, users, groups }) {
   const items = value || []
@@ -91,10 +106,17 @@ function FieldInput({ field, value, onChange, ctx }) {
     )
   }
   if (field.type === 'textarea') {
-    return (
-      <div>
+    const textarea = (
+      <div className="flex-1 min-w-0">
         <label className="label">{field.label}</label>
         <textarea className="input-field resize-none" rows={4} value={value || ''} onChange={e => onChange(e.target.value)} />
+      </div>
+    )
+    if (!field.showVariables) return textarea
+    return (
+      <div className="flex flex-col sm:flex-row gap-3">
+        {textarea}
+        <VariableReference vars={ctx.vars} />
       </div>
     )
   }
@@ -118,10 +140,17 @@ function FieldInput({ field, value, onChange, ctx }) {
       </div>
     )
   }
-  return (
-    <div>
+  const input = (
+    <div className="flex-1 min-w-0">
       <label className="label">{field.label}</label>
       <input className="input-field" value={value || ''} onChange={e => onChange(e.target.value)} />
+    </div>
+  )
+  if (!field.showVariables) return input
+  return (
+    <div className="flex flex-col sm:flex-row gap-3">
+      {input}
+      <VariableReference vars={ctx.vars} />
     </div>
   )
 }
@@ -467,7 +496,7 @@ export default function WorkflowsAdmin() {
                       key={field.key} field={field}
                       value={action.action_config[field.key]}
                       onChange={v => updateActionField(idx, field.key, v)}
-                      ctx={{ users, groups }}
+                      ctx={{ users, groups, vars: TRIGGER_VARS[form.trigger_type] }}
                     />
                   ))}
                 </div>
