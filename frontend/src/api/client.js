@@ -164,6 +164,9 @@ export const feedbackApi = {
   getOne: (id) => api.get(`/feedback/${id}`).then(r => r.data),
   resend: (id) => api.post(`/feedback/${id}/resend`).then(r => r.data),
   createTest: (azubi_id, department_id) => api.post('/feedback/test', { azubi_id, department_id }).then(r => r.data),
+  getSettings: () => api.get('/feedback/settings').then(r => r.data),
+  updateSettings: (send_days_before) => api.put('/feedback/settings', { send_days_before }).then(r => r.data),
+  sendAll: () => api.post('/feedback/send-all').then(r => r.data),
   // Azubi-Selbstbedienung
   getMine: () => api.get('/feedback/mine/list').then(r => r.data),
   getMineOne: (id) => api.get(`/feedback/mine/${id}`).then(r => r.data),

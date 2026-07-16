@@ -1,7 +1,13 @@
 const crypto = require('crypto')
 const { getDb } = require('../db/init')
 const { sendMail } = require('./mailer')
-const { fireEventWorkflows } = require('../scheduler')
+// Lazy (nicht am Dateianfang) requiret, da scheduler.js seinerseits diese Datei benötigt
+// (für checkUpcomingRotationFeedback) -- ein Require am Kopf beider Dateien wäre ein
+// echter Zirkelbezug. Zur Aufruf-Zeit (nicht zur Ladezeit) sind beide Module fertig
+// geladen, das Require hier innerhalb der Funktion löst das gefahrlos auf.
+function fireEventWorkflows(...args) {
+  return require('../scheduler').fireEventWorkflows(...args)
+}
 
 function getTemplate(db, kind) {
   return db.prepare('SELECT * FROM feedback_templates WHERE kind = ?').get(kind)
@@ -10,6 +16,25 @@ function getTemplate(db, kind) {
 function buildFeedbackLink(token) {
   const base = process.env.APP_BASE_URL || 'http://localhost:3000'
   return `${base}/feedback/${token}`
+}
+
+const SEND_DAYS_SETTING_KEY = 'feedback_send_days_before'
+
+function getFeedbackSendDaysBefore(db) {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(SEND_DAYS_SETTING_KEY)
+  if (!row) return 0
+  try { return Number(JSON.parse(row.value)) || 0 } catch { return 0 }
+}
+
+function setFeedbackSendDaysBefore(db, days) {
+  db.prepare(
+    "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at"
+  ).run(SEND_DAYS_SETTING_KEY, JSON.stringify(days))
+}
+
+function daysUntil(dateStr) {
+  if (!dateStr) return Infinity
+  return Math.floor((new Date(dateStr) - Date.now()) / 86400000)
 }
 
 function sendFeedbackInviteEmail(instance, azubiName, departmentName, contactEmail) {
@@ -26,12 +51,13 @@ function sendFeedbackInviteEmail(instance, azubiName, departmentName, contactEma
   }).catch(err => console.error('[feedback] E-Mail-Versand fehlgeschlagen:', err.message))
 }
 
-// Wird beim Abschluss eines Abteilungsdurchlaufs aufgerufen (siehe azubis.js/syncNextRotation)
-// -- legt für die verlassene Abteilung je eine Azubi->Team- und eine Team->Azubi-Bewertung an
-// und verschickt die Team->Azubi-Einladung per Mail an den hinterlegten Ansprechpartner.
-// Gibt die angelegten Instanzen (inkl. Magic-Link) zurück -- praktisch sowohl für den echten
-// Rotations-Trigger als auch für den manuellen Testlauf in feedback.js (POST /test), wo kein
-// SMTP nötig ist, weil der Link direkt im Admin-UI angezeigt werden kann.
+// Wird beim Abschluss eines Abteilungsdurchlaufs aufgerufen (siehe azubis.js/syncNextRotation),
+// ODER schon vorab X Tage vor dem geplanten Wechsel (siehe checkUpcomingRotationFeedback unten),
+// ODER manuell über feedback.js (POST /test, POST /send-all) -- legt für die Abteilung je eine
+// Azubi->Team- und eine Team->Azubi-Bewertung an und verschickt die Team->Azubi-Einladung per
+// Mail an den hinterlegten Ansprechpartner. Gibt die angelegten Instanzen (inkl. Magic-Link)
+// zurück, oder null, wenn für diesen Durchlauf schon einmal Feedback angelegt wurde (rotation_id
+// -- verhindert Duplikate, egal welcher der drei Wege zuerst dran war).
 function createDepartureFeedback(db, azubiId, departmentId) {
   if (!departmentId) return null // Azubi hatte zuvor keine Abteilung -- nichts zu bewerten
 
@@ -43,6 +69,13 @@ function createDepartureFeedback(db, azubiId, departmentId) {
     'SELECT id FROM rotations WHERE azubi_id = ? AND department_id = ? ORDER BY start_date DESC LIMIT 1'
   ).get(azubiId, departmentId)
   const rotationId = rotation?.id || null
+
+  if (rotationId) {
+    const already = db.prepare(
+      'SELECT 1 FROM feedback_instances WHERE azubi_id = ? AND department_id = ? AND rotation_id = ?'
+    ).get(azubiId, departmentId, rotationId)
+    if (already) return null
+  }
 
   const azubiTemplate = getTemplate(db, 'azubi_to_team')
   const teamTemplate = getTemplate(db, 'team_to_azubi')
@@ -82,4 +115,29 @@ function notifyFeedbackSubmitted(instance, azubi, department) {
   ).catch(err => console.error('[workflows] Fehler:', err.message))
 }
 
-module.exports = { createDepartureFeedback, notifyFeedbackSubmitted, getTemplate, sendFeedbackInviteEmail }
+// Legt Feedback bereits X Tage vor dem geplanten Wechsel an (statt erst beim tatsächlichen
+// Wechsel), abhängig von der Einstellung feedback_send_days_before (0 = wie bisher: erst wenn
+// next_rotation_date erreicht/überschritten ist). Wird sowohl vom stündlichen Scheduler-Tick
+// als auch vom manuellen "Alle Feedbacks verschicken"-Button (POST /send-all) aufgerufen --
+// createDepartureFeedback() dedupliziert selbst über rotation_id, mehrfaches Aufrufen ist
+// also unschädlich. Gibt die Anzahl tatsächlich neu angelegter Bewertungspaare zurück.
+function checkUpcomingRotationFeedback(db) {
+  const daysBefore = getFeedbackSendDaysBefore(db)
+  const azubis = db.prepare(`
+    SELECT id, current_department_id, next_rotation_date FROM users
+    WHERE role = 'azubi' AND active = 1 AND next_rotation_date IS NOT NULL AND current_department_id IS NOT NULL
+  `).all()
+
+  let created = 0
+  for (const azubi of azubis) {
+    if (daysUntil(azubi.next_rotation_date) > daysBefore) continue
+    const result = createDepartureFeedback(db, azubi.id, azubi.current_department_id)
+    if (result) created++
+  }
+  return created
+}
+
+module.exports = {
+  createDepartureFeedback, notifyFeedbackSubmitted, getTemplate, sendFeedbackInviteEmail,
+  checkUpcomingRotationFeedback, getFeedbackSendDaysBefore, setFeedbackSendDaysBefore,
+}

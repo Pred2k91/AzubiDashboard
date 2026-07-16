@@ -2,7 +2,10 @@ const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
 const { requireAuth, requirePermission, scopeLocationIds, idsClause } = require('../middleware/auth')
-const { notifyFeedbackSubmitted, sendFeedbackInviteEmail, createDepartureFeedback } = require('../utils/feedback')
+const {
+  notifyFeedbackSubmitted, sendFeedbackInviteEmail, createDepartureFeedback,
+  checkUpcomingRotationFeedback, getFeedbackSendDaysBefore, setFeedbackSendDaysBefore,
+} = require('../utils/feedback')
 
 function parseInstance(row) {
   return {
@@ -55,6 +58,35 @@ router.get('/', requirePermission('feedback.manage'), (req, res) => {
       ORDER BY fi.created_at DESC
     `).all(...params)
     res.json(rows.map(parseInstance))
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Muss VOR "/:id" registriert sein, sonst würde "/settings"/"/send-all" als :id="settings"
+// bzw. :id="send-all" fehlinterpretiert.
+router.get('/settings', requirePermission('feedback.manage'), (req, res) => {
+  try {
+    res.json({ send_days_before: getFeedbackSendDaysBefore(getDb()) })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+router.put('/settings', requirePermission('feedback.manage'), (req, res) => {
+  try {
+    const days = Number(req.body.send_days_before)
+    if (!Number.isInteger(days) || days < 0) {
+      return res.status(400).json({ error: 'send_days_before muss eine nicht-negative Ganzzahl sein' })
+    }
+    setFeedbackSendDaysBefore(getDb(), days)
+    res.json({ send_days_before: days })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Wertet sofort aus, was der stündliche Scheduler-Tick ohnehin regelmäßig prüft (Azubis mit
+// next_rotation_date innerhalb der eingestellten Vorlaufzeit) -- praktisch, um nicht bis zum
+// nächsten Tick zu warten, z.B. direkt nachdem die Einstellung geändert wurde.
+router.post('/send-all', requirePermission('feedback.manage'), (req, res) => {
+  try {
+    const created = checkUpcomingRotationFeedback(getDb())
+    res.json({ created })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 

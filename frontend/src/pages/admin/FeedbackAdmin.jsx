@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { MessageSquareText, Plus, Trash2, Star, AlignLeft, FlaskConical, Copy, Check } from 'lucide-react'
+import { MessageSquareText, Plus, Trash2, Star, AlignLeft, Send, Copy, Check, CalendarClock, Mails } from 'lucide-react'
 import { feedbackTemplatesApi, feedbackApi, azubisApi, departmentsApi } from '../../api/client'
 
 const KIND_LABEL = { azubi_to_team: 'Azubi bewertet Team', team_to_azubi: 'Team bewertet Azubi' }
@@ -86,7 +86,82 @@ function TemplateEditor({ kind }) {
   )
 }
 
-function TestRunner() {
+function SendSettings() {
+  const [daysBefore, setDaysBefore] = useState(0)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [sendingAll, setSendingAll] = useState(false)
+  const [sendAllMsg, setSendAllMsg] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    feedbackApi.getSettings().then(s => setDaysBefore(s.send_days_before)).catch(() => {})
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    setError('')
+    setSaved(false)
+    try {
+      await feedbackApi.updateSettings(Number(daysBefore))
+      setSaved(true)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Speichern fehlgeschlagen')
+    } finally { setSaving(false) }
+  }
+
+  const sendAll = async () => {
+    setSendingAll(true)
+    setSendAllMsg('')
+    try {
+      const res = await feedbackApi.sendAll()
+      setSendAllMsg(res.created === 0
+        ? 'Nichts zu verschicken -- kein Azubi liegt aktuell innerhalb der Vorlaufzeit.'
+        : `${res.created} Feedback-Paar${res.created === 1 ? '' : 'e'} verschickt.`)
+    } catch (err) {
+      setSendAllMsg(err.response?.data?.error || 'Fehler beim Verschicken')
+    } finally { setSendingAll(false) }
+  }
+
+  return (
+    <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-4">
+      <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+        <CalendarClock size={15} className="text-teal-400" />
+        Wann verschicken?
+      </h2>
+      <p className="text-xs text-slate-500">
+        Legt fest, wie viele Tage vor dem geplanten Abteilungswechsel das Feedback-Paar automatisch angelegt und die
+        Team-Einladung verschickt wird. 0 = wie bisher erst, wenn der Wechsel tatsächlich stattfindet.
+      </p>
+      <div className="flex items-end gap-3">
+        <div>
+          <label className="label">Tage vor dem Wechsel</label>
+          <input
+            type="number" min={0} className="input-field max-w-[120px]"
+            value={daysBefore} onChange={e => { setDaysBefore(e.target.value); setSaved(false) }}
+          />
+        </div>
+        <button className="btn-primary" onClick={save} disabled={saving}>{saving ? 'Speichern...' : 'Speichern'}</button>
+        {saved && <span className="text-xs text-green-400">Gespeichert.</span>}
+      </div>
+      {error && <p className="text-sm text-red-400">{error}</p>}
+
+      <div className="border-t border-[#2a2d4a] pt-4 flex items-center gap-3">
+        <button className="btn-secondary" onClick={sendAll} disabled={sendingAll}>
+          <Mails size={14} />
+          {sendingAll ? 'Prüfe...' : 'Alle Feedbacks verschicken'}
+        </button>
+        {sendAllMsg && <span className="text-xs text-slate-400">{sendAllMsg}</span>}
+      </div>
+      <p className="text-xs text-slate-600">
+        Prüft sofort alle Azubis, die aktuell innerhalb der eingestellten Vorlaufzeit liegen, statt bis zum nächsten
+        stündlichen Durchlauf zu warten. Bereits angelegte Bögen werden dabei nicht doppelt verschickt.
+      </p>
+    </div>
+  )
+}
+
+function ManualSend() {
   const [azubis, setAzubis] = useState([])
   const [departments, setDepartments] = useState([])
   const [azubiId, setAzubiId] = useState('')
@@ -125,13 +200,14 @@ function TestRunner() {
   return (
     <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
       <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-        <FlaskConical size={15} className="text-teal-400" />
-        Testlauf (kein SMTP nötig)
+        <Send size={15} className="text-teal-400" />
+        Manuell verschicken
       </h2>
       <p className="text-xs text-slate-500">
-        Legt für einen frei gewählten Azubi/Abteilung dasselbe Bogen-Paar an wie bei einem echten Abteilungswechsel.
-        Der Azubi-Bogen erscheint sofort auf der Profilseite des Azubis, den Team-Link bekommst du hier direkt zum
-        Kopieren (statt per Mail, falls noch kein SMTP eingerichtet ist).
+        Legt für einen frei gewählten Azubi/Abteilung sofort dasselbe Bogen-Paar an wie bei einem echten
+        Abteilungswechsel -- unabhängig von der eingestellten Vorlaufzeit. Der Azubi-Bogen erscheint direkt auf
+        dessen Profilseite, die Team-Einladung geht per Mail an den Ansprechpartner der Abteilung (den Link
+        bekommst du hier zusätzlich zum Kopieren, falls noch kein SMTP eingerichtet ist).
       </p>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -151,7 +227,7 @@ function TestRunner() {
       </div>
       {error && <p className="text-sm text-red-400">{error}</p>}
       <button className="btn-primary" onClick={create} disabled={loading || !azubiId || !departmentId}>
-        {loading ? 'Erzeuge...' : 'Test-Feedback erzeugen'}
+        {loading ? 'Verschicke...' : 'Feedback verschicken'}
       </button>
       {result && (
         <div className="border border-[#2a2d4a] rounded-lg p-3 space-y-2">
@@ -194,7 +270,8 @@ export default function FeedbackAdmin() {
         </p>
       </div>
 
-      <TestRunner />
+      <SendSettings />
+      <ManualSend />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <TemplateEditor kind="azubi_to_team" />

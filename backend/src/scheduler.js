@@ -2,6 +2,7 @@ const { getDb } = require('./db/init')
 const { TRIGGER_TYPES, renderTemplate } = require('./workflowCatalog')
 const { sendMail } = require('./utils/mailer')
 const { sendPushToUsers } = require('./utils/webpush')
+const { checkUpcomingRotationFeedback } = require('./utils/feedback')
 
 function daysSince(dateStr) {
   if (!dateStr) return Infinity
@@ -367,10 +368,16 @@ async function runWorkflowsTick() {
   }
 }
 
+function runFeedbackCheck() {
+  try { checkUpcomingRotationFeedback(getDb()) } catch (err) { console.error('[scheduler] Feedback-Check fehlgeschlagen:', err.message) }
+}
+
 function startScheduler() {
   runWorkflowsTick().catch(err => console.error('[scheduler] Fehler:', err.message))
+  runFeedbackCheck()
   return setInterval(() => {
     runWorkflowsTick().catch(err => console.error('[scheduler] Fehler:', err.message))
+    runFeedbackCheck()
   }, 60 * 60 * 1000)
 }
 
