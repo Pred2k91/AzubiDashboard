@@ -5,6 +5,7 @@ const { requireAuth, requirePermission, scopeLocationIds, idsClause } = require(
 const {
   notifyFeedbackSubmitted, sendFeedbackInviteEmail, createDepartureFeedback,
   checkUpcomingRotationFeedback, getFeedbackSendDaysBefore, setFeedbackSendDaysBefore,
+  getFeedbackEnabled, setFeedbackEnabled,
 } = require('../utils/feedback')
 
 function parseInstance(row) {
@@ -65,18 +66,25 @@ router.get('/', requirePermission('feedback.manage'), (req, res) => {
 // bzw. :id="send-all" fehlinterpretiert.
 router.get('/settings', requirePermission('feedback.manage'), (req, res) => {
   try {
-    res.json({ send_days_before: getFeedbackSendDaysBefore(getDb()) })
+    const db = getDb()
+    res.json({ send_days_before: getFeedbackSendDaysBefore(db), enabled: getFeedbackEnabled(db) })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 router.put('/settings', requirePermission('feedback.manage'), (req, res) => {
   try {
-    const days = Number(req.body.send_days_before)
-    if (!Number.isInteger(days) || days < 0) {
-      return res.status(400).json({ error: 'send_days_before muss eine nicht-negative Ganzzahl sein' })
+    const db = getDb()
+    if (req.body.send_days_before !== undefined) {
+      const days = Number(req.body.send_days_before)
+      if (!Number.isInteger(days) || days < 0) {
+        return res.status(400).json({ error: 'send_days_before muss eine nicht-negative Ganzzahl sein' })
+      }
+      setFeedbackSendDaysBefore(db, days)
     }
-    setFeedbackSendDaysBefore(getDb(), days)
-    res.json({ send_days_before: days })
+    if (req.body.enabled !== undefined) {
+      setFeedbackEnabled(db, !!req.body.enabled)
+    }
+    res.json({ send_days_before: getFeedbackSendDaysBefore(db), enabled: getFeedbackEnabled(db) })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
@@ -85,7 +93,9 @@ router.put('/settings', requirePermission('feedback.manage'), (req, res) => {
 // nächsten Tick zu warten, z.B. direkt nachdem die Einstellung geändert wurde.
 router.post('/send-all', requirePermission('feedback.manage'), (req, res) => {
   try {
-    const created = checkUpcomingRotationFeedback(getDb())
+    const db = getDb()
+    if (!getFeedbackEnabled(db)) return res.status(409).json({ error: 'Feedback-System ist deaktiviert' })
+    const created = checkUpcomingRotationFeedback(db)
     res.json({ created })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -140,6 +150,7 @@ router.post('/test', requirePermission('feedback.manage'), (req, res) => {
     const { azubi_id, department_id } = req.body
     if (!azubi_id || !department_id) return res.status(400).json({ error: 'azubi_id und department_id sind erforderlich' })
     const db = getDb()
+    if (!getFeedbackEnabled(db)) return res.status(409).json({ error: 'Feedback-System ist deaktiviert' })
     const azubi = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'azubi'").get(azubi_id)
     if (!azubi) return res.status(404).json({ error: 'Azubi nicht gefunden' })
     const department = db.prepare('SELECT id FROM departments WHERE id = ?').get(department_id)

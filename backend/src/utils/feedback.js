@@ -19,6 +19,7 @@ function buildFeedbackLink(token) {
 }
 
 const SEND_DAYS_SETTING_KEY = 'feedback_send_days_before'
+const ENABLED_SETTING_KEY = 'feedback_enabled'
 
 function getFeedbackSendDaysBefore(db) {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(SEND_DAYS_SETTING_KEY)
@@ -30,6 +31,20 @@ function setFeedbackSendDaysBefore(db, days) {
   db.prepare(
     "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at"
   ).run(SEND_DAYS_SETTING_KEY, JSON.stringify(days))
+}
+
+// Default aktiv (Feature ist bereits produktiv im Einsatz) -- die Einstellung dient als
+// Not-Aus, falls das System vorübergehend ganz pausiert werden soll, ohne etwas zu löschen.
+function getFeedbackEnabled(db) {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(ENABLED_SETTING_KEY)
+  if (!row) return true
+  try { return JSON.parse(row.value) !== false } catch { return true }
+}
+
+function setFeedbackEnabled(db, enabled) {
+  db.prepare(
+    "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at"
+  ).run(ENABLED_SETTING_KEY, JSON.stringify(!!enabled))
 }
 
 function daysUntil(dateStr) {
@@ -60,6 +75,7 @@ function sendFeedbackInviteEmail(instance, azubiName, departmentName, contactEma
 // -- verhindert Duplikate, egal welcher der drei Wege zuerst dran war).
 function createDepartureFeedback(db, azubiId, departmentId) {
   if (!departmentId) return null // Azubi hatte zuvor keine Abteilung -- nichts zu bewerten
+  if (!getFeedbackEnabled(db)) return null // globaler Not-Aus -- gilt für alle drei Auslöse-Wege gleichermaßen
 
   const azubi = db.prepare('SELECT name FROM users WHERE id = ?').get(azubiId)
   const department = db.prepare('SELECT name, contact_email FROM departments WHERE id = ?').get(departmentId)
@@ -122,6 +138,7 @@ function notifyFeedbackSubmitted(instance, azubi, department) {
 // createDepartureFeedback() dedupliziert selbst über rotation_id, mehrfaches Aufrufen ist
 // also unschädlich. Gibt die Anzahl tatsächlich neu angelegter Bewertungspaare zurück.
 function checkUpcomingRotationFeedback(db) {
+  if (!getFeedbackEnabled(db)) return 0
   const daysBefore = getFeedbackSendDaysBefore(db)
   const azubis = db.prepare(`
     SELECT id, current_department_id, next_rotation_date FROM users
@@ -140,4 +157,5 @@ function checkUpcomingRotationFeedback(db) {
 module.exports = {
   createDepartureFeedback, notifyFeedbackSubmitted, getTemplate, sendFeedbackInviteEmail,
   checkUpcomingRotationFeedback, getFeedbackSendDaysBefore, setFeedbackSendDaysBefore,
+  getFeedbackEnabled, setFeedbackEnabled,
 }

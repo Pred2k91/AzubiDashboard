@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { MessageSquareText, Plus, Trash2, Star, AlignLeft, Send, Copy, Check, CalendarClock, Mails } from 'lucide-react'
+import { MessageSquareText, Plus, Trash2, Star, AlignLeft, Send, Copy, Check, CalendarClock, Mails, Power } from 'lucide-react'
 import { feedbackTemplatesApi, feedbackApi, azubisApi, departmentsApi } from '../../api/client'
 
 const KIND_LABEL = { azubi_to_team: 'Azubi bewertet Team', team_to_azubi: 'Team bewertet Azubi' }
@@ -88,6 +88,8 @@ function TemplateEditor({ kind }) {
 
 function SendSettings() {
   const [daysBefore, setDaysBefore] = useState(0)
+  const [enabled, setEnabledState] = useState(true)
+  const [togglingEnabled, setTogglingEnabled] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [sendingAll, setSendingAll] = useState(false)
@@ -95,8 +97,19 @@ function SendSettings() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    feedbackApi.getSettings().then(s => setDaysBefore(s.send_days_before)).catch(() => {})
+    feedbackApi.getSettings().then(s => { setDaysBefore(s.send_days_before); setEnabledState(s.enabled) }).catch(() => {})
   }, [])
+
+  const toggleEnabled = async () => {
+    setTogglingEnabled(true)
+    setError('')
+    try {
+      const res = await feedbackApi.setEnabled(!enabled)
+      setEnabledState(res.enabled)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Fehler beim Umschalten')
+    } finally { setTogglingEnabled(false) }
+  }
 
   const save = async () => {
     setSaving(true)
@@ -125,6 +138,25 @@ function SendSettings() {
 
   return (
     <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-4">
+      <div className="flex items-center justify-between pb-4 border-b border-[#2a2d4a]">
+        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+          <Power size={15} className={enabled ? 'text-green-400' : 'text-slate-600'} />
+          Feedback-System {enabled ? 'aktiv' : 'deaktiviert'}
+        </h2>
+        <button
+          className={enabled ? 'btn-secondary' : 'btn-primary'}
+          onClick={toggleEnabled} disabled={togglingEnabled}
+        >
+          {togglingEnabled ? '...' : enabled ? 'Deaktivieren' : 'Aktivieren'}
+        </button>
+      </div>
+      {!enabled && (
+        <p className="text-xs text-amber-400">
+          Solange deaktiviert, werden keine neuen Feedback-Bögen angelegt -- weder automatisch (Vorlauf/Wechsel)
+          noch manuell. Bereits laufende Bögen bleiben unberührt und können normal ausgefüllt werden.
+        </p>
+      )}
+
       <h2 className="text-sm font-semibold text-white flex items-center gap-2">
         <CalendarClock size={15} className="text-teal-400" />
         Wann verschicken?
