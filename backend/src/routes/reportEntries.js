@@ -36,6 +36,13 @@ function entryWithDays(db, entry) {
   return { ...entry, days }
 }
 
+// Für den "Ansprechpartner der Abteilung"-Empfänger in Workflows -- die Abteilung, in der
+// der Bericht geschrieben wurde (nicht zwingend die aktuelle Abteilung des Azubis).
+function getDepartmentContext(db, departmentId) {
+  if (!departmentId) return null
+  return db.prepare('SELECT name, contact_email FROM departments WHERE id = ?').get(departmentId) || null
+}
+
 // Leitet last_report_date aus dem tatsächlichen Datenbestand ab, statt es fest zu
 // setzen — damit eine nachträglich zurückgenommene Freigabe (approved -> rejected)
 // das Datum korrekt auf den nächstjüngeren gültigen Eintrag zurückfallen lässt.
@@ -161,7 +168,7 @@ router.put('/me/report-entries/:id', requireAuth, (req, res) => {
     if (submit) {
       fireEventWorkflows(
         'report_submitted', `report_entry:${entry.id}`, `submitted:${updated.submitted_at}`, azubi,
-        { name: azubi.name, date: updated.period_end }
+        { name: azubi.name, date: updated.period_end }, getDepartmentContext(db, updated.department_id)
       ).catch(err => console.error('[workflows] Fehler:', err.message))
     }
 
@@ -244,7 +251,7 @@ router.put('/report-entries/:id/review', requirePermission('reports.review'), (r
     const triggerType = status === 'rejected' ? 'report_rejected' : 'report_approved'
     fireEventWorkflows(
       triggerType, `report_entry:${entry.id}`, `${status}:${updated.reviewed_at}`, azubi,
-      { name: azubi?.name || '', comment: comment || '', date: entry.period_end }
+      { name: azubi?.name || '', comment: comment || '', date: entry.period_end }, getDepartmentContext(db, updated.department_id)
     ).catch(err => console.error('[workflows] Fehler:', err.message))
 
     res.json(entryWithDays(db, updated))

@@ -121,8 +121,18 @@ const TRIGGERS = [
   {
     type: 'feedback_pending',
     category: 'feedback',
-    label: 'Feedback steht noch aus',
-    description: 'Feuert pro noch nicht ausgefülltem Azubi-Feedbackbogen (Azubi bewertet Team), der mindestens so viele Tage aussteht. Team->Azubi-Bewertungen laufen über den Ansprechpartner der Abteilung, nicht über einen Systemnutzer, und sind hier nicht enthalten.',
+    label: 'Azubi-Feedback steht noch aus',
+    description: 'Feuert pro noch nicht ausgefülltem Azubi-Feedbackbogen (Azubi bewertet Team), der mindestens so viele Tage aussteht.',
+    fields: [
+      { key: 'min_days', label: 'Tage seit Anlegen (mindestens)', type: 'number', default: 3, min: 1 },
+      REPEAT_FIELD,
+    ],
+  },
+  {
+    type: 'feedback_pending_team',
+    category: 'feedback',
+    label: 'Team-Feedback steht noch aus',
+    description: 'Feuert pro noch nicht ausgefülltem Team-Feedbackbogen (Team bewertet Azubi), der mindestens so viele Tage aussteht -- passender Empfänger ist meist "Ansprechpartner der Abteilung".',
     fields: [
       { key: 'min_days', label: 'Tage seit Anlegen (mindestens)', type: 'number', default: 3, min: 1 },
       REPEAT_FIELD,

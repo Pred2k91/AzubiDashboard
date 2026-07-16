@@ -60,11 +60,13 @@ function createDepartureFeedback(db, azubiId, departmentId) {
 
 // Fire-and-forget-Workflow-Hook fürs Einreichen (beide kind) -- separat exportiert, damit
 // feedback.js's public-Route das ohne eigene Scheduler-Abhängigkeit auslösen kann.
-function notifyFeedbackSubmitted(instance, azubi, departmentName) {
+// department ({ name, contact_email }) macht "Ansprechpartner der Abteilung" als
+// Empfänger nutzbar, z.B. um die Abteilung zu bestätigen, dass ihr Bogen angekommen ist.
+function notifyFeedbackSubmitted(instance, azubi, department) {
   const kindLabel = instance.kind === 'azubi_to_team' ? 'Azubi-Feedback' : 'Team-Feedback'
   fireEventWorkflows(
     'feedback_submitted', `feedback:${instance.id}`, `submitted:${instance.submitted_at}`, azubi,
-    { name: azubi?.name || '', title: `${kindLabel}: ${departmentName}`, date: instance.submitted_at }
+    { name: azubi?.name || '', title: `${kindLabel}: ${department?.name || ''}`, date: instance.submitted_at }, department
   ).catch(err => console.error('[workflows] Fehler:', err.message))
 }
 

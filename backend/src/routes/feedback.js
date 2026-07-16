@@ -147,10 +147,10 @@ router.put('/mine/:id', requireAuth, (req, res) => {
       .run(JSON.stringify(req.body.answers), row.id)
 
     const updated = db.prepare(`
-      SELECT fi.*, d.name as department_name FROM feedback_instances fi
-      JOIN departments d ON d.id = fi.department_id WHERE fi.id = ?
+      SELECT fi.*, d.name as department_name, d.contact_email as department_contact_email
+      FROM feedback_instances fi JOIN departments d ON d.id = fi.department_id WHERE fi.id = ?
     `).get(row.id)
-    notifyFeedbackSubmitted(updated, req.user, updated.department_name)
+    notifyFeedbackSubmitted(updated, req.user, { name: updated.department_name, contact_email: updated.department_contact_email })
     res.json(parseInstance(updated))
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
@@ -192,14 +192,15 @@ router.post('/public/:token', (req, res) => {
       .run(JSON.stringify(req.body.answers), row.id)
 
     const updated = db.prepare(`
-      SELECT fi.*, a.id as azubi_id, a.name as azubi_name, a.email as azubi_email, d.name as department_name
+      SELECT fi.*, a.id as azubi_id, a.name as azubi_name, a.email as azubi_email,
+             d.name as department_name, d.contact_email as department_contact_email
       FROM feedback_instances fi
       JOIN users a ON a.id = fi.azubi_id
       JOIN departments d ON d.id = fi.department_id
       WHERE fi.id = ?
     `).get(row.id)
     const azubi = { id: updated.azubi_id, name: updated.azubi_name, email: updated.azubi_email }
-    notifyFeedbackSubmitted(updated, azubi, updated.department_name)
+    notifyFeedbackSubmitted(updated, azubi, { name: updated.department_name, contact_email: updated.department_contact_email })
     res.json({ success: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })

@@ -36,13 +36,17 @@ function VariablePopover({ vars }) {
   )
 }
 
-function RecipientPicker({ value, onChange, users, groups }) {
+function RecipientPicker({ value, onChange, users, groups, actionType }) {
   const items = value || []
+  // Abteilungsleiter haben keinen Systemzugang und damit nie eine Push-Subscription --
+  // dieser Empfänger-Typ ergibt nur für die E-Mail-Aktion Sinn.
+  const supportsDepartmentContact = actionType === 'email'
 
   const label = (r) => {
     if (r.type === 'subject_azubi') return 'Betroffener Azubi (falls zutreffend)'
     if (r.type === 'subject_location_ausbilder') return 'Ausbilder der Niederlassung (falls zutreffend, sonst alle Ausbilder)'
     if (r.type === 'all_ausbilder') return 'Alle Ausbilder'
+    if (r.type === 'department_contact') return 'Ansprechpartner der betroffenen Abteilung (falls zutreffend)'
     if (r.type === 'user') {
       const u = users.find(x => x.id === r.user_id)
       return `Nutzer: ${u?.name || u?.email || `#${r.user_id}`}`
@@ -62,7 +66,7 @@ function RecipientPicker({ value, onChange, users, groups }) {
 
   const handlePick = (v) => {
     if (!v) return
-    if (v === 'subject_azubi' || v === 'subject_location_ausbilder' || v === 'all_ausbilder') add({ type: v })
+    if (v === 'subject_azubi' || v === 'subject_location_ausbilder' || v === 'all_ausbilder' || v === 'department_contact') add({ type: v })
     else if (v.startsWith('user:')) add({ type: 'user', user_id: Number(v.slice(5)) })
     else if (v.startsWith('group:')) add({ type: 'group', group_id: Number(v.slice(6)) })
   }
@@ -84,6 +88,9 @@ function RecipientPicker({ value, onChange, users, groups }) {
         <option value="subject_azubi">Betroffener Azubi (falls zutreffend)</option>
         <option value="subject_location_ausbilder">Ausbilder der Niederlassung (falls zutreffend, sonst alle Ausbilder)</option>
         <option value="all_ausbilder">Alle Ausbilder</option>
+        {supportsDepartmentContact && (
+          <option value="department_contact">Ansprechpartner der betroffenen Abteilung (falls zutreffend)</option>
+        )}
         {users.length > 0 && (
           <optgroup label="Einzelne Nutzer">
             {users.map(u => <option key={`user:${u.id}`} value={`user:${u.id}`}>{u.name || u.email}</option>)}
@@ -101,7 +108,7 @@ function RecipientPicker({ value, onChange, users, groups }) {
 
 function FieldInput({ field, value, onChange, ctx }) {
   if (field.type === 'recipients') {
-    return <RecipientPicker value={value} onChange={onChange} users={ctx.users} groups={ctx.groups} />
+    return <RecipientPicker value={value} onChange={onChange} users={ctx.users} groups={ctx.groups} actionType={ctx.actionType} />
   }
   if (field.type === 'checkbox') {
     return (
@@ -506,7 +513,7 @@ export default function WorkflowsAdmin() {
                       key={field.key} field={field}
                       value={action.action_config[field.key]}
                       onChange={v => updateActionField(idx, field.key, v)}
-                      ctx={{ users, groups, vars: TRIGGER_VARS[form.trigger_type] }}
+                      ctx={{ users, groups, vars: TRIGGER_VARS[form.trigger_type], actionType: action.action_type }}
                     />
                   ))}
                 </div>

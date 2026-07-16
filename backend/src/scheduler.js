@@ -101,7 +101,10 @@ function loadActiveWorkflows(db) {
 
 // azubi kann null sein (z.B. unzugewiesene Aufgabe, Termin ohne verknüpfte Azubis) --
 // siehe resolveRecipientUserIds() für die genaue Fallback-Logik pro Empfänger-Typ.
-async function runAction(action, azubi, vars) {
+// department (optional, { name, contact_email }) ist die einzige Möglichkeit, Abteilungs-
+// leiter zu erreichen -- sie sind keine Systemnutzer und tauchen daher nie in
+// resolveRecipientUserIds() auf. Nur für die E-Mail-Aktion relevant (kein Push ohne Konto).
+async function runAction(action, azubi, vars, department) {
   const db = getDb()
   if (action.action_type === 'email') {
     const cfg = action.action_config
@@ -110,6 +113,9 @@ async function runAction(action, azubi, vars) {
     if (userIds.length) {
       const rows = db.prepare(`SELECT email FROM users WHERE id IN (${userIds.map(() => '?').join(',')})`).all(...userIds)
       rows.forEach(r => { if (r.email) recipients.add(r.email) })
+    }
+    if (department?.contact_email && (cfg.recipients || []).some(r => r.type === 'department_contact')) {
+      recipients.add(department.contact_email)
     }
     if (Array.isArray(cfg.cc)) cfg.cc.filter(Boolean).forEach(e => recipients.add(e))
     if (recipients.size === 0) return
@@ -132,14 +138,14 @@ async function runAction(action, azubi, vars) {
 
 // Führt alle Aktionen eines Workflows aus, falls diese Kombination aus entity_key +
 // trigger_key noch nicht gefeuert hat (siehe Kommentar an der Tabelle in db/init.js).
-async function fireIfNew(db, workflow, entityKey, triggerKey, azubi, vars) {
+async function fireIfNew(db, workflow, entityKey, triggerKey, azubi, vars, department) {
   const already = db.prepare(
     'SELECT 1 FROM workflow_runs WHERE workflow_id = ? AND entity_key = ? AND trigger_key = ?'
   ).get(workflow.id, entityKey, triggerKey)
   if (already) return false
 
   for (const action of workflow.actions) {
-    await runAction(action, azubi, vars)
+    await runAction(action, azubi, vars, department)
   }
   db.prepare(
     'INSERT OR IGNORE INTO workflow_runs (workflow_id, entity_key, trigger_key) VALUES (?, ?, ?)'
@@ -151,12 +157,12 @@ async function fireIfNew(db, workflow, entityKey, triggerKey, azubi, vars) {
 // die direkt aus der jeweiligen Route heraus aufgerufen werden statt aus dem Scheduler-
 // Tick. Wird bewusst "fire and forget" (ohne await) aus den Routen aufgerufen, damit ein
 // langsamer Mail-/Push-Versand nie die eigentliche API-Antwort verzögert.
-async function fireEventWorkflows(triggerType, entityKey, triggerKey, azubi, vars) {
+async function fireEventWorkflows(triggerType, entityKey, triggerKey, azubi, vars, department) {
   const db = getDb()
   const workflows = loadActiveWorkflows(db).filter(w => w.trigger_type === triggerType)
   for (const workflow of workflows) {
     try {
-      await fireIfNew(db, workflow, entityKey, triggerKey, azubi, vars)
+      await fireIfNew(db, workflow, entityKey, triggerKey, azubi, vars, department)
     } catch (err) {
       console.error(`[scheduler] Fehler bei Workflow "${workflow.name}":`, err.message)
     }
@@ -166,9 +172,12 @@ async function fireEventWorkflows(triggerType, entityKey, triggerKey, azubi, var
 async function pollReportOverdue(db, workflow) {
   const minDays = Number(workflow.trigger_config.min_days) || 1
   const repeatEvery = workflow.trigger_config.repeat_every_days
-  const azubis = db.prepare(
-    "SELECT id, name, email, last_report_date, created_at FROM users WHERE role = 'azubi' AND active = 1 AND lehrjahr > 0"
-  ).all()
+  const azubis = db.prepare(`
+    SELECT a.id, a.name, a.email, a.last_report_date, a.created_at,
+           d.name as dept_name, d.contact_email as dept_contact_email
+    FROM users a LEFT JOIN departments d ON d.id = a.current_department_id
+    WHERE a.role = 'azubi' AND a.active = 1 AND a.lehrjahr > 0
+  `).all()
 
   for (const azubi of azubis) {
     const days = daysSince(azubi.last_report_date)
@@ -180,7 +189,8 @@ async function pollReportOverdue(db, workflow) {
     const bucketDays = Number.isFinite(days) ? days : daysSince(azubi.created_at)
     const triggerKey = recurringKey(baseKey, bucketDays, repeatEvery)
     const vars = { name: azubi.name, days_overdue: Number.isFinite(days) ? days : 'vielen', days: Number.isFinite(days) ? days : 'vielen' }
-    await fireIfNew(db, workflow, `azubi:${azubi.id}`, triggerKey, azubi, vars)
+    const department = azubi.dept_name ? { name: azubi.dept_name, contact_email: azubi.dept_contact_email } : null
+    await fireIfNew(db, workflow, `azubi:${azubi.id}`, triggerKey, azubi, vars, department)
   }
 }
 
@@ -188,7 +198,7 @@ async function pollRotationUpcoming(db, workflow) {
   const daysBefore = Number(workflow.trigger_config.days_before) || 0
   const repeatEvery = workflow.trigger_config.repeat_every_days
   const azubis = db.prepare(`
-    SELECT a.id, a.name, a.email, a.next_rotation_date, d.name as dept_name
+    SELECT a.id, a.name, a.email, a.next_rotation_date, d.name as dept_name, d.contact_email as dept_contact_email
     FROM users a LEFT JOIN departments d ON d.id = a.next_department_id
     WHERE a.role = 'azubi' AND a.active = 1 AND a.next_rotation_date IS NOT NULL
   `).all()
@@ -198,7 +208,10 @@ async function pollRotationUpcoming(db, workflow) {
     if (until > daysBefore || until < 0) continue
     const triggerKey = recurringKey(`rotation:${azubi.next_rotation_date}`, until, repeatEvery)
     const vars = { name: azubi.name, days: until, days_overdue: until, date: azubi.next_rotation_date, title: azubi.dept_name || '' }
-    await fireIfNew(db, workflow, `azubi:${azubi.id}`, triggerKey, azubi, vars)
+    // Ansprechpartner der Abteilung, in die der Azubi WECHSELT (next_department) -- damit
+    // kann z.B. die neue Abteilung frühzeitig über den bevorstehenden Zugang informiert werden.
+    const department = azubi.dept_name ? { name: azubi.dept_name, contact_email: azubi.dept_contact_email } : null
+    await fireIfNew(db, workflow, `azubi:${azubi.id}`, triggerKey, azubi, vars, department)
   }
 }
 
@@ -206,8 +219,11 @@ async function pollReportPendingReview(db, workflow) {
   const minDays = Number(workflow.trigger_config.min_days) || 1
   const repeatEvery = workflow.trigger_config.repeat_every_days
   const entries = db.prepare(`
-    SELECT re.id, re.azubi_id, re.submitted_at, a.name, a.email
-    FROM report_entries re JOIN users a ON a.id = re.azubi_id
+    SELECT re.id, re.azubi_id, re.submitted_at, a.name, a.email,
+           d.name as dept_name, d.contact_email as dept_contact_email
+    FROM report_entries re
+    JOIN users a ON a.id = re.azubi_id
+    LEFT JOIN departments d ON d.id = re.department_id
     WHERE re.status = 'submitted' AND a.active = 1
   `).all()
 
@@ -217,7 +233,8 @@ async function pollReportPendingReview(db, workflow) {
     const triggerKey = recurringKey(`submitted:${entry.submitted_at}`, days, repeatEvery)
     const azubi = { id: entry.azubi_id, name: entry.name, email: entry.email }
     const vars = { name: azubi.name, days, days_overdue: days, date: entry.submitted_at }
-    await fireIfNew(db, workflow, `report_entry:${entry.id}`, triggerKey, azubi, vars)
+    const department = entry.dept_name ? { name: entry.dept_name, contact_email: entry.dept_contact_email } : null
+    await fireIfNew(db, workflow, `report_entry:${entry.id}`, triggerKey, azubi, vars, department)
   }
 }
 
@@ -266,14 +283,15 @@ async function pollEventUpcoming(db, workflow) {
   }
 }
 
-// Nur kind='azubi_to_team' -- der Azubi ist ein echter Systemnutzer, der erinnert werden
-// kann. Team->Azubi-Bewertungen laufen über den Abteilungs-Ansprechpartner per Magic-Link
-// (kein Systemnutzer, siehe utils/feedback.js), dafür gibt es hier bewusst keine Erinnerung.
+// kind='azubi_to_team' -- der Azubi ist ein echter Systemnutzer, kann also z.B. per Push
+// erinnert werden. "Ansprechpartner der Abteilung" ist hier trotzdem wählbar (z.B. um die
+// Abteilung parallel zu informieren), aber typischerweise reicht subject_azubi.
 async function pollFeedbackPending(db, workflow) {
   const minDays = Number(workflow.trigger_config.min_days) || 1
   const repeatEvery = workflow.trigger_config.repeat_every_days
   const rows = db.prepare(`
-    SELECT fi.id, fi.created_at, fi.azubi_id, a.name as azubi_name, a.email as azubi_email, d.name as dept_name
+    SELECT fi.id, fi.created_at, fi.azubi_id, a.name as azubi_name, a.email as azubi_email,
+           d.name as dept_name, d.contact_email as dept_contact_email
     FROM feedback_instances fi
     JOIN users a ON a.id = fi.azubi_id
     JOIN departments d ON d.id = fi.department_id
@@ -286,7 +304,35 @@ async function pollFeedbackPending(db, workflow) {
     const triggerKey = recurringKey(`pending:${row.created_at}`, days, repeatEvery)
     const azubi = { id: row.azubi_id, name: row.azubi_name, email: row.azubi_email }
     const vars = { name: azubi.name, title: row.dept_name, days, days_overdue: days }
-    await fireIfNew(db, workflow, `feedback:${row.id}`, triggerKey, azubi, vars)
+    const department = { name: row.dept_name, contact_email: row.dept_contact_email }
+    await fireIfNew(db, workflow, `feedback:${row.id}`, triggerKey, azubi, vars, department)
+  }
+}
+
+// kind='team_to_azubi' -- der Ansprechpartner der Abteilung ist KEIN Systemnutzer, kann
+// also nur per E-Mail über "Ansprechpartner der betroffenen Abteilung" erreicht werden,
+// nicht per Push und nicht über subject_azubi/subject_location_ausbilder (der Azubi selbst
+// füllt diesen Bogen ja nicht aus).
+async function pollFeedbackPendingTeam(db, workflow) {
+  const minDays = Number(workflow.trigger_config.min_days) || 1
+  const repeatEvery = workflow.trigger_config.repeat_every_days
+  const rows = db.prepare(`
+    SELECT fi.id, fi.created_at, fi.azubi_id, a.name as azubi_name, a.email as azubi_email,
+           d.name as dept_name, d.contact_email as dept_contact_email
+    FROM feedback_instances fi
+    JOIN users a ON a.id = fi.azubi_id
+    JOIN departments d ON d.id = fi.department_id
+    WHERE fi.kind = 'team_to_azubi' AND fi.status = 'pending'
+  `).all()
+
+  for (const row of rows) {
+    const days = daysSince(row.created_at)
+    if (days < minDays) continue
+    const triggerKey = recurringKey(`pending:${row.created_at}`, days, repeatEvery)
+    const azubi = { id: row.azubi_id, name: row.azubi_name, email: row.azubi_email }
+    const vars = { name: azubi.name, title: row.dept_name, days, days_overdue: days }
+    const department = { name: row.dept_name, contact_email: row.dept_contact_email }
+    await fireIfNew(db, workflow, `feedback:${row.id}`, triggerKey, azubi, vars, department)
   }
 }
 
@@ -297,6 +343,7 @@ const POLLERS = {
   todo_overdue: pollTodoOverdue,
   event_upcoming: pollEventUpcoming,
   feedback_pending: pollFeedbackPending,
+  feedback_pending_team: pollFeedbackPendingTeam,
   // report_submitted / report_rejected / report_approved / todo_assigned / event_created /
   // event_cancelled / feedback_submitted sind Sofort-Auslöser -- siehe fireEventWorkflows(),
   // aufgerufen direkt aus den jeweiligen Routen.
