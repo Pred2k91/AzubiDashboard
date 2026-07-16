@@ -163,6 +163,7 @@ export const feedbackApi = {
   getAll: (params) => api.get('/feedback', { params }).then(r => r.data),
   getOne: (id) => api.get(`/feedback/${id}`).then(r => r.data),
   resend: (id) => api.post(`/feedback/${id}/resend`).then(r => r.data),
+  createTest: (azubi_id, department_id) => api.post('/feedback/test', { azubi_id, department_id }).then(r => r.data),
   // Azubi-Selbstbedienung
   getMine: () => api.get('/feedback/mine/list').then(r => r.data),
   getMineOne: (id) => api.get(`/feedback/mine/${id}`).then(r => r.data),

@@ -7,13 +7,17 @@ function getTemplate(db, kind) {
   return db.prepare('SELECT * FROM feedback_templates WHERE kind = ?').get(kind)
 }
 
+function buildFeedbackLink(token) {
+  const base = process.env.APP_BASE_URL || 'http://localhost:3000'
+  return `${base}/feedback/${token}`
+}
+
 function sendFeedbackInviteEmail(instance, azubiName, departmentName, contactEmail) {
   if (!contactEmail) {
     console.log(`[feedback] Kein Ansprechpartner mit E-Mail für Abteilung "${departmentName}" hinterlegt -- Einladung NICHT versendet (Feedback #${instance.id}).`)
     return
   }
-  const base = process.env.APP_BASE_URL || 'http://localhost:3000'
-  const link = `${base}/feedback/${instance.access_token}`
+  const link = buildFeedbackLink(instance.access_token)
   sendMail({
     to: contactEmail,
     subject: `Feedback zu ${azubiName} (${departmentName})`,
@@ -25,12 +29,15 @@ function sendFeedbackInviteEmail(instance, azubiName, departmentName, contactEma
 // Wird beim Abschluss eines Abteilungsdurchlaufs aufgerufen (siehe azubis.js/syncNextRotation)
 // -- legt für die verlassene Abteilung je eine Azubi->Team- und eine Team->Azubi-Bewertung an
 // und verschickt die Team->Azubi-Einladung per Mail an den hinterlegten Ansprechpartner.
+// Gibt die angelegten Instanzen (inkl. Magic-Link) zurück -- praktisch sowohl für den echten
+// Rotations-Trigger als auch für den manuellen Testlauf in feedback.js (POST /test), wo kein
+// SMTP nötig ist, weil der Link direkt im Admin-UI angezeigt werden kann.
 function createDepartureFeedback(db, azubiId, departmentId) {
-  if (!departmentId) return // Azubi hatte zuvor keine Abteilung -- nichts zu bewerten
+  if (!departmentId) return null // Azubi hatte zuvor keine Abteilung -- nichts zu bewerten
 
   const azubi = db.prepare('SELECT name FROM users WHERE id = ?').get(azubiId)
   const department = db.prepare('SELECT name, contact_email FROM departments WHERE id = ?').get(departmentId)
-  if (!azubi || !department) return
+  if (!azubi || !department) return null
 
   const rotation = db.prepare(
     'SELECT id FROM rotations WHERE azubi_id = ? AND department_id = ? ORDER BY start_date DESC LIMIT 1'
@@ -39,12 +46,14 @@ function createDepartureFeedback(db, azubiId, departmentId) {
 
   const azubiTemplate = getTemplate(db, 'azubi_to_team')
   const teamTemplate = getTemplate(db, 'team_to_azubi')
+  const created = { azubi_instance_id: null, team_instance_id: null, team_link: null }
 
   if (azubiTemplate) {
-    db.prepare(`
+    const result = db.prepare(`
       INSERT INTO feedback_instances (kind, template_id, azubi_id, department_id, rotation_id, questions_snapshot, status)
       VALUES ('azubi_to_team', ?, ?, ?, ?, ?, 'pending')
     `).run(azubiTemplate.id, azubiId, departmentId, rotationId, azubiTemplate.questions)
+    created.azubi_instance_id = result.lastInsertRowid
   }
 
   if (teamTemplate) {
@@ -53,9 +62,12 @@ function createDepartureFeedback(db, azubiId, departmentId) {
       INSERT INTO feedback_instances (kind, template_id, azubi_id, department_id, rotation_id, questions_snapshot, status, access_token)
       VALUES ('team_to_azubi', ?, ?, ?, ?, ?, 'pending', ?)
     `).run(teamTemplate.id, azubiId, departmentId, rotationId, teamTemplate.questions, token)
-    const instance = { id: result.lastInsertRowid, access_token: token }
-    sendFeedbackInviteEmail(instance, azubi.name, department.name, department.contact_email)
+    created.team_instance_id = result.lastInsertRowid
+    created.team_link = buildFeedbackLink(token)
+    sendFeedbackInviteEmail({ id: created.team_instance_id, access_token: token }, azubi.name, department.name, department.contact_email)
   }
+
+  return created
 }
 
 // Fire-and-forget-Workflow-Hook fürs Einreichen (beide kind) -- separat exportiert, damit

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, ArrowRight, BookOpen, CalendarDays, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Building2, ArrowRight, BookOpen, CalendarDays, CheckCircle, AlertTriangle, MessageSquareText } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { meApi } from '../../api/client'
+import { meApi, feedbackApi } from '../../api/client'
 
 const STATUS_CONFIG = {
   ok:    { label: 'Aktuell',    icon: CheckCircle,  cls: 'text-green-400',  bg: 'bg-green-500/20 border-green-500/40' },
@@ -16,6 +16,7 @@ export default function PortalDashboard() {
   const [team, setTeam] = useState(null)
   const [reports, setReports] = useState(null)
   const [events, setEvents] = useState([])
+  const [pendingFeedback, setPendingFeedback] = useState([])
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -25,11 +26,13 @@ export default function PortalDashboard() {
       meApi.getTeam(),
       meApi.getReports(),
       meApi.getCalendar(),
-    ]).then(([p, t, r, c]) => {
+      feedbackApi.getMine().catch(() => []),
+    ]).then(([p, t, r, c, feedback]) => {
       setProfile(p)
       setTeam(t)
       setReports(r)
       setEvents((c.events || []).filter(e => e.start_datetime >= today).slice(0, 5))
+      setPendingFeedback(feedback.filter(f => f.status === 'pending'))
     }).catch(() => {}).finally(() => setLoaded(true))
   }, [])
 
@@ -57,6 +60,21 @@ export default function PortalDashboard() {
           {profile && ` · ${profile.lehrjahr}. Lehrjahr`}
         </p>
       </div>
+
+      {pendingFeedback.length > 0 && (
+        <Link
+          to="/portal/feedback"
+          className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 hover:bg-amber-500/15 transition-colors"
+        >
+          <MessageSquareText size={18} className="text-amber-400 shrink-0" />
+          <span className="flex-1 text-sm font-medium text-amber-400">
+            {pendingFeedback.length === 1
+              ? `Feedback zu ${pendingFeedback[0].department_name} steht noch aus`
+              : `${pendingFeedback.length} Feedback-Bögen stehen noch aus`}
+          </span>
+          <ArrowRight size={14} className="text-amber-400 shrink-0" />
+        </Link>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Aktuelles/nächstes Team */}

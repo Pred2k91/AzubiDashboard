@@ -2,7 +2,7 @@ const express = require('express')
 const router = express.Router()
 const { getDb } = require('../db/init')
 const { requireAuth, requirePermission, scopeLocationIds, idsClause } = require('../middleware/auth')
-const { notifyFeedbackSubmitted, sendFeedbackInviteEmail } = require('../utils/feedback')
+const { notifyFeedbackSubmitted, sendFeedbackInviteEmail, createDepartureFeedback } = require('../utils/feedback')
 
 function parseInstance(row) {
   return {
@@ -95,6 +95,25 @@ router.post('/:id/resend', requirePermission('feedback.manage'), (req, res) => {
     if (!row.contact_email) return res.status(400).json({ error: 'Kein Ansprechpartner mit E-Mail für diese Abteilung hinterlegt' })
     sendFeedbackInviteEmail(row, row.azubi_name, row.department_name, row.contact_email)
     res.json({ success: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Manueller Testlauf, unabhängig von einem echten Abteilungswechsel -- legt für den
+// gewählten Azubi/Abteilung dasselbe Paar aus Azubi->Team- und Team->Azubi-Bewertung an
+// wie ein echter Wechsel, und gibt den Team-Link direkt zurück. Dafür wird kein SMTP
+// gebraucht (die Einladungsmail wird zusätzlich versucht, aber ist für den Test irrelevant).
+router.post('/test', requirePermission('feedback.manage'), (req, res) => {
+  try {
+    const { azubi_id, department_id } = req.body
+    if (!azubi_id || !department_id) return res.status(400).json({ error: 'azubi_id und department_id sind erforderlich' })
+    const db = getDb()
+    const azubi = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'azubi'").get(azubi_id)
+    if (!azubi) return res.status(404).json({ error: 'Azubi nicht gefunden' })
+    const department = db.prepare('SELECT id FROM departments WHERE id = ?').get(department_id)
+    if (!department) return res.status(404).json({ error: 'Abteilung nicht gefunden' })
+
+    const created = createDepartureFeedback(db, azubi_id, department_id)
+    res.status(201).json(created)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
