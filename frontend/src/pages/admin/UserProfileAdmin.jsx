@@ -1,12 +1,66 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Pencil, KeyRound, Camera, Phone, Smartphone, Mail, MapPin, Trash2 } from 'lucide-react'
+import { ArrowLeft, Pencil, KeyRound, Camera, Phone, Smartphone, Mail, MapPin, Trash2, MessageSquareText, RotateCcw } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { usersApi, locationsApi, departmentsApi, permissionRolesApi } from '../../api/client'
+import { usersApi, locationsApi, departmentsApi, permissionRolesApi, feedbackApi } from '../../api/client'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../../components/ui/Modal'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
+import FeedbackInstanceDetail, { KIND_LABEL, STATUS_LABEL, STATUS_CLS } from '../../components/FeedbackInstanceDetail'
+
+function FeedbackSection({ azubiId }) {
+  const [instances, setInstances] = useState([])
+  const [detail, setDetail] = useState(null)
+  const [resendMsg, setResendMsg] = useState('')
+
+  const load = () => feedbackApi.getAll({ azubi_id: azubiId }).then(setInstances).catch(() => {})
+  useEffect(() => { load() }, [azubiId])
+
+  const openDetail = async (i) => {
+    const full = await feedbackApi.getOne(i.id).catch(() => null)
+    setDetail(full)
+  }
+
+  const handleResend = async (instance) => {
+    setResendMsg('')
+    try {
+      await feedbackApi.resend(instance.id)
+      setResendMsg('Einladung erneut versendet.')
+    } catch (err) {
+      setResendMsg(err.response?.data?.error || 'Versand fehlgeschlagen')
+    }
+  }
+
+  return (
+    <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
+      <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+        <MessageSquareText size={15} className="text-teal-400" />
+        Feedback
+      </h2>
+      {resendMsg && <p className="text-xs text-slate-400">{resendMsg}</p>}
+      {instances.length === 0 ? (
+        <p className="text-sm text-slate-600">Noch keine Feedback-Bögen für diesen Azubi.</p>
+      ) : (
+        <div className="divide-y divide-[#2a2d4a]">
+          {instances.map(i => (
+            <button
+              key={i.id} onClick={() => openDetail(i)}
+              className="w-full flex items-center gap-3 py-2.5 text-left hover:bg-[#1e2035] transition-colors -mx-2 px-2 rounded-lg"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-white truncate">{i.department_name}</div>
+                <div className="text-xs text-slate-500">{KIND_LABEL[i.kind]}</div>
+              </div>
+              <span className={`badge border shrink-0 ${STATUS_CLS[i.status]}`}>{STATUS_LABEL[i.status]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <FeedbackInstanceDetail instance={detail} onClose={() => setDetail(null)} onResend={handleResend} />
+    </div>
+  )
+}
 
 const EMPTY_FORM = {
   role: 'azubi', active: true,
@@ -249,6 +303,9 @@ export default function UserProfileAdmin() {
               <FieldRow label="Über mich" value={user.about_me} />
               <FieldRow label="Sonstiges" value={user.misc_note} />
             </div>
+            {isAzubi && (currentUser?.is_super_admin || currentUser?.permissions?.includes('feedback.manage')) && (
+              <FeedbackSection azubiId={user.id} />
+            )}
           </div>
         </div>
       </div>

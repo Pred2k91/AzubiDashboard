@@ -34,11 +34,12 @@ function validateAnswers(questions, answers) {
 router.get('/', requirePermission('feedback.manage'), (req, res) => {
   try {
     const db = getDb()
-    const { kind, status } = req.query
+    const { kind, status, azubi_id } = req.query
     const clauses = []
     const params = []
     if (kind) { clauses.push('fi.kind = ?'); params.push(kind) }
     if (status) { clauses.push('fi.status = ?'); params.push(status) }
+    if (azubi_id) { clauses.push('fi.azubi_id = ?'); params.push(azubi_id) }
     const locIds = scopeLocationIds(req)
     if (locIds) {
       clauses.push(`fi.azubi_id IN (SELECT user_id FROM user_locations WHERE location_id IN ${idsClause(locIds)})`)
