@@ -135,6 +135,7 @@ export default function SettingsPage() {
   const [backgroundUrl, setBackgroundUrl] = useState(null)
   const [backgroundUrl2, setBackgroundUrl2] = useState(null)
   const [loginBackgroundUrl, setLoginBackgroundUrl] = useState(null)
+  const [pushIconUrl, setPushIconUrl] = useState(null)
   const [bgOpacity, setBgOpacity] = useState(0.5)
   const [widgetOpacity, setWidgetOpacity] = useState(0.85)
   const [nightDimEnabled, setNightDimEnabled] = useState(false)
@@ -168,6 +169,7 @@ export default function SettingsPage() {
       if (s.background_url) setBackgroundUrl(s.background_url)
       if (s.background_url_2) setBackgroundUrl2(s.background_url_2)
       if (s.login_background_url) setLoginBackgroundUrl(s.login_background_url)
+      if (s.push_icon_url) setPushIconUrl(s.push_icon_url)
       if (s.background_opacity !== undefined) setBgOpacity(s.background_opacity)
       if (s.widget_opacity !== undefined) setWidgetOpacity(s.widget_opacity)
       if (s.night_dim_enabled !== undefined) setNightDimEnabled(s.night_dim_enabled)
@@ -395,6 +397,14 @@ export default function SettingsPage() {
           settingKey="login_background"
           currentUrl={loginBackgroundUrl}
           onUpdate={setLoginBackgroundUrl}
+        />
+
+        <ImageUpload
+          label="Push-Icon"
+          description="Kleines quadratisches Icon (z.B. 192×192 PNG), wird in Push-Benachrichtigungen angezeigt — optional"
+          settingKey="push_icon"
+          currentUrl={pushIconUrl}
+          onUpdate={setPushIconUrl}
         />
 
         {backgroundUrl && (

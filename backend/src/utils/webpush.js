@@ -16,6 +16,15 @@ function ensureConfigured() {
   configured = true
 }
 
+// Liest die admin-konfigurierbare Icon-Einstellung (siehe SettingsPage "Push-Icon",
+// Upload über POST /api/upload/push_icon) -- wird für ALLE Push-Aufrufe automatisch
+// mit eingeblendet (icon UND badge), Aufrufer müssen sich darum nicht kümmern.
+function getPushIconUrl(db) {
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'push_icon_url'").get()
+  if (!row) return null
+  try { return JSON.parse(row.value) } catch { return null }
+}
+
 // Sendet eine Push-Nachricht an alle gespeicherten Subscriptions der angegebenen User-IDs.
 // Abgelaufene/ungültige Subscriptions (HTTP 404/410 vom Push-Dienst) werden dabei
 // automatisch aus push_subscriptions entfernt.
@@ -29,7 +38,8 @@ async function sendPushToUsers(userIds, payload) {
   const db = getDb()
   const placeholders = userIds.map(() => '?').join(',')
   const subs = db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${placeholders})`).all(...userIds)
-  const body = JSON.stringify(payload)
+  const iconUrl = getPushIconUrl(db)
+  const body = JSON.stringify(iconUrl ? { icon: iconUrl, badge: iconUrl, ...payload } : payload)
   let sent = 0
   for (const sub of subs) {
     try {

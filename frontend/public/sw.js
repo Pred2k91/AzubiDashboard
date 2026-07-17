@@ -7,6 +7,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'HERcademy'
   const options = {
     body: data.body || '',
+    ...(data.icon ? { icon: data.icon } : {}),
+    ...(data.badge ? { badge: data.badge } : {}),
   }
   event.waitUntil(self.registration.showNotification(title, options))
 })
