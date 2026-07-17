@@ -4,12 +4,19 @@ const api = axios.create({ baseURL: '/api', withCredentials: true })
 
 export const authApi = {
   login: (email, password) => api.post('/auth/login', { email, password }).then(r => r.data),
+  verifyTwoFactor: (pending_token, code) => api.post('/auth/login/verify-2fa', { pending_token, code }).then(r => r.data),
   logout: () => api.post('/auth/logout').then(r => r.data),
   me: () => api.get('/auth/me').then(r => r.data),
   changePassword: (currentPassword, newPassword) => api.post('/auth/change-password', { currentPassword, newPassword }).then(r => r.data),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }).then(r => r.data),
   resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }).then(r => r.data),
   updateEmail: (email) => api.put('/auth/me', { email }).then(r => r.data),
+}
+
+export const twoFactorApi = {
+  setup: () => api.post('/2fa/setup').then(r => r.data),
+  confirm: (code) => api.post('/2fa/confirm', { code }).then(r => r.data),
+  disable: () => api.post('/2fa/disable').then(r => r.data),
 }
 
 export const meApi = {

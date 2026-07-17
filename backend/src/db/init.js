@@ -190,6 +190,16 @@ function initDb() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    -- Merkt sich zwischen Passwort-Check und 2FA-Code-Eingabe, WELCHER Nutzer sich gerade
+    -- anmeldet -- ohne dass schon eine echte Session (Cookie) ausgestellt wird. Kurzlebig
+    -- (siehe PENDING_2FA_MINUTES in auth.js), wird nach erfolgreicher Verifikation gelöscht.
+    CREATE TABLE IF NOT EXISTS pending_2fa_logins (
+      token TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS report_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       azubi_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -316,6 +326,12 @@ function initDb() {
   try {
     db.prepare("UPDATE settings SET value = '\"HERcademy\"' WHERE key = 'dashboard_title' AND value = '\"Ausbildungsdashboard\"'").run()
   } catch (_) {}
+
+  // Migration: freiwillige Zwei-Faktor-Authentifizierung (TOTP) -- für alle Kontotypen
+  // optional, jeder verwaltet das selbst im eigenen Profil (kein erzwungenes 2FA).
+  try { db.exec("ALTER TABLE users ADD COLUMN totp_secret TEXT") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0") } catch (_) {}
+  try { db.exec("ALTER TABLE users ADD COLUMN totp_backup_codes TEXT") } catch (_) {}
 
   // Migration: lehrjahre-Spalte hinzufügen falls nicht vorhanden
   try { db.exec("ALTER TABLE school_blocks ADD COLUMN lehrjahre TEXT DEFAULT '[]'") } catch (_) {}

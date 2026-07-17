@@ -28,6 +28,7 @@ const notificationGroupsRoutes = require('./routes/notificationGroups')
 const pushRoutes = require('./routes/push')
 const feedbackTemplatesRoutes = require('./routes/feedbackTemplates')
 const feedbackRoutes = require('./routes/feedback')
+const twoFactorRoutes = require('./routes/twoFactor')
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -65,6 +66,7 @@ app.use('/api/notification-groups', notificationGroupsRoutes)
 app.use('/api/feedback-templates', feedbackTemplatesRoutes)
 app.use('/api/feedback', feedbackRoutes)
 app.use('/api/push', pushRoutes)
+app.use('/api/2fa', twoFactorRoutes)
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })

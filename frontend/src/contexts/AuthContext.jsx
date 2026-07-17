@@ -15,7 +15,14 @@ export function AuthProvider({ children }) {
   }, [])
 
   const login = useCallback(async (email, password) => {
-    const { user } = await authApi.login(email, password)
+    const result = await authApi.login(email, password)
+    if (result.requires_2fa) return result
+    setUser(result.user)
+    return result.user
+  }, [])
+
+  const completeTwoFactorLogin = useCallback(async (pendingToken, code) => {
+    const { user } = await authApi.verifyTwoFactor(pendingToken, code)
     setUser(user)
     return user
   }, [])
@@ -32,7 +39,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refresh }}>
+    <AuthContext.Provider value={{ user, loading, login, completeTwoFactorLogin, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   )

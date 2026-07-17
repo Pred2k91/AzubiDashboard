@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { Mail, KeyRound, User, Camera, Bell } from 'lucide-react'
+import { Mail, KeyRound, User, Camera, Bell, ShieldCheck } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
-import { authApi, meApi, pushApi } from '../api/client'
+import { authApi, meApi, pushApi, twoFactorApi } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
 function urlBase64ToUint8Array(base64String) {
@@ -37,6 +37,13 @@ export default function ProfilePage() {
   const [profileLoading, setProfileLoading] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const fileInputRef = useRef(null)
+
+  const [twoFaSetupStep, setTwoFaSetupStep] = useState(null) // null | 'qr' | 'backup-codes'
+  const [twoFaData, setTwoFaData] = useState(null)
+  const [twoFaCode, setTwoFaCode] = useState('')
+  const [twoFaBackupCodes, setTwoFaBackupCodes] = useState([])
+  const [twoFaError, setTwoFaError] = useState('')
+  const [twoFaLoading, setTwoFaLoading] = useState(false)
 
   const [pushSupported, setPushSupported] = useState(false)
   const [pushSubscribed, setPushSubscribed] = useState(false)
@@ -148,6 +155,64 @@ export default function ProfilePage() {
       setPasswordError(err.response?.data?.error || 'Ändern fehlgeschlagen')
     } finally {
       setPasswordLoading(false)
+    }
+  }
+
+  const handleTwoFaSetupStart = async () => {
+    setTwoFaError('')
+    setTwoFaLoading(true)
+    try {
+      const data = await twoFactorApi.setup()
+      setTwoFaData(data)
+      setTwoFaSetupStep('qr')
+    } catch (err) {
+      setTwoFaError(err.response?.data?.error || 'Einrichtung fehlgeschlagen')
+    } finally {
+      setTwoFaLoading(false)
+    }
+  }
+
+  const handleTwoFaConfirm = async (e) => {
+    e.preventDefault()
+    setTwoFaError('')
+    setTwoFaLoading(true)
+    try {
+      const { backup_codes } = await twoFactorApi.confirm(twoFaCode)
+      setTwoFaBackupCodes(backup_codes)
+      setTwoFaSetupStep('backup-codes')
+      setTwoFaCode('')
+      await refresh()
+    } catch (err) {
+      setTwoFaError(err.response?.data?.error || 'Code falsch')
+    } finally {
+      setTwoFaLoading(false)
+    }
+  }
+
+  const handleTwoFaCancel = () => {
+    setTwoFaSetupStep(null)
+    setTwoFaData(null)
+    setTwoFaCode('')
+    setTwoFaError('')
+  }
+
+  const handleTwoFaFinish = () => {
+    setTwoFaSetupStep(null)
+    setTwoFaData(null)
+    setTwoFaBackupCodes([])
+  }
+
+  const handleTwoFaDisable = async () => {
+    if (!window.confirm('Zwei-Faktor-Authentifizierung wirklich deaktivieren?')) return
+    setTwoFaError('')
+    setTwoFaLoading(true)
+    try {
+      await twoFactorApi.disable()
+      await refresh()
+    } catch (err) {
+      setTwoFaError(err.response?.data?.error || 'Deaktivieren fehlgeschlagen')
+    } finally {
+      setTwoFaLoading(false)
     }
   }
 
@@ -392,6 +457,78 @@ export default function ProfilePage() {
                   {passwordLoading ? 'Speichern...' : 'Passwort ändern'}
                 </button>
               </div>
+            </div>
+
+            <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-4">
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                <ShieldCheck size={14} className="text-slate-400" />
+                Zwei-Faktor-Authentifizierung
+              </h2>
+
+              {twoFaSetupStep === 'qr' && twoFaData ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-500">
+                    QR-Code mit einer Authenticator-App scannen (z.B. Microsoft Authenticator, Google Authenticator)
+                    und den 6-stelligen Code zur Bestätigung eingeben.
+                  </p>
+                  <img src={twoFaData.qr_code_data_url} alt="QR-Code" className="rounded-lg border border-[#2a2d4a] bg-white p-2 w-40 h-40" />
+                  <div>
+                    <label className="label">Secret (falls Scannen nicht möglich)</label>
+                    <div className="input-field font-mono text-xs break-all">{twoFaData.secret}</div>
+                  </div>
+                  <form onSubmit={handleTwoFaConfirm} className="space-y-3">
+                    <div>
+                      <label className="label">Bestätigungscode</label>
+                      <input
+                        type="text" inputMode="numeric" required autoFocus className="input-field max-w-[160px] text-center tracking-widest"
+                        value={twoFaCode} onChange={e => setTwoFaCode(e.target.value)}
+                      />
+                    </div>
+                    {twoFaError && <p className="text-sm text-red-400">{twoFaError}</p>}
+                    <div className="flex gap-2">
+                      <button type="submit" disabled={twoFaLoading} className="btn-primary">
+                        {twoFaLoading ? 'Prüfe...' : 'Aktivieren'}
+                      </button>
+                      <button type="button" onClick={handleTwoFaCancel} className="btn-secondary">
+                        Abbrechen
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : twoFaSetupStep === 'backup-codes' ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-green-400">Aktiviert.</p>
+                  <p className="text-xs text-slate-500">
+                    Backup-Codes für den Fall, dass du dein Gerät verlierst -- jeder Code funktioniert einmalig.
+                    Jetzt speichern, sie werden nur dieses eine Mal angezeigt.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 font-mono text-xs bg-[#0d0f1a] border border-[#2a2d4a] rounded-lg p-3">
+                    {twoFaBackupCodes.map(code => <div key={code}>{code}</div>)}
+                  </div>
+                  <button type="button" onClick={handleTwoFaFinish} className="btn-primary">
+                    Ich habe die Codes gespeichert
+                  </button>
+                </div>
+              ) : user?.totp_enabled ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-green-400">Aktiviert.</p>
+                  {twoFaError && <p className="text-sm text-red-400">{twoFaError}</p>}
+                  <button type="button" onClick={handleTwoFaDisable} disabled={twoFaLoading} className="btn-secondary">
+                    {twoFaLoading ? '...' : 'Deaktivieren'}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-500">
+                    Freiwillig -- schützt dein Konto zusätzlich mit einem Code aus einer Authenticator-App
+                    (z.B. Microsoft Authenticator, Google Authenticator) beim Anmelden.
+                  </p>
+                  {twoFaError && <p className="text-sm text-red-400">{twoFaError}</p>}
+                  <button type="button" onClick={handleTwoFaSetupStart} disabled={twoFaLoading} className="btn-primary">
+                    {twoFaLoading ? 'Lädt...' : '2FA einrichten'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

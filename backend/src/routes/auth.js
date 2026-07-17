@@ -5,10 +5,12 @@ const bcrypt = require('bcryptjs')
 const { getDb } = require('../db/init')
 const { requireAuth, attachPermissions } = require('../middleware/auth')
 const { sendMail } = require('../utils/mailer')
+const { verifyTotpCode, consumeBackupCode } = require('../utils/totp')
 
 const SESSION_DAYS = 30
 const COOKIE_NAME = 'sid'
 const RESET_TOKEN_HOURS = 1
+const PENDING_2FA_MINUTES = 10
 
 function createSession(db, userId, userAgent) {
   const id = crypto.randomBytes(32).toString('hex')
@@ -38,7 +40,15 @@ function publicUser(u) {
     permission_role_id: u.permission_role_id || null,
     permissions: u.permissions ? [...u.permissions] : [],
     location_ids: u.locationIds || [],
+    totp_enabled: !!u.totp_enabled,
   }
+}
+
+function finishLogin(req, res, db, user) {
+  const session = createSession(db, user.id, req.headers['user-agent'])
+  setSessionCookie(res, session)
+  db.prepare("UPDATE users SET last_login_at = datetime('now') WHERE id = ?").run(user.id)
+  res.json({ user: publicUser(attachPermissions(db, user)) })
 }
 
 router.post('/login', (req, res) => {
@@ -50,10 +60,47 @@ router.post('/login', (req, res) => {
     if (!user || !user.active || !user.password_hash || !bcrypt.compareSync(password, user.password_hash)) {
       return res.status(401).json({ error: 'E-Mail oder Passwort falsch' })
     }
-    const session = createSession(db, user.id, req.headers['user-agent'])
-    setSessionCookie(res, session)
-    db.prepare("UPDATE users SET last_login_at = datetime('now') WHERE id = ?").run(user.id)
-    res.json({ user: publicUser(attachPermissions(db, user)) })
+
+    if (user.totp_enabled) {
+      const pendingToken = crypto.randomBytes(32).toString('hex')
+      const expires = new Date(Date.now() + PENDING_2FA_MINUTES * 60 * 1000).toISOString()
+      db.prepare('INSERT INTO pending_2fa_logins (token, user_id, expires_at) VALUES (?, ?, ?)')
+        .run(pendingToken, user.id, expires)
+      return res.json({ requires_2fa: true, pending_token: pendingToken })
+    }
+
+    finishLogin(req, res, db, user)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+router.post('/login/verify-2fa', (req, res) => {
+  try {
+    const { pending_token, code } = req.body
+    if (!pending_token || !code) return res.status(400).json({ error: 'Code erforderlich' })
+    const db = getDb()
+    const pending = db.prepare('SELECT * FROM pending_2fa_logins WHERE token = ?').get(pending_token)
+    if (!pending || new Date(pending.expires_at) < new Date()) {
+      if (pending) db.prepare('DELETE FROM pending_2fa_logins WHERE token = ?').run(pending_token)
+      return res.status(401).json({ error: 'Anmeldung abgelaufen, bitte erneut mit E-Mail/Passwort anmelden' })
+    }
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(pending.user_id)
+    if (!user || !user.active || !user.totp_enabled) {
+      db.prepare('DELETE FROM pending_2fa_logins WHERE token = ?').run(pending_token)
+      return res.status(401).json({ error: 'Ungültige Anfrage' })
+    }
+
+    let valid = verifyTotpCode(user.totp_secret, code)
+    if (!valid) {
+      const remainingBackupCodes = consumeBackupCode(JSON.parse(user.totp_backup_codes || '[]'), code)
+      if (remainingBackupCodes) {
+        valid = true
+        db.prepare('UPDATE users SET totp_backup_codes = ? WHERE id = ?').run(JSON.stringify(remainingBackupCodes), user.id)
+      }
+    }
+    if (!valid) return res.status(401).json({ error: 'Code falsch' })
+
+    db.prepare('DELETE FROM pending_2fa_logins WHERE token = ?').run(pending_token)
+    finishLogin(req, res, db, user)
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
