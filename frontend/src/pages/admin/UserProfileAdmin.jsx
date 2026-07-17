@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Pencil, KeyRound, Camera, Phone, Smartphone, Mail, MapPin, Trash2, MessageSquareText, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Pencil, KeyRound, Camera, Phone, Smartphone, Mail, MapPin, Trash2, MessageSquareText, RotateCcw, Bell } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { usersApi, locationsApi, departmentsApi, permissionRolesApi, feedbackApi } from '../../api/client'
@@ -90,6 +90,8 @@ export default function UserProfileAdmin() {
   const [error, setError] = useState('')
   const [revealPassword, setRevealPassword] = useState(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [pushTestLoading, setPushTestLoading] = useState(false)
+  const [pushTestResult, setPushTestResult] = useState('')
 
   const load = () => Promise.all([usersApi.getOne(id), locationsApi.getAll(), departmentsApi.getAll(), permissionRolesApi.getAll()])
     .then(([u, locs, depts, rls]) => { setUser(u); setLocations(locs); setDepartments(depts); setRoles(rls) })
@@ -173,6 +175,19 @@ export default function UserProfileAdmin() {
     setRevealPassword(res.generated_password)
   }
 
+  const handleTestPush = async () => {
+    setPushTestResult('')
+    setPushTestLoading(true)
+    try {
+      await usersApi.testPush(id)
+      setPushTestResult('Test-Benachrichtigung gesendet.')
+    } catch (err) {
+      setPushTestResult(err.response?.data?.error || 'Versand fehlgeschlagen')
+    } finally {
+      setPushTestLoading(false)
+    }
+  }
+
   const handleDelete = async () => {
     await usersApi.delete(id)
     navigate('/admin/users')
@@ -246,6 +261,21 @@ export default function UserProfileAdmin() {
             <KeyRound size={14} />
             Passwort zurücksetzen
           </button>
+          <div>
+            <button
+              className="btn-secondary w-full justify-center"
+              onClick={handleTestPush}
+              disabled={pushTestLoading || !user.has_push_subscription}
+              title={user.has_push_subscription ? undefined : 'Kein Gerät für Push-Benachrichtigungen aktiviert'}
+            >
+              <Bell size={14} />
+              {pushTestLoading ? 'Sende...' : 'Test-Push senden'}
+            </button>
+            {!user.has_push_subscription && (
+              <p className="text-xs text-slate-600 mt-1 text-center">Kein Gerät registriert</p>
+            )}
+            {pushTestResult && <p className="text-xs text-slate-400 mt-1 text-center">{pushTestResult}</p>}
+          </div>
           {user.id !== currentUser?.id && (
             <button className="btn-secondary w-full justify-center hover:text-red-400 hover:border-red-500/30" onClick={() => setDeleteOpen(true)}>
               <Trash2 size={14} />

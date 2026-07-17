@@ -8,6 +8,7 @@ const fs = require('fs')
 const { getDb } = require('../db/init')
 const { requireRole, hasPermission, scopeLocationIds, idsClause } = require('../middleware/auth')
 const { sendMail } = require('../utils/mailer')
+const { sendPushToUsers, isConfigured } = require('../utils/webpush')
 const { UPLOADS_DIR } = require('./upload')
 
 router.use(requireRole('ausbilder'))
@@ -132,7 +133,8 @@ router.get('/:id', (req, res) => {
         return res.status(404).json({ error: 'Nicht gefunden' })
       }
     }
-    res.json({ ...user, locations })
+    const hasPushSub = !!db.prepare('SELECT 1 FROM push_subscriptions WHERE user_id = ?').get(req.params.id)
+    res.json({ ...user, locations, has_push_subscription: hasPushSub })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
@@ -265,6 +267,27 @@ router.post('/:id/reset-password', requireTargetEditPermission, (req, res) => {
     db.prepare('UPDATE users SET password_hash=?, must_change_password=1 WHERE id=?').run(hash, req.params.id)
     db.prepare('DELETE FROM sessions WHERE user_id = ?').run(req.params.id)
     res.json({ success: true, generated_password: password })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Test-Push an ein FREMDES Konto -- z.B. um bei einem Ausbilder/Azubi zu prüfen, ob dessen
+// aktiviertes Gerät Benachrichtigungen wirklich empfängt, ohne dass die Person sich selbst
+// im Profil einen Test schicken muss (bereits vorhanden: POST /api/push/test, nur für sich selbst).
+router.post('/:id/test-push', requireTargetEditPermission, async (req, res) => {
+  try {
+    if (!isConfigured()) {
+      return res.status(400).json({ error: 'Push ist serverseitig noch nicht eingerichtet (VAPID-Schlüssel fehlen).' })
+    }
+    const db = getDb()
+    const hasSub = db.prepare('SELECT 1 FROM push_subscriptions WHERE user_id = ?').get(req.params.id)
+    if (!hasSub) {
+      return res.status(400).json({ error: 'Dieser Nutzer hat noch kein Gerät für Push-Benachrichtigungen aktiviert.' })
+    }
+    const result = await sendPushToUsers([Number(req.params.id)], {
+      title: 'Test-Benachrichtigung',
+      body: 'Ein Admin hat dir eine Test-Benachrichtigung geschickt.',
+    })
+    res.json({ success: true, sent: result.sent })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 

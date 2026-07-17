@@ -55,6 +55,7 @@ export const usersApi = {
     return api.post(`/users/${id}/avatar`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
   },
   resetPassword: (id) => api.post(`/users/${id}/reset-password`).then(r => r.data),
+  testPush: (id) => api.post(`/users/${id}/test-push`).then(r => r.data),
   delete: (id) => api.delete(`/users/${id}`).then(r => r.data),
 }
 
