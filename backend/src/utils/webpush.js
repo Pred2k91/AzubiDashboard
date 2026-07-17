@@ -16,9 +16,12 @@ function ensureConfigured() {
   configured = true
 }
 
-// Liest die admin-konfigurierbare Icon-Einstellung (siehe SettingsPage "Push-Icon",
-// Upload über POST /api/upload/push_icon) -- wird für ALLE Push-Aufrufe automatisch
-// mit eingeblendet (icon UND badge), Aufrufer müssen sich darum nicht kümmern.
+// Liest die admin-konfigurierbare Icon-Einstellung (siehe SettingsPage "Push-/App-Icon",
+// Upload über POST /api/upload/push_icon) -- wird für ALLE Push-Aufrufe automatisch als
+// badge (kleines Icon) mit eingeblendet, Aufrufer müssen sich darum nicht kümmern.
+// Bewusst KEIN "icon" (großes Bild in der Benachrichtigung) -- als installierte PWA zeigt
+// Android ohnehin schon das App-Icon zur Identifikation an, ein zusätzliches großes Bild
+// wirkte doppelt gemoppelt.
 function getPushIconUrl(db) {
   const row = db.prepare("SELECT value FROM settings WHERE key = 'push_icon_url'").get()
   if (!row) return null
@@ -39,7 +42,7 @@ async function sendPushToUsers(userIds, payload) {
   const placeholders = userIds.map(() => '?').join(',')
   const subs = db.prepare(`SELECT * FROM push_subscriptions WHERE user_id IN (${placeholders})`).all(...userIds)
   const iconUrl = getPushIconUrl(db)
-  const body = JSON.stringify(iconUrl ? { icon: iconUrl, badge: iconUrl, ...payload } : payload)
+  const body = JSON.stringify(iconUrl ? { badge: iconUrl, ...payload } : payload)
   let sent = 0
   for (const sub of subs) {
     try {
