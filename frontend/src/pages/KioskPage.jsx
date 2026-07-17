@@ -41,7 +41,7 @@ export default function KioskPage() {
   const [widgetsEnabled, setWidgetsEnabled] = useState({
     clock: true, calendar: true, todos: true, departments: true, notes: true, announcements: true, reports: false,
   })
-  const [title, setTitle] = useState('Ausbildungsdashboard')
+  const [title, setTitle] = useState('HERcademy')
   const [kioskZoom, setKioskZoom] = useState(100)
   const [logoUrl, setLogoUrl] = useState(null)
   const [backgroundUrl, setBackgroundUrl] = useState(null)

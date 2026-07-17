@@ -4,7 +4,7 @@
 self.addEventListener('push', (event) => {
   let data = {}
   try { data = event.data ? event.data.json() : {} } catch (_) {}
-  const title = data.title || 'Ausbildungsdashboard'
+  const title = data.title || 'HERcademy'
   const options = {
     body: data.body || '',
   }

@@ -166,8 +166,8 @@ router.post('/', (req, res) => {
     if (send_email) {
       sendMail({
         to: email,
-        subject: 'Dein Zugang zum Ausbildungsdashboard',
-        text: `Hallo,\n\nfür dich wurde ein Konto im Ausbildungsdashboard angelegt.\n\nE-Mail: ${email}\nEinmalpasswort: ${password}\n\nBitte melde dich an und ändere das Passwort bei der ersten Anmeldung.`,
+        subject: 'Dein Zugang zu HERcademy',
+        text: `Hallo,\n\nfür dich wurde ein Konto in HERcademy angelegt.\n\nE-Mail: ${email}\nEinmalpasswort: ${password}\n\nBitte melde dich an und ändere das Passwort bei der ersten Anmeldung.`,
       }).catch(err => console.error('[mailer] Fehler beim Versand:', err.message))
     }
 

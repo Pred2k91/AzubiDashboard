@@ -306,10 +306,16 @@ function initDb() {
       ('report_alert_days', '28'),
       ('kiosk_layout', '[]'),
       ('theme_accent', '"#6366f1"'),
-      ('dashboard_title', '"Ausbildungsdashboard"'),
+      ('dashboard_title', '"HERcademy"'),
       ('refresh_interval', '300000'),
       ('widgets_enabled', '{"clock":true,"calendar":true,"todos":true,"departments":true,"notes":true}');
   `)
+
+  // Migration: Produkt-Umbenennung in "HERcademy" -- nur überschreiben, wenn der Titel noch
+  // auf dem alten Default steht (ein vom Admin bereits individuell gesetzter Titel bleibt erhalten).
+  try {
+    db.prepare("UPDATE settings SET value = '\"HERcademy\"' WHERE key = 'dashboard_title' AND value = '\"Ausbildungsdashboard\"'").run()
+  } catch (_) {}
 
   // Migration: lehrjahre-Spalte hinzufügen falls nicht vorhanden
   try { db.exec("ALTER TABLE school_blocks ADD COLUMN lehrjahre TEXT DEFAULT '[]'") } catch (_) {}

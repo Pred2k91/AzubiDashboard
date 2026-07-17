@@ -3,7 +3,7 @@ version: '3.8'
 services:
   backend:
     build: ./backend
-    container_name: dashboard-backend
+    container_name: hercademy-backend
     restart: unless-stopped
     volumes:
       - sqlite-data:/data
@@ -35,24 +35,24 @@ services:
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@example.com}
     networks:
-      - dashboard-net
+      - hercademy-net
 
   frontend:
     build: ./frontend
-    container_name: dashboard-frontend
+    container_name: hercademy-frontend
     restart: unless-stopped
     ports:
       - "3000:80"
     depends_on:
       - backend
     networks:
-      - dashboard-net
+      - hercademy-net
 
   # Optionaler TLS-Reverse-Proxy — startet NUR mit "docker compose --profile tls up".
   # Siehe Caddyfile für Aktivierungsschritte.
   caddy:
     image: caddy:2-alpine
-    container_name: dashboard-caddy
+    container_name: hercademy-caddy
     restart: unless-stopped
     profiles: ["tls"]
     ports:
@@ -70,10 +70,10 @@ services:
     depends_on:
       - frontend
     networks:
-      - dashboard-net
+      - hercademy-net
 
 networks:
-  dashboard-net:
+  hercademy-net:
     driver: bridge
 
 volumes:

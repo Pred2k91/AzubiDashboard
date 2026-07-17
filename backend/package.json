@@ -1,7 +1,7 @@
 {
-  "name": "dashboard-backend",
+  "name": "hercademy-backend",
   "version": "1.0.0",
-  "description": "Ausbildungsdashboard Backend",
+  "description": "HERcademy Backend",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

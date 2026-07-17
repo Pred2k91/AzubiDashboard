@@ -86,7 +86,7 @@ router.get('/reports.xlsx', requirePermission('reports.export'), async (req, res
     const statusLabel = { draft: 'In Erstellung', submitted: 'Eingereicht', approved: 'Freigegeben', rejected: 'Abgelehnt' }
 
     const workbook = new ExcelJS.Workbook()
-    workbook.creator = 'AzubiDashboard'
+    workbook.creator = 'HERcademy'
     workbook.created = new Date()
     const sheet = workbook.addWorksheet('Berichtshefte')
 

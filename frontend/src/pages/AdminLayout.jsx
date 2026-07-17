@@ -1,8 +1,8 @@
-import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, CalendarDays, CheckSquare, StickyNote,
-  Users, Building2, Settings, ExternalLink, GraduationCap, Megaphone, BookOpen,
+  Users, Building2, Settings, GraduationCap, Megaphone, BookOpen,
   UserCog, UserCircle, LogOut, Menu, X, Landmark, ShieldCheck, Zap, MessageSquareText,
 } from 'lucide-react'
 import { settingsApi } from '../api/client'
@@ -114,10 +114,6 @@ export default function AdminLayout() {
           <UserCircle size={16} />
           Mein Profil
         </NavLink>
-        <Link to="/kiosk" className="nav-item" onClick={onNavigate}>
-          <ExternalLink size={16} />
-          Kiosk-Ansicht
-        </Link>
         <button onClick={() => { onNavigate?.(); handleLogout() }} className="nav-item w-full text-left">
           <LogOut size={16} />
           Abmelden

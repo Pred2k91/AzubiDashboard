@@ -1,5 +1,5 @@
-import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, BookOpen, UserCircle, LogOut, ExternalLink, MessageSquareText } from 'lucide-react'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { LayoutDashboard, BookOpen, UserCircle, LogOut, MessageSquareText } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 const NAV = [
@@ -52,10 +52,6 @@ export default function PortalLayout() {
           {user && (
             <div className="px-3 py-1.5 text-xs text-slate-600 truncate">{user.email}</div>
           )}
-          <Link to="/kiosk" className="nav-item">
-            <ExternalLink size={16} />
-            Kiosk-Ansicht
-          </Link>
           <button onClick={handleLogout} className="nav-item w-full text-left">
             <LogOut size={16} />
             Abmelden

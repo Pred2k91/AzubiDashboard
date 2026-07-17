@@ -127,7 +127,7 @@ export default function SettingsPage() {
   const [escalationBody, setEscalationBody] = useState(DEFAULT_ESCALATION_BODY)
   const [weatherCity, setWeatherCity] = useState('')
   const [weatherApiKey, setWeatherApiKey] = useState('')
-  const [title, setTitle] = useState('Ausbildungsdashboard')
+  const [title, setTitle] = useState('HERcademy')
   const [trainerName, setTrainerName] = useState('')
   const [accent, setAccent] = useState('#6366f1')
   const [refreshInterval, setRefreshInterval] = useState(300000)
@@ -238,7 +238,7 @@ export default function SettingsPage() {
             className="input-field"
             value={title}
             onChange={e => setTitle(e.target.value)}
-            placeholder="Ausbildungsdashboard"
+            placeholder="HERcademy"
           />
           <p className="text-xs text-slate-600 mt-1">Wird im Header der Kiosk-Ansicht angezeigt</p>
         </div>
