@@ -45,10 +45,14 @@ function publicUser(u) {
 }
 
 function finishLogin(req, res, db, user) {
+  // user.last_login_at ist hier noch der Stand VOR diesem Login (aus dem SELECT weiter oben) --
+  // war er noch nie gesetzt, ist das der allererste Login dieses Kontos (z.B. für den
+  // automatischen Push-Aktivierungsversuch im Frontend relevant).
+  const firstLogin = !user.last_login_at
   const session = createSession(db, user.id, req.headers['user-agent'])
   setSessionCookie(res, session)
   db.prepare("UPDATE users SET last_login_at = datetime('now') WHERE id = ?").run(user.id)
-  res.json({ user: publicUser(attachPermissions(db, user)) })
+  res.json({ user: publicUser(attachPermissions(db, user)), first_login: firstLogin })
 }
 
 router.post('/login', (req, res) => {

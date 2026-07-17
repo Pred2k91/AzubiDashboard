@@ -18,13 +18,13 @@ export function AuthProvider({ children }) {
     const result = await authApi.login(email, password)
     if (result.requires_2fa) return result
     setUser(result.user)
-    return result.user
+    return { ...result.user, first_login: result.first_login }
   }, [])
 
   const completeTwoFactorLogin = useCallback(async (pendingToken, code) => {
-    const { user } = await authApi.verifyTwoFactor(pendingToken, code)
-    setUser(user)
-    return user
+    const result = await authApi.verifyTwoFactor(pendingToken, code)
+    setUser(result.user)
+    return { ...result.user, first_login: result.first_login }
   }, [])
 
   const logout = useCallback(async () => {

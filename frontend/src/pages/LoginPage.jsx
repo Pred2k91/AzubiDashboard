@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { LogIn, Lock, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { settingsApi } from '../api/client'
+import { isPushSupported, subscribeToPush } from '../utils/push'
 
 export default function LoginPage() {
   const { login, completeTwoFactorLogin } = useAuth()
@@ -25,6 +26,11 @@ export default function LoginPage() {
   }, [])
 
   const proceedAfterLogin = (loggedInUser) => {
+    // Bester Versuch, stillschweigend -- lehnt der Browser die Berechtigung ab (oder fehlt
+    // die Nutzer-Geste), kann man Push-Benachrichtigungen weiterhin manuell im Profil aktivieren.
+    if (loggedInUser.first_login && isPushSupported()) {
+      subscribeToPush().catch(() => {})
+    }
     const from = location.state?.from?.pathname
     if (loggedInUser.must_change_password) {
       navigate('/change-password', { replace: true })
