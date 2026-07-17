@@ -134,6 +134,7 @@ export default function SettingsPage() {
   const [logoUrl, setLogoUrl] = useState(null)
   const [backgroundUrl, setBackgroundUrl] = useState(null)
   const [backgroundUrl2, setBackgroundUrl2] = useState(null)
+  const [loginBackgroundUrl, setLoginBackgroundUrl] = useState(null)
   const [bgOpacity, setBgOpacity] = useState(0.5)
   const [widgetOpacity, setWidgetOpacity] = useState(0.85)
   const [nightDimEnabled, setNightDimEnabled] = useState(false)
@@ -166,6 +167,7 @@ export default function SettingsPage() {
       if (s.logo_url) setLogoUrl(s.logo_url)
       if (s.background_url) setBackgroundUrl(s.background_url)
       if (s.background_url_2) setBackgroundUrl2(s.background_url_2)
+      if (s.login_background_url) setLoginBackgroundUrl(s.login_background_url)
       if (s.background_opacity !== undefined) setBgOpacity(s.background_opacity)
       if (s.widget_opacity !== undefined) setWidgetOpacity(s.widget_opacity)
       if (s.night_dim_enabled !== undefined) setNightDimEnabled(s.night_dim_enabled)
@@ -385,6 +387,14 @@ export default function SettingsPage() {
           settingKey="background2"
           currentUrl={backgroundUrl2}
           onUpdate={setBackgroundUrl2}
+        />
+
+        <ImageUpload
+          label="Login-Hintergrundbild"
+          description="Wird als Hintergrund auf dem Anmelde-Bildschirm angezeigt — optional"
+          settingKey="login_background"
+          currentUrl={loginBackgroundUrl}
+          onUpdate={setLoginBackgroundUrl}
         />
 
         {backgroundUrl && (

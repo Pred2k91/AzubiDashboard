@@ -12,6 +12,7 @@ const KEY_MAP = {
   logo: 'logo_url',
   background: 'background_url',
   background2: 'background_url_2',
+  login_background: 'login_background_url',
 }
 
 const storage = multer.diskStorage({
