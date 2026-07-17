@@ -80,7 +80,19 @@ router.get('/calendar', requireAuth, (req, res) => {
           WHERE ea.azubi_id = ?
           ORDER BY ce.start_datetime ASC
         `).all(u.id)
-    res.json({ linked: true, events })
+    // Frühester Schulblock, der noch nicht vorbei ist (läuft gerade ODER liegt in der
+    // Zukunft) -- Zuordnung Azubi<->Block ausschließlich über school_block_azubis
+    // (die lehrjahre-Spalte auf school_blocks wird nirgends ausgewertet).
+    const nextSchoolBlock = db.prepare(`
+      SELECT sb.id, sb.start_date, sb.end_date, sb.notes, vs.name as school_name, vs.color as school_color
+      FROM school_blocks sb
+      JOIN vocational_schools vs ON vs.id = sb.school_id
+      JOIN school_block_azubis sba ON sba.block_id = sb.id
+      WHERE sba.azubi_id = ? AND sb.end_date >= date('now')
+      ORDER BY sb.start_date ASC
+      LIMIT 1
+    `).get(u.id) || null
+    res.json({ linked: true, events, next_school_block: nextSchoolBlock })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, ArrowRight, BookOpen, CalendarDays, CheckCircle, AlertTriangle, MessageSquareText } from 'lucide-react'
+import { Building2, ArrowRight, BookOpen, CalendarDays, CheckCircle, AlertTriangle, MessageSquareText, GraduationCap } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { meApi, feedbackApi } from '../../api/client'
@@ -16,6 +16,7 @@ export default function PortalDashboard() {
   const [team, setTeam] = useState(null)
   const [reports, setReports] = useState(null)
   const [events, setEvents] = useState([])
+  const [nextSchoolBlock, setNextSchoolBlock] = useState(null)
   const [pendingFeedback, setPendingFeedback] = useState([])
   const [loaded, setLoaded] = useState(false)
 
@@ -32,6 +33,7 @@ export default function PortalDashboard() {
       setTeam(t)
       setReports(r)
       setEvents((c.events || []).filter(e => e.start_datetime >= today).slice(0, 5))
+      setNextSchoolBlock(c.next_school_block || null)
       setPendingFeedback(feedback.filter(f => f.status === 'pending'))
     }).catch(() => {}).finally(() => setLoaded(true))
   }, [])
@@ -132,6 +134,17 @@ export default function PortalDashboard() {
           <CalendarDays size={14} className="text-indigo-400" />
           Meine nächsten Termine
         </h2>
+        {nextSchoolBlock && (
+          <div className="flex items-center gap-2 mb-3 pb-3 border-b border-[#2a2d4a]/50">
+            <GraduationCap size={14} className="shrink-0" style={{ color: nextSchoolBlock.school_color }} />
+            <span className="text-sm">
+              <span className="font-medium" style={{ color: nextSchoolBlock.school_color }}>{nextSchoolBlock.school_name}</span>
+              <span className="text-slate-400">
+                {' '}· {format(parseISO(nextSchoolBlock.start_date), 'dd.MM.', { locale: de })}–{format(parseISO(nextSchoolBlock.end_date), 'dd.MM.yyyy', { locale: de })}
+              </span>
+            </span>
+          </div>
+        )}
         {events.length === 0 ? (
           <p className="text-sm text-slate-600 text-center py-4">Keine anstehenden Termine</p>
         ) : (
