@@ -293,10 +293,10 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* 2 Spalten: links Persönliche Daten/Kontaktdaten, rechts Weitere Informationen/E-Mail/Passwort.
+        {/* 3 Spalten: Persönliche/Kontaktdaten, Über mich/E-Mail, Benachrichtigungen/Sicherheit.
             Bewusst kein <form>-Element hier -- die Kontaktkarten weiter unten (E-Mail/Passwort) haben
             eigene Speichern-Aktionen und dürften sonst nicht verschachtelt sein (kein form-Nesting in HTML). */}
-        <div className="flex-1 min-w-0 grid md:grid-cols-2 gap-4 items-start">
+        <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
           <div className="space-y-4">
             <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-4">
               <h2 className="text-sm font-semibold text-white">Persönliche Daten</h2>
@@ -406,7 +406,9 @@ export default function ProfilePage() {
                 </button>
               </div>
             </div>
+          </div>
 
+          <div className="space-y-4">
             {pushSupported && (
               <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
                 <h2 className="text-sm font-semibold text-white flex items-center gap-2">
