@@ -9,6 +9,17 @@ const NAV = [
   { to: '/portal/profile', label: 'Mein Profil', icon: UserCircle },
 ]
 
+function HeaderIcon({ user }) {
+  if (user?.avatar_url) {
+    return <img src={user.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+  }
+  return (
+    <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
+      <LayoutDashboard size={14} className="text-white" />
+    </div>
+  )
+}
+
 export default function PortalLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -24,9 +35,7 @@ export default function PortalLayout() {
       <aside className="hidden md:flex md:w-56 shrink-0 flex-col border-r border-[#2a2d4a] bg-[#0d0f1a]">
         <div className="px-4 py-5 border-b border-[#2a2d4a]">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
-              <LayoutDashboard size={14} className="text-white" />
-            </div>
+            <HeaderIcon user={user} />
             <div>
               <div className="text-sm font-bold text-white leading-tight">Mein Bereich</div>
               <div className="text-[10px] text-slate-600">Azubi-Portal</div>
@@ -62,9 +71,7 @@ export default function PortalLayout() {
       {/* Kopfzeile — nur unterhalb von md (Smartphone) */}
       <header className="md:hidden shrink-0 flex items-center justify-between px-4 py-3 border-b border-[#2a2d4a] bg-[#0d0f1a]">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
-            <LayoutDashboard size={14} className="text-white" />
-          </div>
+          <HeaderIcon user={user} />
           <span className="text-sm font-bold text-white">Mein Bereich</span>
         </div>
         <button onClick={handleLogout} className="p-2 rounded-lg text-slate-500 hover:text-white hover:bg-[#1e2035]">

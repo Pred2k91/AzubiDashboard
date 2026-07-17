@@ -41,6 +41,7 @@ function publicUser(u) {
     permissions: u.permissions ? [...u.permissions] : [],
     location_ids: u.locationIds || [],
     totp_enabled: !!u.totp_enabled,
+    avatar_url: u.avatar_url || null,
   }
 }
 

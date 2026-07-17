@@ -228,7 +228,7 @@ export default function ProfilePage() {
     setAvatarUploading(true)
     try {
       await meApi.uploadAvatar(file)
-      await loadProfile()
+      await Promise.all([loadProfile(), refresh()])
     } catch (_) {
       // Avatar-Upload ist nicht kritisch fürs restliche Profil -- kein Blocking-Fehlerzustand nötig
     } finally {
