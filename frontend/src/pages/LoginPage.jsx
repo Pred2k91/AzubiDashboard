@@ -14,13 +14,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [logoUrl, setLogoUrl] = useState(null)
   const [backgroundUrl, setBackgroundUrl] = useState(null)
-  const [title, setTitle] = useState('HERcademy')
 
   useEffect(() => {
     settingsApi.getAll().then(s => {
       if (s.logo_url) setLogoUrl(s.logo_url)
       if (s.login_background_url) setBackgroundUrl(s.login_background_url)
-      if (s.dashboard_title) setTitle(s.dashboard_title)
     }).catch(() => {})
   }, [])
 
@@ -48,7 +46,7 @@ export default function LoginPage() {
       className="light-theme min-h-screen w-full relative flex items-center justify-center bg-[#0d0f1a] bg-cover bg-center p-4"
       style={backgroundUrl ? { backgroundImage: `url(${backgroundUrl})` } : undefined}
     >
-      <div className="absolute top-6 left-6 md:top-10 md:left-10 flex flex-col items-start gap-2">
+      <div className="absolute top-6 left-6 md:top-10 md:left-10">
         {logoUrl ? (
           <img src={logoUrl} alt="Logo" className="h-28 md:h-40 w-auto max-w-[360px] object-contain drop-shadow-xl" />
         ) : (
@@ -56,7 +54,6 @@ export default function LoginPage() {
             <Lock size={32} className="text-indigo-400" />
           </div>
         )}
-        <span className="text-xl md:text-2xl font-bold text-white tracking-tight">{title}</span>
       </div>
 
       <div className="w-full max-w-sm bg-[#141625] border border-[#2a2d4a] rounded-2xl p-8 shadow-2xl">
