@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { settingsApi } from './api/client'
 import { applyAccentColor, applyWidgetOpacity } from './utils/theme'
+import { initPwaInstallCapture } from './utils/pwaInstall'
 import { AuthProvider } from './contexts/AuthContext'
 import RequireRole from './components/RequireRole'
 import RequirePermission from './components/RequirePermission'
@@ -47,6 +48,10 @@ export default function App() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {})
     }
+
+    // So früh wie möglich abfangen (siehe utils/pwaInstall.js), damit der Install-Button
+    // im Profil auch dann funktioniert, wenn der Nutzer erst später dorthin navigiert.
+    initPwaInstallCapture()
   }, [])
 
   return (

@@ -1,5 +1,8 @@
-// Minimaler Service Worker nur für Web Push (Workflows: Push-Benachrichtigungen).
-// Kein Offline-Caching/PWA-Funktionsumfang -- bewusst so schlank wie möglich gehalten.
+// Minimaler Service Worker nur für Web Push (Workflows: Push-Benachrichtigungen) + die
+// PWA-Installierbarkeit (manche Browser verlangen einen fetch-Handler dafür). Kein
+// echtes Offline-Caching -- bewusst so schlank wie möglich gehalten, lässt den Browser
+// die Anfrage normal behandeln.
+self.addEventListener('fetch', () => {})
 
 self.addEventListener('push', (event) => {
   let data = {}

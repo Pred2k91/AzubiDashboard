@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { Mail, KeyRound, User, Camera, Bell, ShieldCheck } from 'lucide-react'
+import { Mail, KeyRound, User, Camera, Bell, ShieldCheck, Download } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { authApi, meApi, pushApi, twoFactorApi } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { isPushSupported, subscribeToPush } from '../utils/push'
+import { isPwaInstallAvailable, onPwaInstallAvailabilityChange, promptPwaInstall } from '../utils/pwaInstall'
 
 const EMPTY_FORM = {
   salutation: '', first_name: '', last_name: '',
@@ -46,6 +47,8 @@ export default function ProfilePage() {
   const [pushTestLoading, setPushTestLoading] = useState(false)
   const [pushTestResult, setPushTestResult] = useState('')
 
+  const [pwaInstallAvailable, setPwaInstallAvailable] = useState(isPwaInstallAvailable())
+
   const loadProfile = () => meApi.getFullProfile().then(p => {
     setProfile(p)
     setForm({
@@ -67,6 +70,13 @@ export default function ProfilePage() {
       .then(sub => setPushSubscribed(!!sub))
       .catch(() => {})
   }, [])
+
+  useEffect(() => onPwaInstallAvailabilityChange(setPwaInstallAvailable), [])
+
+  const handleInstallApp = async () => {
+    const outcome = await promptPwaInstall()
+    if (outcome === 'accepted') setPwaInstallAvailable(false)
+  }
 
   const handlePushToggle = async () => {
     setPushError('')
@@ -389,6 +399,24 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-4">
+            {pwaInstallAvailable && (
+              <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
+                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                  <Download size={14} className="text-slate-400" />
+                  Als App installieren
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Installiert HERcademy als eigene App auf diesem Gerät -- eigenes Symbol auf dem
+                  Startbildschirm, kein Browser-Rahmen, und Push-Benachrichtigungen zeigen dann
+                  nur noch unser Icon statt zusätzlich das des Browsers.
+                </p>
+                <button type="button" onClick={handleInstallApp} className="btn-primary">
+                  <Download size={14} />
+                  App installieren
+                </button>
+              </div>
+            )}
+
             {pushSupported && (
               <div className="bg-[#141625] rounded-xl border border-[#2a2d4a] p-5 space-y-3">
                 <h2 className="text-sm font-semibold text-white flex items-center gap-2">

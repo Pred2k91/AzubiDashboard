@@ -400,8 +400,8 @@ export default function SettingsPage() {
         />
 
         <ImageUpload
-          label="Push-Icon"
-          description="Kleines quadratisches Icon (z.B. 192×192 PNG), wird in Push-Benachrichtigungen angezeigt — optional"
+          label="Push-/App-Icon"
+          description="Kleines quadratisches Icon (idealerweise 512×512 PNG) — erscheint in Push-Benachrichtigungen UND als Symbol, wenn die App auf dem Startbildschirm installiert wird. Optional, ohne Icon keine Installation möglich."
           settingKey="push_icon"
           currentUrl={pushIconUrl}
           onUpdate={setPushIconUrl}
