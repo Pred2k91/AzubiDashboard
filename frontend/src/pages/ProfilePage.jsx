@@ -252,7 +252,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl">
+    <div className="p-6 space-y-6">
       <div>
         <h1 className="text-xl font-bold text-white flex items-center gap-2">
           <User size={20} className="text-indigo-400" />
